@@ -24,6 +24,7 @@ class AnchoringPlugin : public common::ConsolePluginBaseWithPlotter {
 
   int anchorMission() const;
   int anchorAllMissions() const;
+  int alignLandmarksToAnotherMap() const;
 };
 
 }  // namespace map_anchoring_plugin

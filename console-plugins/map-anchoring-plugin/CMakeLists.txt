@@ -6,7 +6,7 @@ catkin_simple(ALL_DEPS_REQUIRED)
 
 add_definitions(-fPIC -shared)
 
-cs_add_library(${PROJECT_NAME} src/anchoring-plugin.cc)
+cs_add_library(${PROJECT_NAME} src/anchoring-plugin.cc src/align-landmarks-between-maps.cc)
 create_console_plugin(${PROJECT_NAME})
 
 cs_install()
