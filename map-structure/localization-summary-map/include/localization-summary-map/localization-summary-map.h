@@ -38,7 +38,9 @@ class LocalizationSummaryMap {
     return id_;
   }
 
-  void serialize(proto::LocalizationSummaryMap* proto) const;
+  void serialize(
+      proto::LocalizationSummaryMap* proto,
+      bool save_landmark_id = false) const;
   void deserialize(
       const LocalizationSummaryMapId& localization_summary_map_id,
       const proto::LocalizationSummaryMap& proto);
@@ -48,7 +50,8 @@ class LocalizationSummaryMap {
       const LocalizationSummaryMapId& summary_map_id,
       const std::string& folder_path);
   bool saveToFolder(
-      const std::string& folder_path, const backend::SaveConfig& config);
+      const std::string& folder_path, const backend::SaveConfig& config,
+      bool save_landmark_id = false);
   static bool hasMapOnFileSystem(const std::string& folder_path);
 
   void setGLandmarkPosition(const Eigen::Matrix3Xd& G_landmark_position);
@@ -61,6 +64,9 @@ class LocalizationSummaryMap {
   void setObservationToLandmarkIndex(
       const Eigen::Matrix<unsigned int, Eigen::Dynamic, 1>&
           observation_to_landmark_index);
+  void setLandmarkIdToLandmarkIndex(
+      const std::unordered_map<vi_map::LandmarkId, int>&
+          landmark_id_to_landmark_index);
 
   const Eigen::Matrix3Xf& GLandmarkPosition() const;
   const Eigen::Matrix3Xf& GObserverPosition() const;

@@ -75,6 +75,8 @@ void createLocalizationSummaryMapFromLandmarkList(
   Eigen::Matrix<unsigned int, Eigen::Dynamic, 1> observer_indices;
   /// A mapping from observation (descriptor) to index in G_landmark_position.
   Eigen::Matrix<unsigned int, Eigen::Dynamic, 1> observation_to_landmark_index;
+  /// A mapping from landmark ID to landmark index.
+  std::unordered_map<vi_map::LandmarkId, int> landmark_id_to_landmark_index;
 
   CHECK(!landmark_ids.empty());
   G_landmark_position.resize(Eigen::NoChange, landmark_ids.size());
@@ -91,6 +93,7 @@ void createLocalizationSummaryMapFromLandmarkList(
        ++landmark_index) {
     const vi_map::LandmarkId& landmark_id = landmark_ids[landmark_index];
     const vi_map::Landmark& landmark = map.getLandmark(landmark_id);
+    landmark_id_to_landmark_index[landmark_id] = landmark_index;
     G_landmark_position.col(landmark_index) =
         map.getLandmark_G_p_fi(landmark_id);
 
@@ -200,5 +203,6 @@ void createLocalizationSummaryMapFromLandmarkList(
   summary_map->setProjectedDescriptors(projected_descriptors);
   summary_map->setObserverIndices(observer_indices);
   summary_map->setObservationToLandmarkIndex(observation_to_landmark_index);
+  summary_map->setLandmarkIdToLandmarkIndex(landmark_id_to_landmark_index);
 }
 }  // namespace summary_map

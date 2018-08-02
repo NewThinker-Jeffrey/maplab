@@ -1,5 +1,6 @@
 package summary_map.proto;
 import "maplab-common/eigen.proto";
+import "maplab-common/id.proto";
 
 message UncompressedLocalizationSummaryMap {
   optional common.proto.MatrixXf descriptors = 1;
@@ -10,5 +11,6 @@ message UncompressedLocalizationSummaryMap {
 
 message LocalizationSummaryMap {
   repeated float G_landmark_position = 1;
+  repeated common.proto.Id landmark_id = 10;
   optional UncompressedLocalizationSummaryMap uncompressed_map = 2;
 }
