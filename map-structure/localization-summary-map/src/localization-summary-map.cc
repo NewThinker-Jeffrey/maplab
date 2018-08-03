@@ -61,7 +61,7 @@ void LocalizationSummaryMap::serialize(
 }
 void LocalizationSummaryMap::deserialize(
     const LocalizationSummaryMapId& localization_summary_map_id,
-    const proto::LocalizationSummaryMap& proto) {
+    const proto::LocalizationSummaryMap& proto, bool* has_landmark_id) {
   id_ = localization_summary_map_id;
 
   common::eigen_proto::deserialize(
@@ -78,8 +78,14 @@ void LocalizationSummaryMap::deserialize(
     for (int i = 0; i < landmark_ids.size(); i++) {
       landmark_id_to_landmark_index_[landmark_ids[i]] = i;
     }
+    if (has_landmark_id) {
+      *has_landmark_id = true;
+    }
   } else {
     initializeLandmarkIds(G_landmark_position_.cols());
+    if (has_landmark_id) {
+      *has_landmark_id = false;
+    }
   }
 
   if (proto.has_uncompressed_map()) {
@@ -112,16 +118,17 @@ void LocalizationSummaryMap::deserialize(
   }
 }
 
-bool LocalizationSummaryMap::loadFromFolder(const std::string& folder_path) {
+bool LocalizationSummaryMap::loadFromFolder(
+    const std::string& folder_path, bool* has_landmark_id) {
   // Generate a random id.
   LocalizationSummaryMapId summary_map_id;
   common::generateId(&summary_map_id);
-  return loadFromFolder(summary_map_id, folder_path);
+  return loadFromFolder(summary_map_id, folder_path, has_landmark_id);
 }
 
 bool LocalizationSummaryMap::loadFromFolder(
     const LocalizationSummaryMapId& summary_map_id,
-    const std::string& folder_path) {
+    const std::string& folder_path, bool* has_landmark_id) {
   CHECK(!folder_path.empty());
   if (!hasMapOnFileSystem(folder_path)) {
     LOG(ERROR) << "No summary map could be found under \"" << folder_path
@@ -137,7 +144,7 @@ bool LocalizationSummaryMap::loadFromFolder(
     return false;
   }
 
-  deserialize(summary_map_id, proto);
+  deserialize(summary_map_id, proto, has_landmark_id);
   return true;
 }
 

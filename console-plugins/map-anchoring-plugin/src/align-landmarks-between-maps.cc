@@ -61,20 +61,27 @@ bool alignLandmarksToAnotherSummaryMap(std::string selected_map_key) {
   vi_map::VIMapManager::MapWriteAccess map =
       map_manager.getMapWriteAccess(selected_map_key);
 
-  LOG(WARNING)
-      << "Currently reanchoring to a summary map is not supported yet, "
-         "because the landmarks' IDs in a summary map are mutable.";
-  return false;
-
   std::unique_ptr<summary_map::LocalizationSummaryMap> another_map_ptr;
+  bool has_landmark_id = false;
   if (FLAGS_another_summary_map != "") {
     another_map_ptr.reset(new summary_map::LocalizationSummaryMap);
-    if (!another_map_ptr->loadFromFolder(FLAGS_another_summary_map)) {
+    if (!another_map_ptr->loadFromFolder(
+            FLAGS_another_summary_map, &has_landmark_id)) {
       LOG(WARNING) << "Could not load a localization summary map from "
                    << FLAGS_another_summary_map;
       return false;
     }
   } else {
+    return false;
+  }
+
+  if (!has_landmark_id) {
+    LOG(WARNING)
+        << "The specified summary map doesn't record landmarks' IDs in it. "
+           "Reanchoring a vi-map to such a summary map is not supported "
+           "because "
+           "there's no clue to find connections between the landmarks in these "
+           "two maps";
     return false;
   }
 

@@ -43,12 +43,14 @@ class LocalizationSummaryMap {
       bool save_landmark_id = false) const;
   void deserialize(
       const LocalizationSummaryMapId& localization_summary_map_id,
-      const proto::LocalizationSummaryMap& proto);
+      const proto::LocalizationSummaryMap& proto,
+      bool* has_landmark_id = nullptr);
 
-  bool loadFromFolder(const std::string& folder_path);
+  bool loadFromFolder(
+      const std::string& folder_path, bool* has_landmark_id = nullptr);
   bool loadFromFolder(
       const LocalizationSummaryMapId& summary_map_id,
-      const std::string& folder_path);
+      const std::string& folder_path, bool* has_landmark_id = nullptr);
   bool saveToFolder(
       const std::string& folder_path, const backend::SaveConfig& config,
       bool save_landmark_id = false);

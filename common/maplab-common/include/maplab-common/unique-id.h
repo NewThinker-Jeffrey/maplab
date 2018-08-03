@@ -114,7 +114,7 @@ static inline void deserializeIdList(
            ::common::proto::Id>::value_type& protoId : repeatedIdField) {
     typename IdContainer::value_type id;
     id.deserialize(protoId);
-    Ids.push_back(id);
+    Ids->push_back(id);
   }
 }
 
