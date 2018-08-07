@@ -50,7 +50,7 @@ ceres::Solver::Options initSolverOptionsFromFlags() {
   return options;
 }
 
-Eigen::Isometry3d calcAndPrintError(
+void calcAndPrintError(
     const Eigen::Isometry3d& transformation,
     const std::vector<Eigen::Vector3d>& src_point_group,
     const std::vector<Eigen::Vector3d>& dst_point_group,
@@ -74,7 +74,7 @@ Eigen::Isometry3d calcAndPrintError(
             << sqrt(err / src_point_group.size());
 }
 
-Eigen::Isometry3d calcAndPrintError(
+void calcAndPrintError(
     const Eigen::MatrixXd& RT,
     const std::vector<Eigen::Vector3d>& src_point_group,
     const std::vector<Eigen::Vector3d>& dst_point_group,
