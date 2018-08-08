@@ -20,6 +20,7 @@ cs_add_library(${PROJECT_NAME}
   src/pose-prior-error-term-eigen.cc
   src/pose-prior-error-term.cc
   src/position-error-term.cc
+  src/point_pair_under_transformation_error-term.cc
   src/problem-information.cc)
 
 target_link_libraries(${PROJECT_NAME} pthread)

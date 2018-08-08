@@ -5,6 +5,7 @@ find_package(catkin_simple REQUIRED)
 catkin_simple(ALL_DEPS_REQUIRED)
 
 cs_add_library(${PROJECT_NAME} 
+  src/reanchor_with_landmark_pairs.cc
   src/map-anchoring.cc)
 
 cs_install()

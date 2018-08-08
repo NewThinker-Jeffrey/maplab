@@ -31,11 +31,20 @@ bool LocalizationSummaryMap::operator!=(
 }
 
 void LocalizationSummaryMap::serialize(
-    proto::LocalizationSummaryMap* proto) const {
+    proto::LocalizationSummaryMap* proto, bool save_landmark_id) const {
   CHECK_NOTNULL(proto);
 
   common::eigen_proto::serialize(
       G_landmark_position_, proto->mutable_g_landmark_position());
+
+  if (save_landmark_id) {
+    vi_map::LandmarkIdList landmark_ids;
+    landmark_ids.resize(landmark_id_to_landmark_index_.size());
+    for (auto& id_index_pair : landmark_id_to_landmark_index_) {
+      landmark_ids[id_index_pair.second] = id_index_pair.first;
+    }
+    common::serializeIdList(landmark_ids, proto->mutable_landmark_id());
+  }
 
   // Store the descriptor information as uncompressed localization summary map.
   proto::UncompressedLocalizationSummaryMap* uncompressed_map =
@@ -52,12 +61,32 @@ void LocalizationSummaryMap::serialize(
 }
 void LocalizationSummaryMap::deserialize(
     const LocalizationSummaryMapId& localization_summary_map_id,
-    const proto::LocalizationSummaryMap& proto) {
+    const proto::LocalizationSummaryMap& proto, bool* has_landmark_id) {
   id_ = localization_summary_map_id;
 
   common::eigen_proto::deserialize(
       proto.g_landmark_position(), &G_landmark_position_);
-  initializeLandmarkIds(G_landmark_position_.cols());
+
+  if (proto.landmark_id_size() > 0) {
+    CHECK_EQ(G_landmark_position_.cols(), proto.landmark_id_size())
+        << "The numbuer of landmark_positoins(" << G_landmark_position_.cols()
+        << ") and that of landmark_ids(" << G_landmark_position_.cols()
+        << ") in the summary map are not consistent";
+    vi_map::LandmarkIdList landmark_ids;
+    common::deserializeIdList(&landmark_ids, proto.landmark_id());
+    landmark_id_to_landmark_index_.clear();
+    for (int i = 0; i < landmark_ids.size(); i++) {
+      landmark_id_to_landmark_index_[landmark_ids[i]] = i;
+    }
+    if (has_landmark_id) {
+      *has_landmark_id = true;
+    }
+  } else {
+    initializeLandmarkIds(G_landmark_position_.cols());
+    if (has_landmark_id) {
+      *has_landmark_id = false;
+    }
+  }
 
   if (proto.has_uncompressed_map()) {
     const proto::UncompressedLocalizationSummaryMap& uncompressed_map =
@@ -89,16 +118,17 @@ void LocalizationSummaryMap::deserialize(
   }
 }
 
-bool LocalizationSummaryMap::loadFromFolder(const std::string& folder_path) {
+bool LocalizationSummaryMap::loadFromFolder(
+    const std::string& folder_path, bool* has_landmark_id) {
   // Generate a random id.
   LocalizationSummaryMapId summary_map_id;
   common::generateId(&summary_map_id);
-  return loadFromFolder(summary_map_id, folder_path);
+  return loadFromFolder(summary_map_id, folder_path, has_landmark_id);
 }
 
 bool LocalizationSummaryMap::loadFromFolder(
     const LocalizationSummaryMapId& summary_map_id,
-    const std::string& folder_path) {
+    const std::string& folder_path, bool* has_landmark_id) {
   CHECK(!folder_path.empty());
   if (!hasMapOnFileSystem(folder_path)) {
     LOG(ERROR) << "No summary map could be found under \"" << folder_path
@@ -114,12 +144,13 @@ bool LocalizationSummaryMap::loadFromFolder(
     return false;
   }
 
-  deserialize(summary_map_id, proto);
+  deserialize(summary_map_id, proto, has_landmark_id);
   return true;
 }
 
 bool LocalizationSummaryMap::saveToFolder(
-    const std::string& folder_path, const backend::SaveConfig& config) {
+    const std::string& folder_path, const backend::SaveConfig& config,
+    bool save_landmark_id) {
   CHECK(!folder_path.empty());
   if (!config.overwrite_existing_files && hasMapOnFileSystem(folder_path)) {
     LOG(ERROR) << "A summary map already exists under \"" << folder_path
@@ -133,7 +164,7 @@ bool LocalizationSummaryMap::saveToFolder(
   }
 
   proto::LocalizationSummaryMap proto;
-  serialize(&proto);
+  serialize(&proto, save_landmark_id);
   return common::proto_serialization_helper::serializeProtoToFile(
       folder_path, kFileName, proto);
 }
@@ -247,5 +278,10 @@ void LocalizationSummaryMap::setObservationToLandmarkIndex(
     const Eigen::Matrix<unsigned int, Eigen::Dynamic, 1>&
         observation_to_landmark_index) {
   observation_to_landmark_index_ = observation_to_landmark_index;
+}
+void LocalizationSummaryMap::setLandmarkIdToLandmarkIndex(
+    const std::unordered_map<vi_map::LandmarkId, int>&
+        landmark_id_to_landmark_index) {
+  landmark_id_to_landmark_index_ = landmark_id_to_landmark_index;
 }
 }  // namespace summary_map

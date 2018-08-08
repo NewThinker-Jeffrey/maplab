@@ -8,6 +8,8 @@
 #include <vi-map/vi-map.h>
 
 DEFINE_string(summary_map_save_path, "", "Save path of the summary map.");
+DEFINE_bool(
+    save_landmark_id, false, "Whether to save landmarkId into summarymap");
 DECLARE_bool(overwrite);
 
 namespace summarization_plugin {
@@ -43,7 +45,8 @@ int SummarizationPlugin::saveSummaryMapToDisk() const {
 
   backend::SaveConfig save_config;
   save_config.overwrite_existing_files = FLAGS_overwrite;
-  if (!summary_map.saveToFolder(FLAGS_summary_map_save_path, save_config)) {
+  if (!summary_map.saveToFolder(
+          FLAGS_summary_map_save_path, save_config, FLAGS_save_landmark_id)) {
     LOG(ERROR) << "Saving summary map failed.";
     return common::kUnknownError;
   }

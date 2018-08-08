@@ -94,6 +94,30 @@ void generateIdFromInt(unsigned int idx, IdType* id) {
   id->fromHexString(ss.str());
 }
 
+template <typename IdContainer>
+static inline void serializeIdList(
+    const IdContainer& Ids,
+    ::google::protobuf::RepeatedPtrField< ::common::proto::Id>*
+        pRepeatedIdField) {
+  for (const typename IdContainer::value_type& id : Ids) {
+    auto protoId = pRepeatedIdField->Add();
+    id.serialize(protoId);
+  }
+}
+
+template <typename IdContainer>
+static inline void deserializeIdList(
+    IdContainer* Ids,
+    const ::google::protobuf::RepeatedPtrField< ::common::proto::Id>&
+        repeatedIdField) {
+  for (const ::google::protobuf::RepeatedPtrField<
+           ::common::proto::Id>::value_type& protoId : repeatedIdField) {
+    typename IdContainer::value_type id;
+    id.deserialize(protoId);
+    Ids->push_back(id);
+  }
+}
+
 // For internal use only.
 class Id : public aslam::HashId {
  public:

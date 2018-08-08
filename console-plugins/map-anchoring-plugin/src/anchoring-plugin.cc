@@ -6,6 +6,8 @@
 #include <vi-map/vi-map.h>
 
 DECLARE_string(map_mission);
+DECLARE_string(another_vimap);
+DECLARE_string(another_summary_map);
 
 namespace map_anchoring_plugin {
 
@@ -53,6 +55,23 @@ AnchoringPlugin::AnchoringPlugin(
       {"anchor_all_missions", "aam"},
       [this]() -> int { return anchorAllMissions(); },
       "Try to anchor all missions to another mission with known baseframe.",
+      common::Processing::Sync);
+
+  addCommand(
+      {"reanchor_to_another_map_with_common_landmarks",
+       "reanchor_common_landmarks", "racl"},
+      [this]() -> int { return alignLandmarksToAnotherMap(); },
+      "This command is useful if you need to merge an existed map "
+      "with some newly collected datasets to update the map and "
+      "you wish the merged map using the consistent baseframes "
+      "with the original map. This command would firstly find "
+      "the common landmarks between the selected map and the other "
+      "map you specified in command line, "
+      "calculate a best global transformation mapping the "
+      "common landmarks from the selected map to the other map, and "
+      "then apply it on the selected map. You should use "
+      "--another_vimap or --another_summary_map to specify "
+      "the map you want to align the selected map to.",
       common::Processing::Sync);
 }
 
@@ -142,6 +161,28 @@ int AnchoringPlugin::anchorAllMissions() const {
   }
 
   return success ? common::kSuccess : common::kUnknownError;
+}
+
+extern bool alignLandmarksToAnotherVIMap(std::string selected_map_key);
+extern bool alignLandmarksToAnotherSummaryMap(std::string selected_map_key);
+int AnchoringPlugin::alignLandmarksToAnotherMap() const {
+  std::string selected_map_key;
+  if (!getSelectedMapKeyIfSet(&selected_map_key)) {
+    return common::kStupidUserError;
+  }
+
+  if (FLAGS_another_vimap != "") {
+    if (alignLandmarksToAnotherVIMap(selected_map_key))
+      return common::kSuccess;
+  } else if (FLAGS_another_summary_map != "") {
+    if (alignLandmarksToAnotherSummaryMap(selected_map_key))
+      return common::kSuccess;
+  } else {
+    LOG(ERROR)
+        << "Neither --another_vimap nor --another_summary_map is specified";
+    return common::kStupidUserError;
+  }
+  return common::kUnknownError;
 }
 
 }  // namespace map_anchoring_plugin
