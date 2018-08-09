@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#! /usr/bin/env python
 
 '''To comfort pylint who barks when it can't find a docstring'''
 
