@@ -1,0 +1,23 @@
+cmake_minimum_required (VERSION 3.1)
+project (console-plugins)
+
+#cmake_policy(SET CMP0002 NEW)
+set_property(GLOBAL PROPERTY ALLOW_DUPLICATE_CUSTOM_TARGETS 1)
+
+set(PROJECT_SOURCE_DIR ./code)
+message("PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
+add_subdirectory (${PROJECT_SOURCE_DIR}/dense-reconstruction-plugin dense-reconstruction-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/landmark-manipulation-plugin landmark-manipulation-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/loop-closure-plugin loop-closure-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/map-anchoring-plugin map-anchoring-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/map-optimization-legacy-plugin map-optimization-legacy-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/map-optimization-plugin map-optimization-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/map-sparsification-plugin map-sparsification-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/mapping-workflows-plugin mapping-workflows-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/pose-graph-manipulation-plugin pose-graph-manipulation-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/statistics-plugin statistics-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/vi-map-basic-plugin vi-map-basic-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/vi-map-data-import-export-plugin vi-map-data-import-export-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/vi-map-summarization-plugin vi-map-summarization-plugin)
+add_subdirectory (${PROJECT_SOURCE_DIR}/vi-map-visualization-plugin vi-map-visualization-plugin)
+
