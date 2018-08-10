@@ -2,6 +2,10 @@
 
 my_loc="$(cd "$(dirname $0)" && pwd)"
 
+## CATKIN_IGNORE 
+cmd="touch ${my_loc}/CATKIN_IGNORE"
+echo $cmd
+$cmd
 
 ## maplab_core
 maplab_relative_dir="../../.."

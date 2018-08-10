@@ -2,6 +2,12 @@
 
 my_loc="$(cd "$(dirname $0)" && pwd)"
 
+## CATKIN_IGNORE 
+cmd="rm ${my_loc}/CATKIN_IGNORE"
+echo $cmd
+$cmd
+
+
 ## maplab_core
 module="maplab_core/algorithms"
 cmd="rm ${my_loc}/${module}/code"
