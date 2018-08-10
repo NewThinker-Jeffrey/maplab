@@ -2,6 +2,11 @@
 
 my_loc="$(cd "$(dirname $0)" && pwd)"
 
+## delete old stuffs
+cmd="${my_loc}/deletelinks.sh"
+echo $cmd
+$cmd
+
 ## CATKIN_IGNORE 
 cmd="touch ${my_loc}/CATKIN_IGNORE"
 echo $cmd
