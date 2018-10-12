@@ -1,4 +1,5 @@
 #include <localization-summary-map/localization-summary-map.h>
+#include <map-anchoring/detect_landmark_pairs.h>
 #include <map-anchoring/reanchor_with_landmark_pairs.h>
 #include <map-manager/map-manager.h>
 #include <vi-map/landmark-quality-metrics.h>
@@ -51,6 +52,13 @@ bool alignLandmarksToAnotherVIMap(std::string selected_map_key) {
     P_dst.push_back(another_map.getLandmark_G_p_fi(landmark_id));
   }
 
+  LOG(INFO) << "Find " << P_src.size() << " original landmark pairs";
+  if (P_src.size() < 0.1 * another_landmark_ids.size()) {
+    LOG(INFO) << "Re-detect landmark pairs";
+    map_anchoring::detectLandmarkPositionPairs(
+        *(map.get()), &another_map, &P_src, &P_dst);
+  }
+
   LOG(INFO) << "reanchor missions with " << P_src.size() << " landmark pairs";
   map_anchoring::reanchorMissionsWithLandmarkPairs(map.get(), P_src, P_dst);
   return true;
@@ -100,6 +108,13 @@ bool alignLandmarksToAnotherSummaryMap(std::string selected_map_key) {
     }
     P_src.push_back(map.get()->getLandmark_G_p_fi(landmark_id));
     P_dst.push_back(another_map.getGLandmarkPosition(landmark_id));
+  }
+
+  LOG(INFO) << "Find " << P_src.size() << " original landmark pairs";
+  if (P_src.size() < 0.1 * another_landmark_ids.size()) {
+    LOG(INFO) << "Re-detect landmark pairs";
+    map_anchoring::detectLandmarkPositionPairs(
+        *(map.get()), *another_map_ptr, &P_src, &P_dst);
   }
 
   LOG(INFO) << "reanchor missions with " << P_src.size() << " landmark pairs";

@@ -185,7 +185,7 @@ Eigen::Isometry3d calculate(
   double* translation = T.data();
 
   std::vector<double*> cost_term_args = {orientation, translation};
-  double huber_loss_delta_ratio = 3.0;
+  double huber_loss_delta = 3.0;
   std::shared_ptr<ceres::LocalParameterization> orientation_parameterization(
       new ceres_error_terms::EigenQuaternionParameterization());
 
@@ -195,7 +195,6 @@ Eigen::Isometry3d calculate(
     // different quality.
     double point_uncertainty = FLAGS_reanchor_default_landmark_uncertainty;
     double point_variance = point_uncertainty * point_uncertainty;
-    double huber_loss_delta = huber_loss_delta_ratio * point_variance;
     Eigen::Matrix<double, 3, 3> covariance =
         point_variance * Eigen::Matrix3d::Identity();
     std::shared_ptr<ceres::CostFunction> point_pair_term_cost(
