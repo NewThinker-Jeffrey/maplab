@@ -766,7 +766,9 @@ void LoopDetectorNode::queryVertexInDatabase(
     aslam::TransformationVector* T_G_M2_vector,
     loop_closure_handler::LoopClosureHandler::MergedLandmark3dPositionVector*
         landmark_pairs_merged,
-    std::mutex* map_mutex) const {
+    std::mutex* map_mutex,
+    std::vector<loop_closure_handler::LoopClosureHandler::IntermediateInfo>*
+        info_list) const {
   CHECK_NOTNULL(map);
   CHECK_NOTNULL(raw_constraint);
   CHECK_NOTNULL(inlier_constraint);
@@ -838,10 +840,12 @@ void LoopDetectorNode::queryVertexInDatabase(
     pose::Transformation T_G_I_ransac;
     constexpr pose_graph::VertexId* kVertexIdClosestToStructureMatches =
         nullptr;
+    loop_closure_handler::LoopClosureHandler::IntermediateInfo info;
     bool ransac_ok = handleLoopClosures(
         *raw_constraint, merge_landmarks, add_lc_edges, &num_inliers,
         &inlier_ratio, map, &T_G_I_ransac, inlier_constraint,
-        landmark_pairs_merged, kVertexIdClosestToStructureMatches, map_mutex);
+        landmark_pairs_merged, kVertexIdClosestToStructureMatches, map_mutex,
+        &info);
 
     if (ransac_ok && inlier_ratio != 0.0) {
       map_mutex->lock();
@@ -851,6 +855,8 @@ void LoopDetectorNode::queryVertexInDatabase(
 
       T_G_M2_vector->push_back(T_G_M2);
       inlier_ratios->push_back(inlier_ratio);
+      if (info_list)
+        info_list->push_back(info);
     }
   }
 }
@@ -860,14 +866,15 @@ void LoopDetectorNode::detectLoopClosuresMissionToDatabase(
     const bool add_lc_edges, int* num_vertex_candidate_links,
     double* summary_landmark_match_inlier_ratio, vi_map::VIMap* map,
     pose::Transformation* T_G_M_estimate,
-    vi_map::LoopClosureConstraintVector* inlier_constraints) const {
+    vi_map::LoopClosureConstraintVector* inlier_constraints,
+    bool check_tgm_consistency) const {
   CHECK(map->hasMission(mission_id));
   pose_graph::VertexIdList vertices;
   map->getAllVertexIdsInMission(mission_id, &vertices);
   detectLoopClosuresVerticesToDatabase(
       vertices, merge_landmarks, add_lc_edges, num_vertex_candidate_links,
       summary_landmark_match_inlier_ratio, map, T_G_M_estimate,
-      inlier_constraints);
+      inlier_constraints, check_tgm_consistency);
 }
 
 void LoopDetectorNode::detectLoopClosuresVerticesToDatabase(
@@ -875,7 +882,8 @@ void LoopDetectorNode::detectLoopClosuresVerticesToDatabase(
     const bool add_lc_edges, int* num_vertex_candidate_links,
     double* summary_landmark_match_inlier_ratio, vi_map::VIMap* map,
     pose::Transformation* T_G_M_estimate,
-    vi_map::LoopClosureConstraintVector* inlier_constraints) const {
+    vi_map::LoopClosureConstraintVector* inlier_constraints,
+    bool check_tgm_consistency) const {
   CHECK(!vertices.empty());
   CHECK_NOTNULL(num_vertex_candidate_links);
   CHECK_NOTNULL(summary_landmark_match_inlier_ratio);
@@ -906,6 +914,14 @@ void LoopDetectorNode::detectLoopClosuresVerticesToDatabase(
 
   // Then search for all in the database.
   common::MultiThreadedProgressBar progress_bar;
+  std::vector<loop_closure_handler::LoopClosureHandler::IntermediateInfo>
+      intermediate_info_list;
+  bool query_merge_landmarks = merge_landmarks;
+  bool query_add_lc_edges = add_lc_edges;
+  if (check_tgm_consistency) {
+    query_merge_landmarks = false;
+    query_add_lc_edges = false;
+  }
 
   std::function<void(const std::vector<size_t>&)> query_helper = [&](
       const std::vector<size_t>& range) {
@@ -923,12 +939,15 @@ void LoopDetectorNode::detectLoopClosuresVerticesToDatabase(
           landmark_pairs_merged_local;
       std::vector<double> inlier_ratios_local;
       aslam::TransformationVector T_G_M2_vector_local;
+      std::vector<loop_closure_handler::LoopClosureHandler::IntermediateInfo>
+          intermediate_info_list_local;
 
       // Perform the actual query.
       queryVertexInDatabase(
-          query_vertex_id, merge_landmarks, add_lc_edges, map,
+          query_vertex_id, query_merge_landmarks, query_add_lc_edges, map,
           &raw_constraint_local, &inlier_constraint_local, &inlier_ratios_local,
-          &T_G_M2_vector_local, &landmark_pairs_merged_local, &map_mutex);
+          &T_G_M2_vector_local, &landmark_pairs_merged_local, &map_mutex,
+          &intermediate_info_list_local);
 
       // Lock the output buffers and transfer results.
       {
@@ -949,6 +968,9 @@ void LoopDetectorNode::detectLoopClosuresVerticesToDatabase(
         T_G_M_vector.insert(
             T_G_M_vector.end(), T_G_M2_vector_local.begin(),
             T_G_M2_vector_local.end());
+        intermediate_info_list.insert(
+            intermediate_info_list.end(), intermediate_info_list_local.begin(),
+            intermediate_info_list_local.end());
       }
     }
   };
@@ -1025,6 +1047,32 @@ void LoopDetectorNode::detectLoopClosuresVerticesToDatabase(
       *summary_landmark_match_inlier_ratio = 0;
       *num_vertex_candidate_links = inlier_ratios.size();
       return;
+    } else if (check_tgm_consistency) {
+      // First, pick up the inliers.
+      std::vector<int> inlier_indices;
+      aslam::Transformation::Rotation::Implementation q_LS =
+          T_G_M_LS.getRotation().toImplementation();
+      aslam::Transformation::Position p_LS = T_G_M_LS.getPosition();
+      for (int i = 0; i < T_G_M_vector.size(); i++) {
+        double angular_distance = q_LS.angularDistance(
+            T_G_M_vector[i].getRotation().toImplementation());
+        double distance = (p_LS - T_G_M_vector[i].getPosition()).norm();
+        if (angular_distance < kOrientationErrorThresholdRadians &&
+            distance < kPositionErrorThresholdMeters) {
+          inlier_indices.push_back(i);
+        }
+      }
+
+      // Then do the real merge_landmarks or add_lc_edge task here.
+      // todo: Parallelize this ?
+      for (int index : inlier_indices) {
+        handleLoopClosures(
+            intermediate_info_list[index], merge_landmarks, add_lc_edges, map,
+            &landmark_pairs_merged, &map_mutex);
+      }
+      LOG(INFO) << " Acctually loopclosed " << inlier_indices.size()
+                << " vertices, Merged " << landmark_pairs_merged.size()
+                << " landmark pairs.";
     }
     const Eigen::Quaterniond& q_G_M_LS =
         T_G_M_LS.getRotation().toImplementation();
@@ -1045,7 +1093,7 @@ void LoopDetectorNode::detectLoopClosuresVerticesToDatabase(
 }
 
 void LoopDetectorNode::detectLoopClosuresAndMergeLandmarks(
-    const MissionId& mission, vi_map::VIMap* map) {
+    const MissionId& mission, vi_map::VIMap* map, bool check_tgm_consistency) {
   CHECK_NOTNULL(map);
 
   constexpr bool kMergeLandmarks = true;
@@ -1058,7 +1106,7 @@ void LoopDetectorNode::detectLoopClosuresAndMergeLandmarks(
   detectLoopClosuresMissionToDatabase(
       mission, kMergeLandmarks, kAddLoopclosureEdges,
       &num_vertex_candidate_links, &summary_landmark_match_inlier_ratio, map,
-      &T_G_M2, &inlier_constraints);
+      &T_G_M2, &inlier_constraints, check_tgm_consistency);
 
   VLOG(1) << "Handling loop closures done.";
 }
@@ -1071,7 +1119,8 @@ bool LoopDetectorNode::handleLoopClosures(
     loop_closure_handler::LoopClosureHandler::MergedLandmark3dPositionVector*
         landmark_pairs_merged,
     pose_graph::VertexId* vertex_id_closest_to_structure_matches,
-    std::mutex* map_mutex) const {
+    std::mutex* map_mutex,
+    loop_closure_handler::LoopClosureHandler::IntermediateInfo* info) const {
   CHECK_NOTNULL(num_inliers);
   CHECK_NOTNULL(inlier_ratio);
   CHECK_NOTNULL(map);
@@ -1085,7 +1134,22 @@ bool LoopDetectorNode::handleLoopClosures(
   return handler.handleLoopClosure(
       constraint, merge_landmarks, add_lc_edges, num_inliers, inlier_ratio,
       T_G_I_ransac, inlier_constraints, landmark_pairs_merged,
-      vertex_id_closest_to_structure_matches, map_mutex, use_random_pnp_seed_);
+      vertex_id_closest_to_structure_matches, map_mutex, use_random_pnp_seed_,
+      info);
+}
+
+bool LoopDetectorNode::handleLoopClosures(
+    const loop_closure_handler::LoopClosureHandler::IntermediateInfo& info,
+    const bool merge_landmarks, const bool add_lc_edges, vi_map::VIMap* map,
+    loop_closure_handler::LoopClosureHandler::MergedLandmark3dPositionVector*
+        landmark_pairs_merged,
+    std::mutex* map_mutex) const {
+  CHECK_NOTNULL(map);
+  CHECK_NOTNULL(landmark_pairs_merged);
+  loop_closure_handler::LoopClosureHandler handler(
+      map, &landmark_id_old_to_new_);
+  return handler.handleLoopClosure(
+      info, merge_landmarks, add_lc_edges, landmark_pairs_merged, map_mutex);
 }
 
 void LoopDetectorNode::instantiateVisualizer() {

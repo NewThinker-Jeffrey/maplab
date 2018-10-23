@@ -16,7 +16,8 @@ VIMapMerger::VIMapMerger(
   CHECK_NOTNULL(map_);
 }
 
-int VIMapMerger::findLoopClosuresBetweenAllMissions() {
+int VIMapMerger::findLoopClosuresBetweenAllMissions(
+    bool check_tgm_consistency) {
   if (map_->numMissions() == 0u) {
     LOG(ERROR) << "No missions in database.";
     return kNoData;
@@ -25,11 +26,11 @@ int VIMapMerger::findLoopClosuresBetweenAllMissions() {
   vi_map::MissionIdList mission_ids;
   map_->getAllMissionIds(&mission_ids);
 
-  return findLoopClosuresBetweenMissions(mission_ids);
+  return findLoopClosuresBetweenMissions(mission_ids, check_tgm_consistency);
 }
 
 int VIMapMerger::findLoopClosuresBetweenMissions(
-    const vi_map::MissionIdList& mission_ids) {
+    const vi_map::MissionIdList& mission_ids, bool check_tgm_consistency) {
   VLOG(1) << "Trying to find loop-closures in and between "
           << mission_ids.size() << " missions.";
 
@@ -66,7 +67,8 @@ int VIMapMerger::findLoopClosuresBetweenMissions(
         << "loaded from file: " << loop_detector_serialization_filepath << '.';
     for (const vi_map::MissionId& mission_id : mission_ids) {
       CHECK(mission_id.isValid());
-      loop_detector.detectLoopClosuresAndMergeLandmarks(mission_id, map_);
+      loop_detector.detectLoopClosuresAndMergeLandmarks(
+          mission_id, map_, check_tgm_consistency);
     }
   } else {
     // We want to match all missions to all, so we do the full upper triangle
@@ -85,7 +87,8 @@ int VIMapMerger::findLoopClosuresBetweenMissions(
         if (FLAGS_lc_only_against_other_missions && *jt == *it) {
           continue;
         }
-        loop_detector.detectLoopClosuresAndMergeLandmarks(*jt, map_);
+        loop_detector.detectLoopClosuresAndMergeLandmarks(
+            *jt, map_, check_tgm_consistency);
       }
     }
   }

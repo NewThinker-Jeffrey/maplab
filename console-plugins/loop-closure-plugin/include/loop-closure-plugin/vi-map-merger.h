@@ -25,8 +25,10 @@ class VIMapMerger {
     kNoData,
   };
 
-  int findLoopClosuresBetweenAllMissions();
-  int findLoopClosuresBetweenMissions(const vi_map::MissionIdList& mission_ids);
+  int findLoopClosuresBetweenAllMissions(bool check_tgm_consistency = false);
+  int findLoopClosuresBetweenMissions(
+      const vi_map::MissionIdList& mission_ids,
+      bool check_tgm_consistency = false);
 
  private:
   vi_map::VIMap* map_;

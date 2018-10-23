@@ -58,6 +58,18 @@ class LoopClosureHandler {
 
   LoopClosureHandler() = delete;
 
+  struct IntermediateInfo {
+    pose_graph::VertexId query_vertex_id;
+    std::vector<int> inliers;
+    double inlier_ratio;
+    int num_inliers;
+    pose_graph::VertexId vertex_id_closest_to_structure_matches;
+    pose::Transformation T_G_I_ransac;
+    LandmarkToLandmarkVector query_landmark_to_map_landmark_pairs;
+    KeypointToLandmarkVector query_keypoint_idx_to_map_landmark_pairs;
+    vi_map::LandmarkIdSet commonly_observed_landmarks;
+  };
+
   // Handle matches from one vertex to the map.
   // @param[out]  landmark_pairs_merged  List of store landmark ID pairs of
   //                                     landmarks that are considered the
@@ -70,7 +82,8 @@ class LoopClosureHandler {
       vi_map::LoopClosureConstraint* inlier_constraints,
       MergedLandmark3dPositionVector* landmark_pairs_merged,
       pose_graph::VertexId* vertex_id_closest_to_structure_matches,
-      std::mutex* map_mutex, bool use_random_pnp_seed = true) const;
+      std::mutex* map_mutex, bool use_random_pnp_seed = true,
+      IntermediateInfo* intermediate_info = nullptr) const;
 
   bool handleLoopClosure(
       const aslam::VisualNFrame& query_vertex_n_frame,
@@ -83,7 +96,14 @@ class LoopClosureHandler {
       vi_map::VertexKeyPointToStructureMatchList* inlier_structure_matches,
       MergedLandmark3dPositionVector* landmark_pairs_merged,
       pose_graph::VertexId* vertex_id_closest_to_structure_matches,
-      std::mutex* map_mutex, bool use_random_pnp_seed = true) const;
+      std::mutex* map_mutex, bool use_random_pnp_seed = true,
+      IntermediateInfo* intermediate_info = nullptr) const;
+
+  bool handleLoopClosure(
+      const IntermediateInfo& intermediate_info, bool merge_matching_landmarks,
+      bool add_loopclosure_edges,
+      MergedLandmark3dPositionVector* landmark_pairs_merged,
+      std::mutex* map_mutex) const;
 
   void updateQueryKeyframeInvalidLandmarkAssociations(
       const std::vector<int>& inliers,

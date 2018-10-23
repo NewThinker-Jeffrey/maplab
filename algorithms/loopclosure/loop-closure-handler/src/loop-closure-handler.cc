@@ -185,7 +185,8 @@ bool LoopClosureHandler::handleLoopClosure(
     vi_map::LoopClosureConstraint* inlier_constraints,
     MergedLandmark3dPositionVector* landmark_pairs_merged,
     pose_graph::VertexId* vertex_id_closest_to_structure_matches,
-    std::mutex* map_mutex, bool use_random_pnp_seed) const {
+    std::mutex* map_mutex, bool use_random_pnp_seed,
+    IntermediateInfo* intermediate_info) const {
   CHECK_NOTNULL(map_);
   CHECK_NOTNULL(num_inliers);
   CHECK_NOTNULL(inlier_ratio);
@@ -210,7 +211,7 @@ bool LoopClosureHandler::handleLoopClosure(
       merge_matching_landmarks, add_loopclosure_edges, num_inliers,
       inlier_ratio, T_G_I_ransac, &inlier_constraints->structure_matches,
       landmark_pairs_merged, vertex_id_closest_to_structure_matches, map_mutex,
-      use_random_pnp_seed);
+      use_random_pnp_seed, intermediate_info);
 }
 
 bool LoopClosureHandler::handleLoopClosure(
@@ -223,7 +224,8 @@ bool LoopClosureHandler::handleLoopClosure(
     vi_map::VertexKeyPointToStructureMatchList* inlier_structure_matches,
     MergedLandmark3dPositionVector* landmark_pairs_merged,
     pose_graph::VertexId* vertex_id_closest_to_structure_matches,
-    std::mutex* map_mutex, bool use_random_pnp_seed) const {
+    std::mutex* map_mutex, bool use_random_pnp_seed,
+    IntermediateInfo* intermediate_info) const {
   CHECK_NOTNULL(num_inliers);
   CHECK_NOTNULL(inlier_ratio);
   CHECK_NOTNULL(T_G_I_ransac);
@@ -498,9 +500,94 @@ bool LoopClosureHandler::handleLoopClosure(
     }
   }
 
+  if (intermediate_info) {
+    intermediate_info->inliers.swap(inliers);
+    intermediate_info->inlier_ratio = *inlier_ratio;
+    intermediate_info->num_inliers = *num_inliers;
+    intermediate_info->query_landmark_to_map_landmark_pairs.swap(
+        query_landmark_to_map_landmark_pairs);
+    intermediate_info->query_keypoint_idx_to_map_landmark_pairs.swap(
+        query_keypoint_idx_to_map_landmark_pairs);
+    intermediate_info->query_vertex_id = query_vertex_id;
+    intermediate_info->T_G_I_ransac = *T_G_I_ransac;
+    if (vertex_id_closest_to_structure_matches) {
+      intermediate_info->vertex_id_closest_to_structure_matches =
+          *vertex_id_closest_to_structure_matches;
+      intermediate_info->commonly_observed_landmarks.swap(
+          commonly_observed_landmarks);
+    }
+  }
+
   VLOG(4) << "\transac success. Ransac pts: " << G_landmark_positions.cols()
           << " inliers: " << inliers.size()
           << " inlier ratio: " << *inlier_ratio << '.';
+  return true;
+}
+
+bool LoopClosureHandler::handleLoopClosure(
+    const IntermediateInfo& intermediate_info, bool merge_matching_landmarks,
+    bool add_loopclosure_edges,
+    MergedLandmark3dPositionVector* landmark_pairs_merged,
+    std::mutex* map_mutex) const {
+  const pose_graph::VertexId& query_vertex_id =
+      intermediate_info.query_vertex_id;
+  const std::vector<int>& inliers = intermediate_info.inliers;
+  double inlier_ratio = intermediate_info.inlier_ratio;
+  int num_inliers = intermediate_info.num_inliers;
+  const pose_graph::VertexId vertex_id_closest_to_structure_matches =
+      intermediate_info.vertex_id_closest_to_structure_matches;
+  const pose::Transformation* T_G_I_ransac = &(intermediate_info.T_G_I_ransac);
+  const LandmarkToLandmarkVector& query_landmark_to_map_landmark_pairs =
+      intermediate_info.query_landmark_to_map_landmark_pairs;
+  const KeypointToLandmarkVector& query_keypoint_idx_to_map_landmark_pairs =
+      intermediate_info.query_keypoint_idx_to_map_landmark_pairs;
+  vi_map::LandmarkIdSet commonly_observed_landmarks =
+      intermediate_info.commonly_observed_landmarks;
+
+  if (merge_matching_landmarks) {
+    CHECK_NOTNULL(map_);
+    std::lock_guard<std::mutex> map_lock(*map_mutex);
+
+    // This case should be only handled if a valid query_vertex_id is
+    // provided.
+    CHECK(query_vertex_id.isValid())
+        << "Merging landmark is not possible "
+        << "if no valid query_vertex_id is provided.";
+
+    // Also reassociates keypoints of the query frame.
+    mergeLandmarks(
+        inliers, query_landmark_to_map_landmark_pairs, landmark_pairs_merged);
+
+    // Some of the query frame keypoints may have invalid landmark ids
+    // (which means the landmark object don't exist right now), but they
+    // were matched to an existing map landmark. We should handle that
+    // separately, as it's not true landmark merge.
+    vi_map::Vertex& query_vertex = map_->getVertex(query_vertex_id);
+    updateQueryKeyframeInvalidLandmarkAssociations(
+        inliers, query_keypoint_idx_to_map_landmark_pairs, &query_vertex);
+  }
+
+  if (add_loopclosure_edges) {
+    CHECK(!merge_matching_landmarks);
+    if (query_vertex_id.isValid() && map_ != nullptr) {
+      if (inlier_ratio >= FLAGS_lc_edge_min_inlier_ratio &&
+          num_inliers >= FLAGS_lc_edge_min_inlier_count) {
+        pose_graph::VertexId lc_edge_target_vertex_id;
+        // vertex_id_closest_to_structure_matches was already retrieved
+        // before.
+        lc_edge_target_vertex_id = vertex_id_closest_to_structure_matches;
+
+        CHECK(lc_edge_target_vertex_id.isValid());
+        CHECK(!commonly_observed_landmarks.empty());
+        std::lock_guard<std::mutex> map_lock(*map_mutex);
+        addLoopClosureEdge(
+            query_vertex_id, commonly_observed_landmarks,
+            lc_edge_target_vertex_id, *T_G_I_ransac, map_);
+      }
+    }
+  }
+
+  // Always return true?
   return true;
 }
 

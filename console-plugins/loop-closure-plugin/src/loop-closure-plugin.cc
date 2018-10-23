@@ -13,6 +13,11 @@
 #include "loop-closure-plugin/vi-map-merger.h"
 
 DECLARE_string(map_mission);
+DEFINE_bool(
+    check_mission_lc_tgm_consistency, false,
+    "Check the consistency of T_G_Ms calculated from all lc-inliers and "
+    "remove the badly-matched ones in the process of detecting "
+    "loopclosures from a mission to database");
 
 namespace loop_closure_plugin {
 
@@ -85,7 +90,8 @@ int LoopClosurePlugin::findLoopClosuresBetweenAllMissions() const {
   }
 
   VIMapMerger merger(map.get(), plotter_);
-  return merger.findLoopClosuresBetweenAllMissions();
+  return merger.findLoopClosuresBetweenAllMissions(
+      FLAGS_check_mission_lc_tgm_consistency);
 }
 
 int LoopClosurePlugin::findLoopClosuresInOneMission() const {
@@ -114,7 +120,8 @@ int LoopClosurePlugin::findLoopClosuresInOneMission() const {
   mission_ids.emplace_back(mission_id);
 
   VIMapMerger merger(map.get(), plotter_);
-  return merger.findLoopClosuresBetweenMissions(mission_ids);
+  return merger.findLoopClosuresBetweenMissions(
+      mission_ids, FLAGS_check_mission_lc_tgm_consistency);
 }
 
 int LoopClosurePlugin::deleteAllLoopClosureEdges() const {

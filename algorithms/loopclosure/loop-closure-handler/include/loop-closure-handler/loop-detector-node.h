@@ -49,7 +49,8 @@ class LoopDetectorNode final
   LoopDetectorNode();
 
   void detectLoopClosuresAndMergeLandmarks(
-      const MissionId& mission, vi_map::VIMap* map);
+      const MissionId& mission, vi_map::VIMap* map,
+      bool check_tgm_consistency = false);
 
   void addVertexToDatabase(
       const pose_graph::VertexId& vertex_id, const vi_map::VIMap& map);
@@ -93,14 +94,16 @@ class LoopDetectorNode final
       const bool add_lc_edges, int* num_vertex_candidate_links,
       double* summary_landmark_match_inlier_ratio, vi_map::VIMap* map,
       pose::Transformation* T_G_M_estimate,
-      vi_map::LoopClosureConstraintVector* inlier_constraints) const;
+      vi_map::LoopClosureConstraintVector* inlier_constraints,
+      bool check_tgm_consistency = false) const;
 
   void detectLoopClosuresVerticesToDatabase(
       const pose_graph::VertexIdList& vertices, const bool merge_landmarks,
       const bool add_lc_edges, int* num_vertex_candidate_links,
       double* summary_landmark_match_inlier_ratio, vi_map::VIMap* map,
       pose::Transformation* T_G_M_estimate,
-      vi_map::LoopClosureConstraintVector* inlier_constraints) const;
+      vi_map::LoopClosureConstraintVector* inlier_constraints,
+      bool check_tgm_consistency = false) const;
 
   void instantiateVisualizer();
 
@@ -163,6 +166,15 @@ class LoopDetectorNode final
       loop_closure_handler::LoopClosureHandler::MergedLandmark3dPositionVector*
           landmark_pairs_merged,
       pose_graph::VertexId* vertex_id_closest_to_structure_matches,
+      std::mutex* map_mutex,
+      loop_closure_handler::LoopClosureHandler::IntermediateInfo* info =
+          nullptr) const;
+
+  bool handleLoopClosures(
+      const loop_closure_handler::LoopClosureHandler::IntermediateInfo& info,
+      const bool merge_landmarks, const bool add_lc_edges, vi_map::VIMap* map,
+      loop_closure_handler::LoopClosureHandler::MergedLandmark3dPositionVector*
+          landmark_pairs_merged,
       std::mutex* map_mutex) const;
 
   bool convertFrameMatchesToConstraint(
@@ -195,7 +207,9 @@ class LoopDetectorNode final
       aslam::TransformationVector* T_G_M2_vector,
       loop_closure_handler::LoopClosureHandler::MergedLandmark3dPositionVector*
           landmark_pairs_merged,
-      std::mutex* map_mutex) const;
+      std::mutex* map_mutex,
+      std::vector<loop_closure_handler::LoopClosureHandler::IntermediateInfo>*
+          info_list = nullptr) const;
 
   loop_closure_visualization::LoopClosureVisualizer::UniquePtr visualizer_;
   std::shared_ptr<loop_detector::LoopDetector> loop_detector_;
