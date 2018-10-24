@@ -33,6 +33,8 @@ DEFINE_bool(
     "If underconstrained landmarks should be filtered for the "
     "loop-closure.");
 DEFINE_bool(lc_use_random_pnp_seed, true, "Use random seed for pnp RANSAC.");
+DECLARE_double(lc_edge_min_inlier_ratio);
+DECLARE_int32(lc_edge_min_inlier_count);
 
 namespace loop_detector_node {
 LoopDetectorNode::LoopDetectorNode()
@@ -1050,17 +1052,59 @@ void LoopDetectorNode::detectLoopClosuresVerticesToDatabase(
     } else if (check_tgm_consistency) {
       // First, pick up the inliers.
       std::vector<int> inlier_indices;
-      aslam::Transformation::Rotation::Implementation q_LS =
-          T_G_M_LS.getRotation().toImplementation();
-      aslam::Transformation::Position p_LS = T_G_M_LS.getPosition();
-      for (int i = 0; i < T_G_M_vector.size(); i++) {
-        double angular_distance = q_LS.angularDistance(
-            T_G_M_vector[i].getRotation().toImplementation());
-        double distance = (p_LS - T_G_M_vector[i].getPosition()).norm();
-        if (angular_distance < kOrientationErrorThresholdRadians &&
-            distance < kPositionErrorThresholdMeters) {
-          inlier_indices.push_back(i);
+      if (kNumInliersThreshold < 3) {
+        for (int i = 0; i < T_G_M_vector.size(); i++) {
+          loop_closure_handler::LoopClosureHandler::IntermediateInfo& info =
+              intermediate_info_list[i];
+          if (info.num_inliers > FLAGS_lc_edge_min_inlier_count &&
+              info.inlier_ratio > FLAGS_lc_edge_min_inlier_ratio) {
+            inlier_indices.push_back(i);
+            continue;
+          }
+
+          int matched = 0;
+          aslam::Transformation::Rotation::Implementation q_i =
+              T_G_M_vector[i].getRotation().toImplementation();
+          aslam::Transformation::Position p_i = T_G_M_vector[i].getPosition();
+          for (int j = 0; j < T_G_M_vector.size(); j++) {
+            if (i == j)
+              continue;
+
+            double angular_distance = q_i.angularDistance(
+                T_G_M_vector[j].getRotation().toImplementation());
+            double distance = (p_i - T_G_M_vector[j].getPosition()).norm();
+            if (angular_distance < kOrientationErrorThresholdRadians &&
+                distance < kPositionErrorThresholdMeters) {
+              matched++;
+            }
+          }
+
+          if (matched >= 3) {
+            inlier_indices.push_back(i);
+          }
         }
+      } else {
+        aslam::Transformation::Rotation::Implementation q_LS =
+            T_G_M_LS.getRotation().toImplementation();
+        aslam::Transformation::Position p_LS = T_G_M_LS.getPosition();
+        for (int i = 0; i < T_G_M_vector.size(); i++) {
+          double angular_distance = q_LS.angularDistance(
+              T_G_M_vector[i].getRotation().toImplementation());
+          double distance = (p_LS - T_G_M_vector[i].getPosition()).norm();
+          if (angular_distance < kOrientationErrorThresholdRadians &&
+              distance < kPositionErrorThresholdMeters) {
+            inlier_indices.push_back(i);
+          }
+        }
+      }
+
+      if (inlier_indices.size() < 3 ||
+          inlier_indices.size() < kNumInliersThreshold) {
+        VLOG(1) << "Found loops rejected by RANSAC! (Too few Inliers "
+                << num_inliers << "/" << T_G_M_vector.size() << ")";
+        *summary_landmark_match_inlier_ratio = 0;
+        *num_vertex_candidate_links = inlier_ratios.size();
+        return;
       }
 
       // Then do the real merge_landmarks or add_lc_edge task here.
