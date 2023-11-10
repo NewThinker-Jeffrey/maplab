@@ -1,4 +1,4 @@
-#include "rovioli/imu-camera-synchronizer.h"
+#include "openvinsli/imu-camera-synchronizer.h"
 
 #include <aslam/pipeline/visual-pipeline-null.h>
 #include <maplab-common/conversions.h>
@@ -12,7 +12,7 @@ DEFINE_double(
     "Maximum output frequency of the synchronized IMU-NFrame structures "
     "from the synchronizer.");
 
-namespace rovioli {
+namespace openvinsli {
 
 ImuCameraSynchronizer::ImuCameraSynchronizer(
     const aslam::NCamera::Ptr& camera_system)
@@ -236,4 +236,4 @@ void ImuCameraSynchronizer::shutdown() {
   }
 }
 
-}  // namespace rovioli
+}  // namespace openvinsli

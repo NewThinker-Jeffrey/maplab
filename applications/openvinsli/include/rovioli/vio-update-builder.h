@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_VIO_UPDATE_BUILDER_H_
-#define ROVIOLI_VIO_UPDATE_BUILDER_H_
+#ifndef OPENVINSLI_VIO_UPDATE_BUILDER_H_
+#define OPENVINSLI_VIO_UPDATE_BUILDER_H_
 
 #include <deque>
 #include <functional>
@@ -13,9 +13,9 @@
 #include <vio-common/map-update.h>
 #include <vio-common/vio-types.h>
 
-#include "rovioli/rovio-estimate.h"
+#include "openvinsli/openvins-estimate.h"
 
-namespace rovioli {
+namespace openvinsli {
 
 class VioUpdateBuilder {
  public:
@@ -31,7 +31,7 @@ class VioUpdateBuilder {
 
   void processSynchronizedNFrameImu(
       const vio::SynchronizedNFrameImu::ConstPtr& synced_nframe_imu);
-  void processRovioEstimate(const RovioEstimate::ConstPtr& rovio_estimate);
+  void processOpenvinsEstimate(const OpenvinsEstimate::ConstPtr& openvins_estimate);
   void processLocalizationResult(
       const vio::LocalizationResult::ConstPtr& localization_result);
 
@@ -44,7 +44,7 @@ class VioUpdateBuilder {
  private:
   typedef std::queue<vio::SynchronizedNFrameImu::ConstPtr>
       SynchronizedNFrameImuQueue;
-  typedef Aligned<std::deque, RovioEstimate::ConstPtr> RovioEstimateQueue;
+  typedef Aligned<std::deque, OpenvinsEstimate::ConstPtr> OpenvinsEstimateQueue;
 
   void findMatchAndPublish();
   void interpolateViNodeState(
@@ -55,12 +55,12 @@ class VioUpdateBuilder {
 
   std::recursive_mutex queue_mutex_;
   SynchronizedNFrameImuQueue synced_nframe_imu_queue_;
-  RovioEstimateQueue rovio_estimate_queue_;
+  OpenvinsEstimateQueue openvins_estimate_queue_;
   // These values indicate the timestamp of the last message in the given topic
   // so that we can enforce that the timestamps are strictly monotonically
   // increasing
   int64_t last_received_timestamp_synced_nframe_queue_;
-  int64_t last_received_timestamp_rovio_estimate_queue;
+  int64_t last_received_timestamp_openvins_estimate_queue;
 
   VioUpdatePublishFunction vio_update_publish_function_;
 
@@ -68,6 +68,6 @@ class VioUpdateBuilder {
   common::LocalizationState last_localization_state_;
 };
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_VIO_UPDATE_BUILDER_H_
+#endif  // OPENVINSLI_VIO_UPDATE_BUILDER_H_

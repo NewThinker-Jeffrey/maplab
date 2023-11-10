@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Script to run ROVIOLI from a Euroc rosbag data source.
-# Usage: tutorial_euroc <output save folder> <rosbag path> [<additional rovioli flags>]
+# Script to run OPENVINSLI from a Euroc rosbag data source.
+# Usage: tutorial_euroc <output save folder> <rosbag path> [<additional openvinsli flags>]
 
 LOCALIZATION_MAP_OUTPUT=$1
 ROSBAG=$2
-NCAMERA_CALIBRATION="$ROVIO_CONFIG_DIR/ncamera-euroc.yaml"
-IMU_PARAMETERS_MAPLAB="$ROVIO_CONFIG_DIR/imu-adis16488.yaml"
+NCAMERA_CALIBRATION="$OPENVINS_CONFIG_DIR/ncamera-euroc.yaml"
+IMU_PARAMETERS_MAPLAB="$OPENVINS_CONFIG_DIR/imu-adis16488.yaml"
 REST=$@
 
-rosrun rovioli rovioli \
+rosrun openvinsli openvinsli \
   --alsologtostderr=1 \
   --v=2 \
   --ncamera_calibration=$NCAMERA_CALIBRATION  \

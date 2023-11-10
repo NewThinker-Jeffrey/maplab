@@ -1,15 +1,15 @@
-#ifndef ROVIOLI_FEATURE_TRACKING_FLOW_H_
-#define ROVIOLI_FEATURE_TRACKING_FLOW_H_
+#ifndef OPENVINSLI_FEATURE_TRACKING_FLOW_H_
+#define OPENVINSLI_FEATURE_TRACKING_FLOW_H_
 
 #include <aslam/cameras/ncamera.h>
 #include <message-flow/message-flow.h>
 #include <sensors/imu.h>
 #include <vio-common/vio-types.h>
 
-#include "rovioli/feature-tracking.h"
-#include "rovioli/flow-topics.h"
+#include "openvinsli/feature-tracking.h"
+#include "openvinsli/flow-topics.h"
 
-namespace rovioli {
+namespace openvinsli {
 
 class FeatureTrackingFlow {
  public:
@@ -42,9 +42,9 @@ class FeatureTrackingFlow {
           }
         });
 
-    flow->registerSubscriber<message_flow_topics::ROVIO_ESTIMATES>(
+    flow->registerSubscriber<message_flow_topics::OPENVINS_ESTIMATES>(
         kSubscriberNodeName, message_flow::DeliveryOptions(),
-        [this](const RovioEstimate::ConstPtr& estimate) {
+        [this](const OpenvinsEstimate::ConstPtr& estimate) {
           CHECK(estimate);
           this->tracking_pipeline_.setCurrentImuBias(estimate);
         });
@@ -54,6 +54,6 @@ class FeatureTrackingFlow {
   FeatureTracking tracking_pipeline_;
 };
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_FEATURE_TRACKING_FLOW_H_
+#endif  // OPENVINSLI_FEATURE_TRACKING_FLOW_H_

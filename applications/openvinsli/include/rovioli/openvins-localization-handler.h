@@ -1,7 +1,7 @@
-#ifndef ROVIOLI_ROVIO_LOCALIZATION_HANDLER_H_
-#define ROVIOLI_ROVIO_LOCALIZATION_HANDLER_H_
+#ifndef OPENVINSLI_OPENVINS_LOCALIZATION_HANDLER_H_
+#define OPENVINSLI_OPENVINS_LOCALIZATION_HANDLER_H_
 
-#include "rovioli/rovio-flow.h"
+#include "openvinsli/openvins-flow.h"
 
 #include <memory>
 #include <random>
@@ -22,21 +22,21 @@
 #include <vio-common/pose-lookup-buffer.h>
 #include <vio-common/vio-types.h>
 
-#include "rovioli/flow-topics.h"
-#include "rovioli/rovio-factory.h"
-#include "rovioli/rovio-maplab-timetranslation.h"
+#include "openvinsli/flow-topics.h"
+#include "openvinsli/openvins-factory.h"
+#include "openvinsli/openvins-maplab-timetranslation.h"
 
-namespace rovioli {
+namespace openvinsli {
 
-// Logic and state machine to feed localization constraints to ROVIO.
-class RovioLocalizationHandler {
+// Logic and state machine to feed localization constraints to OPENVINS.
+class OpenvinsLocalizationHandler {
  public:
-  RovioLocalizationHandler(
-      rovio::RovioInterface* rovio_interface,
-      RovioMaplabTimeTranslation* time_translator,
+  OpenvinsLocalizationHandler(
+      openvins::OpenvinsInterface* openvins_interface,
+      OpenvinsMaplabTimeTranslation* time_translator,
       const aslam::NCamera& camera_calibration,
       const common::BidirectionalMap<size_t, size_t>&
-          maplab_to_rovio_cam_indices_mapping);
+          maplab_to_openvins_cam_indices_mapping);
 
   void processLocalizationResult(
       const vio::LocalizationResult::ConstPtr& localization_result);
@@ -63,8 +63,8 @@ class RovioLocalizationHandler {
       std::vector<double>* lc_reprojection_errors,
       std::vector<double>* filter_reprojection_errors);
 
-  rovio::RovioInterface* const rovio_interface_;
-  RovioMaplabTimeTranslation* const time_translator_;
+  openvins::OpenvinsInterface* const openvins_interface_;
+  OpenvinsMaplabTimeTranslation* const time_translator_;
 
   common::LocalizationState localization_state_;
 
@@ -82,7 +82,7 @@ class RovioLocalizationHandler {
   const aslam::NCamera& camera_calibration_;
 
   const common::BidirectionalMap<size_t, size_t>&
-      maplab_to_rovio_cam_indices_mapping_;
+      maplab_to_openvins_cam_indices_mapping_;
 
   static constexpr size_t kInitializationMaxNumRansacIterations = 3u;
   static constexpr double kInitializationRansacPositionErrorThresholdMeters =
@@ -92,9 +92,9 @@ class RovioLocalizationHandler {
   static constexpr double kInitializationRansacInlierRatioThreshold = 0.75;
 };
 
-bool extractLocalizationFromRovioState(
-    const rovio::RovioState& state, aslam::Transformation* T_G_M);
+bool extractLocalizationFromOpenvinsState(
+    const openvins::OpenvinsState& state, aslam::Transformation* T_G_M);
 
-}  //  namespace rovioli
+}  //  namespace openvinsli
 
-#endif  // ROVIOLI_ROVIO_LOCALIZATION_HANDLER_H_
+#endif  // OPENVINSLI_OPENVINS_LOCALIZATION_HANDLER_H_

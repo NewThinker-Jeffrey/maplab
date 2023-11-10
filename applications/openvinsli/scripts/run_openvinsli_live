@@ -3,7 +3,7 @@ LOCALIZATION_MAP_INPUT=$1
 LOCALIZATION_MAP_OUTPUT=$2
 REST=$@
 
-rosrun rovioli rovioli \
+rosrun openvinsli openvinsli \
   --alsologtostderr=1 \
   --v=1 \
   --ncamera_calibration=ncamera.yaml  \

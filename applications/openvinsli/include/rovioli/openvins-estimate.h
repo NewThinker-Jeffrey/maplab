@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_ROVIO_ESTIMATE_H_
-#define ROVIOLI_ROVIO_ESTIMATE_H_
+#ifndef OPENVINSLI_OPENVINS_ESTIMATE_H_
+#define OPENVINSLI_OPENVINS_ESTIMATE_H_
 
 #include <Eigen/Core>
 #include <aslam/common/memory.h>
@@ -7,9 +7,9 @@
 #include <maplab-common/macros.h>
 #include <vio-common/vio-types.h>
 
-namespace rovioli {
-struct RovioEstimate {
-  MAPLAB_POINTER_TYPEDEFS(RovioEstimate);
+namespace openvinsli {
+struct OpenvinsEstimate {
+  MAPLAB_POINTER_TYPEDEFS(OpenvinsEstimate);
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   int64_t timestamp_ns;
@@ -22,5 +22,5 @@ struct RovioEstimate {
   AlignedUnorderedMap<size_t, aslam::Transformation>
       maplab_camera_index_to_T_C_B;
 };
-}  // namespace rovioli
-#endif  // ROVIOLI_ROVIO_ESTIMATE_H_
+}  // namespace openvinsli
+#endif  // OPENVINSLI_OPENVINS_ESTIMATE_H_

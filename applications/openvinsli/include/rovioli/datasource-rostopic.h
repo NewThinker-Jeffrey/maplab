@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_DATASOURCE_ROSTOPIC_H_
-#define ROVIOLI_DATASOURCE_ROSTOPIC_H_
+#ifndef OPENVINSLI_DATASOURCE_ROSTOPIC_H_
+#define OPENVINSLI_DATASOURCE_ROSTOPIC_H_
 
 #include <atomic>
 #include <memory>
@@ -21,11 +21,11 @@
 #include <sensor_msgs/image_encodings.h>
 #pragma GCC diagnostic pop
 
-#include "rovioli/datasource.h"
+#include "openvinsli/datasource.h"
 
 DECLARE_int64(imu_to_camera_time_offset_ns);
 
-namespace rovioli {
+namespace openvinsli {
 
 class DataSourceRostopic : public DataSource {
  public:
@@ -63,6 +63,6 @@ class DataSourceRostopic : public DataSource {
   int64_t last_odometry_timestamp_ns_;
 };
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_DATASOURCE_ROSTOPIC_H_
+#endif  // OPENVINSLI_DATASOURCE_ROSTOPIC_H_

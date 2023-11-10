@@ -1,13 +1,13 @@
-#ifndef ROVIOLI_LOCALIZER_FLOW_H_
-#define ROVIOLI_LOCALIZER_FLOW_H_
+#ifndef OPENVINSLI_LOCALIZER_FLOW_H_
+#define OPENVINSLI_LOCALIZER_FLOW_H_
 
 #include <localization-summary-map/localization-summary-map.h>
 #include <message-flow/message-flow.h>
 #include <vio-common/vio-types.h>
 
-#include "rovioli/localizer.h"
+#include "openvinsli/localizer.h"
 
-namespace rovioli {
+namespace openvinsli {
 class LocalizerFlow {
  public:
   explicit LocalizerFlow(
@@ -30,5 +30,5 @@ class LocalizerFlow {
   int64_t previous_nframe_timestamp_ns_;
   mutable std::mutex m_previous_nframe_timestamp_ns_;
 };
-}  // namespace rovioli
-#endif  // ROVIOLI_LOCALIZER_FLOW_H_
+}  // namespace openvinsli
+#endif  // OPENVINSLI_LOCALIZER_FLOW_H_

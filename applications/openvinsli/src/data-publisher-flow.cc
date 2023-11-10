@@ -1,4 +1,4 @@
-#include "rovioli/data-publisher-flow.h"
+#include "openvinsli/data-publisher-flow.h"
 #include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <maplab-common/conversions.h>
@@ -6,7 +6,7 @@
 #include <maplab_msgs/OdometryWithImuBiases.h>
 #include <minkindr_conversions/kindr_msg.h>
 #include <nav_msgs/Odometry.h>
-#include "rovioli/ros-helpers.h"
+#include "openvinsli/ros-helpers.h"
 
 DEFINE_double(
     map_publish_interval_s, 2.0,
@@ -27,13 +27,13 @@ DEFINE_string(
     "file.");
 
 DEFINE_bool(
-    rovioli_visualize_map, true,
+    openvinsli_visualize_map, true,
     "Set to false to disable map visualization. Note: map building needs to be "
     "active for the visualization.");
 
-DECLARE_bool(rovioli_run_map_builder);
+DECLARE_bool(openvinsli_run_map_builder);
 
-namespace rovioli {
+namespace openvinsli {
 namespace {
 inline ros::Time createRosTimestamp(int64_t timestamp_nanoseconds) {
   static constexpr uint32_t kNanosecondsPerSecond = 1e9;
@@ -82,7 +82,7 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
   registerPublishers();
   static constexpr char kSubscriberNodeName[] = "DataPublisherFlow";
 
-  if (FLAGS_rovioli_run_map_builder && FLAGS_rovioli_visualize_map) {
+  if (FLAGS_openvinsli_run_map_builder && FLAGS_openvinsli_visualize_map) {
     flow->registerSubscriber<message_flow_topics::RAW_VIMAP>(
         kSubscriberNodeName, message_flow::DeliveryOptions(),
         [this](const VIMapWithMutex::ConstPtr& map_with_mutex) {
@@ -117,9 +117,9 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
               vio_update->T_G_M);
         });
   } else {
-    flow->registerSubscriber<message_flow_topics::ROVIO_ESTIMATES>(
+    flow->registerSubscriber<message_flow_topics::OPENVINS_ESTIMATES>(
         kSubscriberNodeName, message_flow::DeliveryOptions(),
-        [this](const RovioEstimate::ConstPtr& state) {
+        [this](const OpenvinsEstimate::ConstPtr& state) {
           CHECK(state != nullptr);
           publishVinsState(
               state->timestamp_ns, state->vinode, state->has_T_G_M,
@@ -150,9 +150,9 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         kDelimiter, "# Timestamp [s]", "p_G_Ix", "p_G_Iy", "p_G_Iz", "q_G_Ix",
         "q_G_Iy", "q_G_Iz", "q_G_Iw");
     CHECK(file_logger != nullptr);
-    flow->registerSubscriber<message_flow_topics::ROVIO_ESTIMATES>(
+    flow->registerSubscriber<message_flow_topics::OPENVINS_ESTIMATES>(
         kSubscriberNodeName, message_flow::DeliveryOptions(),
-        [file_logger, kDelimiter, this](const RovioEstimate::ConstPtr& state) {
+        [file_logger, kDelimiter, this](const OpenvinsEstimate::ConstPtr& state) {
           CHECK(state != nullptr);
           aslam::Transformation T_M_I = state->vinode.get_T_M_I();
 
@@ -327,7 +327,7 @@ void DataPublisherFlow::stateDebugCallback(
   visualization::publishSpheres(
       T_M_I_spheres_, kMarkerId, FLAGS_tf_map_frame, "debug", "debug_T_M_I");
 
-  // Publish ROVIO velocity
+  // Publish OPENVINS velocity
   const aslam::Position3D& t_M_I = T_M_I.getPosition();
   const Eigen::Vector3d& v_M_I = vinode.get_v_M_I();
   visualization::Arrow arrow;
@@ -339,7 +339,7 @@ void DataPublisherFlow::stateDebugCallback(
   visualization::publishArrow(
       arrow, kMarkerId, FLAGS_tf_map_frame, "debug", "debug_v_M_I_");
 
-  // Publish ROVIO global frame if it is available.
+  // Publish OPENVINS global frame if it is available.
   if (has_T_G_M) {
     aslam::Transformation T_G_I = T_G_M * T_M_I;
     visualization::Sphere sphere;
@@ -369,4 +369,4 @@ void DataPublisherFlow::localizationCallback(
       "debug_T_G_I_raw_localizations");
 }
 
-}  //  namespace rovioli
+}  //  namespace openvinsli

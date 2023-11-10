@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_IMU_CAMERA_SYNCHRONIZER_FLOW_H_
-#define ROVIOLI_IMU_CAMERA_SYNCHRONIZER_FLOW_H_
+#ifndef OPENVINSLI_IMU_CAMERA_SYNCHRONIZER_FLOW_H_
+#define OPENVINSLI_IMU_CAMERA_SYNCHRONIZER_FLOW_H_
 
 #include <aslam/cameras/ncamera.h>
 #include <message-flow/message-flow.h>
@@ -8,10 +8,10 @@
 #include <sensors/imu.h>
 #include <vio-common/vio-types.h>
 
-#include "rovioli/flow-topics.h"
-#include "rovioli/imu-camera-synchronizer.h"
+#include "openvinsli/flow-topics.h"
+#include "openvinsli/imu-camera-synchronizer.h"
 
-namespace rovioli {
+namespace openvinsli {
 
 class ImuCameraSynchronizerFlow {
  public:
@@ -61,6 +61,6 @@ class ImuCameraSynchronizerFlow {
   ImuCameraSynchronizer synchronizing_pipeline_;
 };
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_IMU_CAMERA_SYNCHRONIZER_FLOW_H_
+#endif  // OPENVINSLI_IMU_CAMERA_SYNCHRONIZER_FLOW_H_

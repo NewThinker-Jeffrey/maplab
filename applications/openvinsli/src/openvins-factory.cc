@@ -1,4 +1,4 @@
-#include "rovioli/rovio-factory.h"
+#include "openvinsli/openvins-factory.h"
 
 #include <Eigen/Core>
 #include <aslam/cameras/camera-pinhole.h>
@@ -8,27 +8,27 @@
 #include <glog/logging.h>
 #include <maplab-common/file-system-tools.h>
 #include <message-flow/message-flow.h>
-#include <rovio/FilterConfiguration.hpp>
-#include <rovio/RovioInterfaceBuilder.hpp>
+#include <openvins/FilterConfiguration.hpp>
+#include <openvins/OpenvinsInterfaceBuilder.hpp>
 #include <vio-common/vio-types.h>
 
 DEFINE_bool(
-    rovio_enable_frame_visualization, true,
-    "Set to false to disable the Rovio GUI.");
+    openvins_enable_frame_visualization, true,
+    "Set to false to disable the Openvins GUI.");
 DEFINE_double(
-    rovioli_position_noise_density, 0.01,
+    openvinsli_position_noise_density, 0.01,
     "Position prediction noise density [m/sqrt(s)].");
 
 DEFINE_string(
-    rovio_image_mask_path, "",
-    "Path to image mask to be applied to the ROVIO. No features are extracted "
+    openvins_image_mask_path, "",
+    "Path to image mask to be applied to the OPENVINS. No features are extracted "
     "on the masked areas. Currently only supports a single camera.");
 
-namespace rovioli {
+namespace openvinsli {
 namespace {
 template <int kNumCameras>
-struct RovioBuilder {
-  // kEnableMapLocalization: switches the localization mode of ROVIO.
+struct OpenvinsBuilder {
+  // kEnableMapLocalization: switches the localization mode of OPENVINS.
   static constexpr bool kEnableMapLocalization = true;
   // kNPoses: 0-off, 1: estimate baseframe, 2: (1) + sensor offset
   static constexpr int kNPoses = 1;
@@ -38,30 +38,30 @@ struct RovioBuilder {
   static constexpr int kPyramidLevels = 4;
   // Edge length of the patches (in pixel). Must be a multiple of 2!
   static constexpr int kFeaturePatchSizePx = 6;
-  rovio::RovioInterface* operator()(
-      const rovio::FilterConfiguration& filter_config,
-      const rovio::CameraCalibrationVector& camera_calibrations) {
-    return rovio::createRovioInterface<
+  openvins::OpenvinsInterface* operator()(
+      const openvins::FilterConfiguration& filter_config,
+      const openvins::CameraCalibrationVector& camera_calibrations) {
+    return openvins::createOpenvinsInterface<
         kNumCameras, kEnableMapLocalization, kNPoses, kMaxNumFeatures,
         kPyramidLevels, kFeaturePatchSizePx>(
         filter_config, camera_calibrations);
   }
 };
 
-void convertAslamToRovioCamera(
+void convertAslamToOpenvinsCamera(
     const aslam::NCamera& aslam_cameras,
-    rovio::CameraCalibrationVector* rovio_cameras) {
-  CHECK_NOTNULL(rovio_cameras)->clear();
+    openvins::CameraCalibrationVector* openvins_cameras) {
+  CHECK_NOTNULL(openvins_cameras)->clear();
 
   const size_t num_cameras = aslam_cameras.numCameras();
   for (size_t cam_idx = 0u; cam_idx < num_cameras; ++cam_idx) {
-    rovio::CameraCalibration rovio_camera;
+    openvins::CameraCalibration openvins_camera;
 
     // Translate cameras intrinsic parameters.
     const aslam::Camera& aslam_camera = aslam_cameras.getCamera(cam_idx);
     CHECK_EQ(aslam_camera.getType(), aslam::Camera::Type::kPinhole)
         << "Only pinhole models supported.";
-    rovio_camera.K_ = static_cast<const aslam::PinholeCamera&>(aslam_camera)
+    openvins_camera.K_ = static_cast<const aslam::PinholeCamera&>(aslam_camera)
                           .getCameraMatrix();
 
     // Translate cameras distortion parameters.
@@ -69,140 +69,140 @@ void convertAslamToRovioCamera(
       case aslam::Distortion::Type::kNoDistortion:
         // The no-distortion case is emulated using a RADTAN distortion with
         // parameters that do not distort anything.
-        rovio_camera.distortionModel_ = rovio::DistortionModel::RADTAN;
-        rovio_camera.distortionParams_ = Eigen::Matrix<double, 5, 1>::Zero();
+        openvins_camera.distortionModel_ = openvins::DistortionModel::RADTAN;
+        openvins_camera.distortionParams_ = Eigen::Matrix<double, 5, 1>::Zero();
         break;
       case aslam::Distortion::Type::kRadTan:
-        rovio_camera.distortionModel_ = rovio::DistortionModel::RADTAN;
-        // Rovio uses 5 parameters (k1,k2,p1,p2,k3) we only use 4 (k1,k2,p1,p2)
+        openvins_camera.distortionModel_ = openvins::DistortionModel::RADTAN;
+        // Openvins uses 5 parameters (k1,k2,p1,p2,k3) we only use 4 (k1,k2,p1,p2)
         // therefore we pad with one zero.
-        rovio_camera.distortionParams_.resize(5);
-        rovio_camera.distortionParams_.head<4>() =
+        openvins_camera.distortionParams_.resize(5);
+        openvins_camera.distortionParams_.head<4>() =
             aslam_camera.getDistortion().getParameters();
-        rovio_camera.distortionParams_(4) = 0.0;
+        openvins_camera.distortionParams_(4) = 0.0;
         break;
       case aslam::Distortion::Type::kEquidistant:
-        rovio_camera.distortionModel_ = rovio::DistortionModel::EQUIDIST;
-        rovio_camera.distortionParams_ =
+        openvins_camera.distortionModel_ = openvins::DistortionModel::EQUIDIST;
+        openvins_camera.distortionParams_ =
             aslam_camera.getDistortion().getParameters();
         break;
       case aslam::Distortion::Type::kFisheye:
-        rovio_camera.distortionModel_ = rovio::DistortionModel::FOV;
-        rovio_camera.distortionParams_ =
+        openvins_camera.distortionModel_ = openvins::DistortionModel::FOV;
+        openvins_camera.distortionParams_ =
             aslam_camera.getDistortion().getParameters();
         break;
       default:
         LOG(FATAL) << "Unsupported distortion.";
         break;
     }
-    rovio_camera.hasIntrinsics_ = true;
+    openvins_camera.hasIntrinsics_ = true;
 
     // Translate extrinsics.
     const aslam::Transformation T_C_B = aslam_cameras.get_T_C_B(cam_idx);
     const Eigen::Vector3d MrMC = T_C_B.inverse().getPosition();
     const kindr::RotationQuaternionPD qCM(
         T_C_B.getRotation().toImplementation());
-    rovio_camera.setCameraExtrinsics(MrMC, qCM);
-    rovio_cameras->emplace_back(rovio_camera);
+    openvins_camera.setCameraExtrinsics(MrMC, qCM);
+    openvins_cameras->emplace_back(openvins_camera);
   }
-  CHECK_EQ(rovio_cameras->size(), num_cameras);
+  CHECK_EQ(openvins_cameras->size(), num_cameras);
 }
 
 void initFilterConfigurationFromGFLags(
-    rovio::FilterConfiguration* rovio_config) {
-  CHECK_NOTNULL(rovio_config);
-  rovio_config->setDoFrameVisualization(FLAGS_rovio_enable_frame_visualization);
-  if (!FLAGS_rovio_image_mask_path.empty()) {
-    rovio_config->setImageMaskPath(FLAGS_rovio_image_mask_path);
+    openvins::FilterConfiguration* openvins_config) {
+  CHECK_NOTNULL(openvins_config);
+  openvins_config->setDoFrameVisualization(FLAGS_openvins_enable_frame_visualization);
+  if (!FLAGS_openvins_image_mask_path.empty()) {
+    openvins_config->setImageMaskPath(FLAGS_openvins_image_mask_path);
   }
 }
 
-void setRovioImuSigmas(
+void setOpenvinsImuSigmas(
     const vi_map::ImuSigmas& imu_sigmas,
-    rovio::FilterConfiguration* rovio_config) {
-  CHECK_NOTNULL(rovio_config);
+    openvins::FilterConfiguration* openvins_config) {
+  CHECK_NOTNULL(openvins_config);
   CHECK(imu_sigmas.isValid());
 
   const double position_noise_density_cov =
-      FLAGS_rovioli_position_noise_density *
-      FLAGS_rovioli_position_noise_density;
-  rovio_config->setPositionCovarianceX(position_noise_density_cov);
-  rovio_config->setPositionCovarianceY(position_noise_density_cov);
-  rovio_config->setPositionCovarianceZ(position_noise_density_cov);
+      FLAGS_openvinsli_position_noise_density *
+      FLAGS_openvinsli_position_noise_density;
+  openvins_config->setPositionCovarianceX(position_noise_density_cov);
+  openvins_config->setPositionCovarianceY(position_noise_density_cov);
+  openvins_config->setPositionCovarianceZ(position_noise_density_cov);
 
   const double acc_noise_density_cov =
       imu_sigmas.acc_noise_density * imu_sigmas.acc_noise_density;
-  rovio_config->setAccCovarianceX(acc_noise_density_cov);
-  rovio_config->setAccCovarianceY(acc_noise_density_cov);
-  rovio_config->setAccCovarianceZ(acc_noise_density_cov);
+  openvins_config->setAccCovarianceX(acc_noise_density_cov);
+  openvins_config->setAccCovarianceY(acc_noise_density_cov);
+  openvins_config->setAccCovarianceZ(acc_noise_density_cov);
 
   const double acc_bias_random_walk_noise_density_cov =
       imu_sigmas.acc_bias_random_walk_noise_density *
       imu_sigmas.acc_bias_random_walk_noise_density;
-  rovio_config->setAccBiasCovarianceX(acc_bias_random_walk_noise_density_cov);
-  rovio_config->setAccBiasCovarianceY(acc_bias_random_walk_noise_density_cov);
-  rovio_config->setAccBiasCovarianceZ(acc_bias_random_walk_noise_density_cov);
+  openvins_config->setAccBiasCovarianceX(acc_bias_random_walk_noise_density_cov);
+  openvins_config->setAccBiasCovarianceY(acc_bias_random_walk_noise_density_cov);
+  openvins_config->setAccBiasCovarianceZ(acc_bias_random_walk_noise_density_cov);
 
   const double gyro_noise_density_cov =
       imu_sigmas.gyro_noise_density * imu_sigmas.gyro_noise_density;
-  rovio_config->setGyroCovarianceX(gyro_noise_density_cov);
-  rovio_config->setGyroCovarianceY(gyro_noise_density_cov);
-  rovio_config->setGyroCovarianceZ(gyro_noise_density_cov);
+  openvins_config->setGyroCovarianceX(gyro_noise_density_cov);
+  openvins_config->setGyroCovarianceY(gyro_noise_density_cov);
+  openvins_config->setGyroCovarianceZ(gyro_noise_density_cov);
 
   const double gyro_bias_random_walk_noise_density_cov =
       imu_sigmas.gyro_bias_random_walk_noise_density *
       imu_sigmas.gyro_bias_random_walk_noise_density;
-  rovio_config->setGyroBiasCovarianceX(gyro_bias_random_walk_noise_density_cov);
-  rovio_config->setGyroBiasCovarianceY(gyro_bias_random_walk_noise_density_cov);
-  rovio_config->setGyroBiasCovarianceZ(gyro_bias_random_walk_noise_density_cov);
+  openvins_config->setGyroBiasCovarianceX(gyro_bias_random_walk_noise_density_cov);
+  openvins_config->setGyroBiasCovarianceY(gyro_bias_random_walk_noise_density_cov);
+  openvins_config->setGyroBiasCovarianceZ(gyro_bias_random_walk_noise_density_cov);
 }
 
-std::string getRovioConfigurationTemplateFile() {
-  const char* rovio_config_template_path = getenv("ROVIO_CONFIG_DIR");
-  CHECK_NE(rovio_config_template_path, static_cast<char*>(NULL))
-      << "ROVIO_CONFIG_DIR environment variable is not set.\n"
+std::string getOpenvinsConfigurationTemplateFile() {
+  const char* openvins_config_template_path = getenv("OPENVINS_CONFIG_DIR");
+  CHECK_NE(openvins_config_template_path, static_cast<char*>(NULL))
+      << "OPENVINS_CONFIG_DIR environment variable is not set.\n"
       << "Source the Maplab environment from your workspace:\n"
       << "source devel/setup.bash";
-  std::string rovio_config_template_file(rovio_config_template_path);
-  rovio_config_template_file += "/rovio_default_config.info";
-  CHECK(common::fileExists(rovio_config_template_file))
-      << "ROVIO configuration template file does not exist: "
-      << rovio_config_template_file;
-  return rovio_config_template_file;
+  std::string openvins_config_template_file(openvins_config_template_path);
+  openvins_config_template_file += "/openvins_default_config.info";
+  CHECK(common::fileExists(openvins_config_template_file))
+      << "OPENVINS configuration template file does not exist: "
+      << openvins_config_template_file;
+  return openvins_config_template_file;
 }
 }  // namespace
 
-rovio::RovioInterface* constructAndConfigureRovio(
+openvins::OpenvinsInterface* constructAndConfigureOpenvins(
     const aslam::NCamera& camera_calibration,
     const vi_map::ImuSigmas& imu_config) {
-  // Translate the camera calibration to ROVIO format.
+  // Translate the camera calibration to OPENVINS format.
   size_t num_cameras = camera_calibration.getNumCameras();
-  rovio::CameraCalibrationVector rovio_calibrations;
-  convertAslamToRovioCamera(camera_calibration, &rovio_calibrations);
+  openvins::CameraCalibrationVector openvins_calibrations;
+  convertAslamToOpenvinsCamera(camera_calibration, &openvins_calibrations);
 
-  // Load default ROVIO parameters from file and adapt where necessary.
-  const std::string rovio_config_template_file =
-      getRovioConfigurationTemplateFile();
-  VLOG(1) << "Loading ROVIO configuration template: "
-          << rovio_config_template_file;
+  // Load default OPENVINS parameters from file and adapt where necessary.
+  const std::string openvins_config_template_file =
+      getOpenvinsConfigurationTemplateFile();
+  VLOG(1) << "Loading OPENVINS configuration template: "
+          << openvins_config_template_file;
 
-  rovio::FilterConfiguration rovio_configuration(rovio_config_template_file);
-  initFilterConfigurationFromGFLags(&rovio_configuration);
-  setRovioImuSigmas(imu_config, &rovio_configuration);
+  openvins::FilterConfiguration openvins_configuration(openvins_config_template_file);
+  initFilterConfigurationFromGFLags(&openvins_configuration);
+  setOpenvinsImuSigmas(imu_config, &openvins_configuration);
 
-  rovio::RovioInterface* rovio = nullptr;
+  openvins::OpenvinsInterface* openvins = nullptr;
   switch (num_cameras) {
     case 1u:
-      rovio = RovioBuilder<1>()(rovio_configuration, rovio_calibrations);
+      openvins = OpenvinsBuilder<1>()(openvins_configuration, openvins_calibrations);
       break;
     case 2u:
-      rovio = RovioBuilder<2>()(rovio_configuration, rovio_calibrations);
+      openvins = OpenvinsBuilder<2>()(openvins_configuration, openvins_calibrations);
       break;
     default:
-      LOG(WARNING) << "ROVIO support is only compiled for up to 2 cameras. "
+      LOG(WARNING) << "OPENVINS support is only compiled for up to 2 cameras. "
                    << "Please adapt the code if you need more.";
   }
 
-  return rovio;
+  return openvins;
 }
-}  // namespace rovioli
+}  // namespace openvinsli

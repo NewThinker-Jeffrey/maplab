@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_LOCALIZER_H_
-#define ROVIOLI_LOCALIZER_H_
+#ifndef OPENVINSLI_LOCALIZER_H_
+#define OPENVINSLI_LOCALIZER_H_
 
 #include <localization-summary-map/localization-summary-map-queries.h>
 #include <localization-summary-map/localization-summary-map.h>
@@ -8,7 +8,7 @@
 #include <maplab-common/macros.h>
 #include <vio-common/vio-types.h>
 
-namespace rovioli {
+namespace openvinsli {
 
 class Localizer {
  public:
@@ -43,6 +43,6 @@ class Localizer {
   const summary_map::SummaryMapCachedLookups map_cached_lookup_;
 };
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_LOCALIZER_H_
+#endif  // OPENVINSLI_LOCALIZER_H_

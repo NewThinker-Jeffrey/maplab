@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_FEATURE_TRACKING_H_
-#define ROVIOLI_FEATURE_TRACKING_H_
+#ifndef OPENVINSLI_FEATURE_TRACKING_H_
+#define OPENVINSLI_FEATURE_TRACKING_H_
 
 #include <memory>
 #include <vector>
@@ -11,9 +11,9 @@
 #include <vio-common/vio-types.h>
 #include <vio-common/vio-update.h>
 
-#include "rovioli/rovio-estimate.h"
+#include "openvinsli/openvins-estimate.h"
 
-namespace rovioli {
+namespace openvinsli {
 
 class FeatureTracking {
  public:
@@ -27,7 +27,7 @@ class FeatureTracking {
   bool trackSynchronizedNFrameImuCallback(
       const vio::SynchronizedNFrameImu::Ptr& synced_nframe_imu);
 
-  void setCurrentImuBias(const RovioEstimate::ConstPtr& rovio_estimate);
+  void setCurrentImuBias(const OpenvinsEstimate::ConstPtr& openvins_estimate);
 
  private:
   bool hasUpToDateImuBias(const int64_t current_timestamp_ns) const;
@@ -51,6 +51,6 @@ class FeatureTracking {
   std::unique_ptr<feature_tracking::VOFeatureTrackingPipeline> tracker_;
 };
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_FEATURE_TRACKING_H_
+#endif  // OPENVINSLI_FEATURE_TRACKING_H_

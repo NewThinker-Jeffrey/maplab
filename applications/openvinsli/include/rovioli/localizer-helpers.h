@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_LOCALIZER_HELPERS_H_
-#define ROVIOLI_LOCALIZER_HELPERS_H_
+#ifndef OPENVINSLI_LOCALIZER_HELPERS_H_
+#define OPENVINSLI_LOCALIZER_HELPERS_H_
 
 #include <localization-summary-map/localization-summary-map-queries.h>
 #include <localization-summary-map/localization-summary-map.h>
@@ -7,7 +7,7 @@
 #include <maplab-common/macros.h>
 #include <vio-common/vio-types.h>
 
-namespace rovioli {
+namespace openvinsli {
 
 void convertVertexKeyPointToStructureMatchListToLocalizationResult(
     const summary_map::LocalizationSummaryMap& map,
@@ -22,6 +22,6 @@ void subselectStructureMatches(
     size_t num_max_landmarks_to_keep_per_camera,
     vi_map::VertexKeyPointToStructureMatchList* structure_matches);
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_LOCALIZER_HELPERS_H_
+#endif  // OPENVINSLI_LOCALIZER_HELPERS_H_

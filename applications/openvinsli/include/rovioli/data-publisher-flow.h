@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_DATA_PUBLISHER_FLOW_H_
-#define ROVIOLI_DATA_PUBLISHER_FLOW_H_
+#ifndef OPENVINSLI_DATA_PUBLISHER_FLOW_H_
+#define OPENVINSLI_DATA_PUBLISHER_FLOW_H_
 
 #include <memory>
 #include <string>
@@ -19,9 +19,9 @@
 #include <ros/ros.h>
 #pragma GCC diagnostic pop
 
-#include "rovioli/flow-topics.h"
+#include "openvinsli/flow-topics.h"
 
-namespace rovioli {
+namespace openvinsli {
 
 class DataPublisherFlow {
  public:
@@ -75,6 +75,6 @@ class DataPublisherFlow {
   aslam::Transformation latest_T_G_M_;
 };
 
-}  //  namespace rovioli
+}  //  namespace openvinsli
 
-#endif  // ROVIOLI_DATA_PUBLISHER_FLOW_H_
+#endif  // OPENVINSLI_DATA_PUBLISHER_FLOW_H_

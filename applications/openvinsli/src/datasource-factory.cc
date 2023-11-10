@@ -1,4 +1,4 @@
-#include "rovioli/datasource-factory.h"
+#include "openvinsli/datasource-factory.h"
 
 #include <string>
 
@@ -7,13 +7,13 @@
 #include <glog/logging.h>
 #include <maplab-common/file-system-tools.h>
 
-#include "rovioli/datasource-rosbag.h"
-#include "rovioli/datasource-rostopic.h"
+#include "openvinsli/datasource-rosbag.h"
+#include "openvinsli/datasource-rostopic.h"
 
 DEFINE_string(datasource_type, "rosbag", "Data source type: rosbag / rostopic");
 DEFINE_string(datasource_rosbag, "", "Path to rosbag for bag sources.");
 
-namespace rovioli {
+namespace openvinsli {
 
 DataSourceType stringToDataSource(const std::string& str) {
   if (str == "rostopic") {
@@ -43,4 +43,4 @@ DataSource* createAndConfigureDataSourcefromGFlags(
   }
   return nullptr;
 }
-}  // namespace rovioli
+}  // namespace openvinsli

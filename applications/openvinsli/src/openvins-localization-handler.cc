@@ -1,4 +1,4 @@
-#include "rovioli/rovio-localization-handler.h"
+#include "openvinsli/openvins-localization-handler.h"
 
 #include <limits>
 #include <memory>
@@ -17,38 +17,38 @@
 #include <vio-common/pose-lookup-buffer.h>
 #include <vio-common/vio-types.h>
 
-#include "rovioli/flow-topics.h"
-#include "rovioli/rovio-factory.h"
-#include "rovioli/rovio-maplab-timetranslation.h"
+#include "openvinsli/flow-topics.h"
+#include "openvinsli/openvins-factory.h"
+#include "openvinsli/openvins-maplab-timetranslation.h"
 
 DEFINE_bool(
-    rovioli_use_6dof_localization, false,
+    openvinsli_use_6dof_localization, false,
     "Localize using 6dof constraints instead of structure constraints.");
 DEFINE_uint64(
-    rovioli_min_num_baseframe_estimates_before_init, 2u,
+    openvinsli_min_num_baseframe_estimates_before_init, 2u,
     "Number of T_G_M measurements to collect before initializing T_G_M.");
 DEFINE_double(
-    rovioli_baseframe_init_position_covariance_msq, 20.0,
+    openvinsli_baseframe_init_position_covariance_msq, 20.0,
     "Position covariance of the baseframe initialization [m^2].");
 DEFINE_double(
-    rovioli_baseframe_init_rotation_covariance_radsq, 90.0 * kDegToRad,
+    openvinsli_baseframe_init_rotation_covariance_radsq, 90.0 * kDegToRad,
     "Rotation covariance of the baseframe initialization [rad^2].");
 
 DEFINE_double(
-    rovioli_max_mean_localization_reprojection_error_px, 100.0,
+    openvinsli_max_mean_localization_reprojection_error_px, 100.0,
     "If mean reprojection error of the matches exceeds this value, "
     "reinitialize the baseframe.");
 
 DEFINE_double(
-    rovioli_localization_max_gravity_misalignment_deg, 5.0,
+    openvinsli_localization_max_gravity_misalignment_deg, 5.0,
     "Localization results are rejected if the angle between the gravity"
     "direction of the odometry and the localization exceeds this value.");
 
 DEFINE_bool(
-    rovioli_use_6dof_localization_for_inactive_cameras, false,
-    "ROVIO is set to always run in monocular mode, but the maplab part of "
-    "ROVIOLI will build a map and localize based on all cameras. If there is a "
-    "localization result for the active ROVIO camera, it will update the "
+    openvinsli_use_6dof_localization_for_inactive_cameras, false,
+    "OPENVINS is set to always run in monocular mode, but the maplab part of "
+    "OPENVINSLI will build a map and localize based on all cameras. If there is a "
+    "localization result for the active OPENVINS camera, it will update the "
     "filter using either 2D-3D correspondences (structure constraints) or 6DoF "
     "constraints.  In structure constraints mode (default) it will ignore the "
     "results of the inactive cameras. If this option is enabled however, it "
@@ -56,12 +56,12 @@ DEFINE_bool(
     "in case the active camera didn't localize at all.");
 
 DEFINE_int32(
-    rovioli_min_number_of_structure_constraints, 5,
-    "After ROVIOLI rejects structure constraints based on their reprojection "
+    openvinsli_min_number_of_structure_constraints, 5,
+    "After OPENVINSLI rejects structure constraints based on their reprojection "
     "error, this is the minimum number of constraints required to accept a "
     "localization.");
 
-namespace rovioli {
+namespace openvinsli {
 
 namespace {
 bool getReprojectionErrorForGlobalLandmark(
@@ -88,33 +88,33 @@ bool getReprojectionErrorForGlobalLandmark(
 }
 }  // namespace
 
-RovioLocalizationHandler::RovioLocalizationHandler(
-    rovio::RovioInterface* rovio_interface,
-    RovioMaplabTimeTranslation* time_translator,
+OpenvinsLocalizationHandler::OpenvinsLocalizationHandler(
+    openvins::OpenvinsInterface* openvins_interface,
+    OpenvinsMaplabTimeTranslation* time_translator,
     const aslam::NCamera& camera_calibration,
     const common::BidirectionalMap<size_t, size_t>&
-        maplab_to_rovio_cam_indices_mapping)
-    : rovio_interface_(CHECK_NOTNULL(rovio_interface)),
+        maplab_to_openvins_cam_indices_mapping)
+    : openvins_interface_(CHECK_NOTNULL(openvins_interface)),
       time_translator_(CHECK_NOTNULL(time_translator)),
       // 6dof constraint based localization does not need initialization.
       localization_state_(
-          FLAGS_rovioli_use_6dof_localization
+          FLAGS_openvinsli_use_6dof_localization
               ? common::LocalizationState::kLocalized
               : common::LocalizationState::kUninitialized),
       T_M_I_buffer_(kBufferPoseHistoryNs, kBufferMaxPropagationNs),
       T_G_M_filter_buffer_(kFilterBaseframeBufferSize),
-      T_G_M_loc_buffer_(FLAGS_rovioli_min_num_baseframe_estimates_before_init),
+      T_G_M_loc_buffer_(FLAGS_openvinsli_min_num_baseframe_estimates_before_init),
       camera_calibration_(camera_calibration),
-      maplab_to_rovio_cam_indices_mapping_(
-          maplab_to_rovio_cam_indices_mapping) {
-  if (FLAGS_rovioli_use_6dof_localization) {
+      maplab_to_openvins_cam_indices_mapping_(
+          maplab_to_openvins_cam_indices_mapping) {
+  if (FLAGS_openvinsli_use_6dof_localization) {
     LOG(INFO) << "Localization mode: 6dof constraints.";
   } else {
     LOG(INFO) << "Localization mode: structure constraints.";
   }
 }
 
-void RovioLocalizationHandler::processLocalizationResult(
+void OpenvinsLocalizationHandler::processLocalizationResult(
     const vio::LocalizationResult::ConstPtr& localization_result) {
   CHECK(localization_result);
   switch (localization_state_) {
@@ -140,7 +140,7 @@ void RovioLocalizationHandler::processLocalizationResult(
   }
 }
 
-bool RovioLocalizationHandler::initializeBaseframe(
+bool OpenvinsLocalizationHandler::initializeBaseframe(
     const vio::LocalizationResult::ConstPtr& localization_result) {
   CHECK(localization_result);
 
@@ -162,14 +162,14 @@ bool RovioLocalizationHandler::initializeBaseframe(
 
   T_G_M_loc_buffer_.insert(T_G_M_lc_estimate);
   if (T_G_M_loc_buffer_.size() <
-      FLAGS_rovioli_min_num_baseframe_estimates_before_init) {
+      FLAGS_openvinsli_min_num_baseframe_estimates_before_init) {
     return false;
   }
 
   // Perform initialization with LSQ estimate of the baseframe transformation
   // in the buffer.
   const int kNumInliersThreshold = std::ceil(
-      FLAGS_rovioli_min_num_baseframe_estimates_before_init *
+      FLAGS_openvinsli_min_num_baseframe_estimates_before_init *
       kInitializationRansacInlierRatioThreshold);
 
   int num_inliers = 0;
@@ -192,9 +192,9 @@ bool RovioLocalizationHandler::initializeBaseframe(
   const kindr::RotationQuaternionPD qWG(
       T_M_G_lsq.getRotation().toImplementation());
 
-  rovio_interface_->resetLocalizationMapBaseframeAndCovariance(
-      WrWG, qWG, FLAGS_rovioli_baseframe_init_position_covariance_msq,
-      FLAGS_rovioli_baseframe_init_rotation_covariance_radsq);
+  openvins_interface_->resetLocalizationMapBaseframeAndCovariance(
+      WrWG, qWG, FLAGS_openvinsli_baseframe_init_position_covariance_msq,
+      FLAGS_openvinsli_baseframe_init_rotation_covariance_radsq);
   return true;
 }
 
@@ -227,12 +227,12 @@ double getLocalizationResultGravityDisparityAngleDeg(
   return error_angle_degrees;
 }
 
-bool RovioLocalizationHandler::processAsUpdate(
+bool OpenvinsLocalizationHandler::processAsUpdate(
     const vio::LocalizationResult::ConstPtr& localization_result) {
   CHECK(localization_result != nullptr);
 
-  const double rovio_timestamp_sec =
-      time_translator_->convertMaplabToRovioTimestamp(
+  const double openvins_timestamp_sec =
+      time_translator_->convertMaplabToOpenvinsTimestamp(
           localization_result->timestamp_ns);
 
   aslam::Transformation T_M_I_filter;
@@ -260,67 +260,67 @@ bool RovioLocalizationHandler::processAsUpdate(
       getLocalizationResultGravityDisparityAngleDeg(
           localization_result, T_M_I_filter);
   if (gravity_error_angle_deg >
-      FLAGS_rovioli_localization_max_gravity_misalignment_deg) {
+      FLAGS_openvinsli_localization_max_gravity_misalignment_deg) {
     LOG(WARNING) << "The gravity direction of the localization is not "
                  << "consistent with the VIO estimate. The disparity angle "
                  << "is " << gravity_error_angle_deg << "deg (threshold: "
-                 << FLAGS_rovioli_localization_max_gravity_misalignment_deg
+                 << FLAGS_openvinsli_localization_max_gravity_misalignment_deg
                  << "). Rejected the localization result.";
     return false;
   }
 
   bool measurement_accepted = true;
-  if (FLAGS_rovioli_use_6dof_localization) {
-    // ROVIO coordinate frames:
+  if (FLAGS_openvinsli_use_6dof_localization) {
+    // OPENVINS coordinate frames:
     //  - J: Inertial frame of pose update
     //  - V: Body frame of pose update sensor
     const Eigen::Vector3d JrJV = localization_result->T_G_B.getPosition();
     const kindr::RotationQuaternionPD qJV(
         localization_result->T_G_B.getRotation().toImplementation());
-    measurement_accepted = rovio_interface_->processGroundTruthUpdate(
-        JrJV, qJV, rovio_timestamp_sec);
+    measurement_accepted = openvins_interface_->processGroundTruthUpdate(
+        JrJV, qJV, openvins_timestamp_sec);
   } else {
     // Check if there are any matches to be processed in the camera frames that
-    // are used by ROVIO for estimation (inactive).
+    // are used by OPENVINS for estimation (inactive).
     const size_t num_cameras =
         localization_result->G_landmarks_per_camera.size();
     size_t num_valid_matches = 0u;
     for (size_t maplab_cam_idx = 0u; maplab_cam_idx < num_cameras;
          ++maplab_cam_idx) {
-      const size_t* rovio_cam_idx =
-          maplab_to_rovio_cam_indices_mapping_.getRight(maplab_cam_idx);
-      if (rovio_cam_idx == nullptr) {
-        // Camera is inactive in ROVIO.
+      const size_t* openvins_cam_idx =
+          maplab_to_openvins_cam_indices_mapping_.getRight(maplab_cam_idx);
+      if (openvins_cam_idx == nullptr) {
+        // Camera is inactive in OPENVINS.
         continue;
       }
       num_valid_matches +=
           localization_result->G_landmarks_per_camera[maplab_cam_idx].cols();
     }
     if (num_valid_matches == 0u) {
-      // There are no valid localization matches for the cameras used by ROVIO.
+      // There are no valid localization matches for the cameras used by OPENVINS.
       // Use the localization result of the inactive cameras but integrate them
       // using the 6dof localization mode, since we cannot currently pass 2D-3D
-      // correspondences to ROVIO for a camera it's not using.
-      if (FLAGS_rovioli_use_6dof_localization_for_inactive_cameras) {
-        // ROVIO coordinate frames:
+      // correspondences to OPENVINS for a camera it's not using.
+      if (FLAGS_openvinsli_use_6dof_localization_for_inactive_cameras) {
+        // OPENVINS coordinate frames:
         //  - J: Inertial frame of pose update
         //  - V: Body frame of pose update sensor
         const Eigen::Vector3d JrJV = localization_result->T_G_B.getPosition();
         const kindr::RotationQuaternionPD qJV(
             localization_result->T_G_B.getRotation().toImplementation());
-        measurement_accepted = rovio_interface_->processGroundTruthUpdate(
-            JrJV, qJV, rovio_timestamp_sec);
+        measurement_accepted = openvins_interface_->processGroundTruthUpdate(
+            JrJV, qJV, openvins_timestamp_sec);
 
         VLOG_IF(1, measurement_accepted)
             << "No localization found for active camera, successfully updated "
-            << "ROVIO using 6DoF constraints based on localization from "
+            << "OPENVINS using 6DoF constraints based on localization from "
             << "inactive cameras.";
 
         LOG_IF(
-            WARNING, !measurement_accepted && rovio_interface_->isInitialized())
+            WARNING, !measurement_accepted && openvins_interface_->isInitialized())
             << "No localization found for active camera, failed to update "
-            << "ROVIO using 6DoF constraints based on localization from "
-            << "inactive cameras, because ROVIO rejected the localization "
+            << "OPENVINS using 6DoF constraints based on localization from "
+            << "inactive cameras, because OPENVINS rejected the localization "
             << "update at time = " << localization_result->timestamp_ns
             << "ns. The latency was too large; consider reducing the "
             << "localization rate.";
@@ -343,7 +343,7 @@ bool RovioLocalizationHandler::processAsUpdate(
     const bool reprojection_success =
         reprojection_success_rate > kMinReprojectionSuccessRate &&
         num_accepted_localization_constraints >
-            FLAGS_rovioli_min_number_of_structure_constraints;
+            FLAGS_openvinsli_min_number_of_structure_constraints;
 
     if (reprojection_success) {
       const double lc_reproj_mean = aslam::common::mean(
@@ -358,13 +358,13 @@ bool RovioLocalizationHandler::processAsUpdate(
 
     if (!reprojection_success ||
         mean_reprojection_error_diff >
-            FLAGS_rovioli_max_mean_localization_reprojection_error_px) {
+            FLAGS_openvinsli_max_mean_localization_reprojection_error_px) {
       if (reprojection_success) {
         LOG(WARNING)
             << "Mean reprojection error of localization matches, "
             << mean_reprojection_error_diff
             << ", is larger than the threshold ("
-            << FLAGS_rovioli_max_mean_localization_reprojection_error_px
+            << FLAGS_openvinsli_max_mean_localization_reprojection_error_px
             << "). Will reset the localization.";
       } else {
         LOG(WARNING)
@@ -375,31 +375,31 @@ bool RovioLocalizationHandler::processAsUpdate(
 
     for (size_t maplab_cam_idx = 0u; maplab_cam_idx < num_cameras;
          ++maplab_cam_idx) {
-      const size_t* rovio_cam_idx =
-          maplab_to_rovio_cam_indices_mapping_.getRight(maplab_cam_idx);
+      const size_t* openvins_cam_idx =
+          maplab_to_openvins_cam_indices_mapping_.getRight(maplab_cam_idx);
 
-      if (rovio_cam_idx == nullptr) {
+      if (openvins_cam_idx == nullptr) {
         // Skip this localization result, as the camera was marked as inactive.
         continue;
       }
       measurement_accepted &=
-          rovio_interface_->processLocalizationLandmarkUpdates(
-              *rovio_cam_idx,
+          openvins_interface_->processLocalizationLandmarkUpdates(
+              *openvins_cam_idx,
               localization_result
                   ->keypoint_measurements_per_camera[maplab_cam_idx],
               localization_result->G_landmarks_per_camera[maplab_cam_idx],
-              rovio_timestamp_sec);
+              openvins_timestamp_sec);
     }
   }
 
-  LOG_IF(WARNING, !measurement_accepted && rovio_interface_->isInitialized())
-      << "ROVIO rejected localization update at time = "
+  LOG_IF(WARNING, !measurement_accepted && openvins_interface_->isInitialized())
+      << "OPENVINS rejected localization update at time = "
       << localization_result->timestamp_ns << "ns. The latency was too large; "
       << "consider reducing the localization rate.";
   return measurement_accepted;
 }
 
-double RovioLocalizationHandler::getLocalizationReprojectionErrors(
+double OpenvinsLocalizationHandler::getLocalizationReprojectionErrors(
     const vio::LocalizationResult& localization_result,
     const aslam::Transformation& T_G_I_filter,
     std::vector<double>* lc_reprojection_errors,
@@ -420,8 +420,8 @@ double RovioLocalizationHandler::getLocalizationReprojectionErrors(
         localization_result.G_landmarks_per_camera[cam_idx].cols(),
         localization_result.keypoint_measurements_per_camera[cam_idx].cols());
 
-    const size_t* rovio_cam_idx =
-        maplab_to_rovio_cam_indices_mapping_.getRight(cam_idx);
+    const size_t* openvins_cam_idx =
+        maplab_to_openvins_cam_indices_mapping_.getRight(cam_idx);
 
     const int num_matches =
         localization_result.G_landmarks_per_camera[cam_idx].cols();
@@ -430,7 +430,7 @@ double RovioLocalizationHandler::getLocalizationReprojectionErrors(
       continue;
     }
 
-    if (rovio_cam_idx == nullptr) {
+    if (openvins_cam_idx == nullptr) {
       // Skip this localization result, as the camera was marked as inactive.
       continue;
     }
@@ -472,12 +472,12 @@ double RovioLocalizationHandler::getLocalizationReprojectionErrors(
          num_matches_processed;
 }
 
-bool extractLocalizationFromRovioState(
-    const rovio::RovioState& state, aslam::Transformation* T_G_M) {
+bool extractLocalizationFromOpenvinsState(
+    const openvins::OpenvinsState& state, aslam::Transformation* T_G_M) {
   CHECK_NOTNULL(T_G_M);
 
   bool has_T_G_M = false;
-  if (FLAGS_rovioli_use_6dof_localization) {
+  if (FLAGS_openvinsli_use_6dof_localization) {
     if (state.getHasInertialPose()) {
       *T_G_M = aslam::Transformation(
           state.get_qWI().inverted().toImplementation(), state.get_IrIW());
@@ -496,4 +496,4 @@ bool extractLocalizationFromRovioState(
   return has_T_G_M;
 }
 
-}  //  namespace rovioli
+}  //  namespace openvinsli

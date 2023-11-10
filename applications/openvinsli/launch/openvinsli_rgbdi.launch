@@ -5,13 +5,13 @@
 
 	<node pkg="rosbag" type="play" name="rosbag" args="/home/mfehr/experimental_ws/modelify/bags/outdoor1.bag -q -d 2 -r 2.0"/>
 
-	<!-- ================================== ROVIOLI ================================================== -->
+	<!-- ================================== OPENVINSLI ================================================== -->
 
-	<group ns="rovioli">
+	<group ns="openvinsli">
 
 		<!-- SENSORS AND CALIBRATION -->
 		<arg name="sensor_calibration_file" default="$(find maplab_node)/share/example_calibrations/rgbdi-sensor_vi.yaml"/>
-		<arg name="external_imu_parameters_rovio" default=""/>
+		<arg name="external_imu_parameters_openvins" default=""/>
 		<arg name="imu_to_camera_time_offset_ns" default="19638586"/>
 		<arg name="vio_nframe_sync_tolerance_ns" default="5000000"/>
 		<arg name="vio_nframe_sync_max_output_frequency_hz" default="10"/>
@@ -19,11 +19,11 @@
 		<!-- DATA SOURCE -->
 		<arg name="datasource_type" default="rostopic"/>
 		<arg name="datasource_rosbag" default=""/>
-		<arg name="rovio_image_mask_path" default=""/>
+		<arg name="openvins_image_mask_path" default=""/>
 
 		<!-- MAP BUILDING (DISABLED) -->
-		<arg name="rovioli_run_map_builder" default="true"/>
-		<arg name="save_map_folder" default="/tmp/rovioli/test_rgbdi_map"/>
+		<arg name="openvinsli_run_map_builder" default="true"/>
+		<arg name="save_map_folder" default="/tmp/openvinsli/test_rgbdi_map"/>
 		<arg name="overwrite_existing_map" default="false"/>
 		<arg name="optimize_map_to_localization_map" default="false"/>
 		<arg name="map_builder_save_image_as_resources" default="false"/>
@@ -36,13 +36,13 @@
 		<arg name="colorlogtostderr" default="true"/>
 		<arg name="v" default="1"/>
 		<arg name="publish_debug_markers" default="true"/>
-		<arg name="rovio_enable_frame_visualization" default="true"/>
+		<arg name="openvins_enable_frame_visualization" default="true"/>
 
 		<!-- TF -->
 		<arg name="tf_map_frame" default="map"/>
-		<arg name="tf_mission_frame" default="rovio_mission"/>
-		<arg name="tf_imu_frame" default="rovio_imu"/>
+		<arg name="tf_mission_frame" default="openvins_mission"/>
+		<arg name="tf_imu_frame" default="openvins_imu"/>
 
-		<include file="$(find rovioli)/launch/rovioli.launch" pass_all_args="true"/>
+		<include file="$(find openvinsli)/launch/openvinsli.launch" pass_all_args="true"/>
 	</group>
 </launch>

@@ -2,7 +2,7 @@
 sensor_calibration_file: ""
 # IMU
 imu_to_camera_time_offset_ns: 0
-external_imu_parameters_rovio: ""
+external_imu_parameters_openvins: ""
 # VIO
 vio_camera_topic_suffix: image_raw
 vio_nframe_sync_tolerance_ns: 500000
@@ -21,17 +21,17 @@ datasource_type: "rostopic"
 datasource_rosbag: ""
 
 # DATA PREPROCESSING
-rovioli_zero_initial_timestamps: false
-rovio_image_mask_path: ""
-rovioli_image_apply_clahe_histogram_equalization: false
+openvinsli_zero_initial_timestamps: false
+openvins_image_mask_path: ""
+openvinsli_image_apply_clahe_histogram_equalization: false
 
-# ROVIO
-rovio_enable_frame_visualization: true
-rovioli_enable_health_checking: true
+# OPENVINS
+openvins_enable_frame_visualization: true
+openvinsli_enable_health_checking: true
 
 # MAP BUILDING
-rovioli_run_map_builder: true
-save_map_folder: rovioli_map
+openvinsli_run_map_builder: true
+save_map_folder: openvinsli_map
 overwrite_existing_map: false
 optimize_map_to_localization_map: false
 map_builder_save_image_as_resources: false

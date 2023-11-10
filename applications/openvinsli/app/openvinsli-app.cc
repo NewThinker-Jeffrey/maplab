@@ -17,7 +17,7 @@
 #include <vi-map/sensor-utils.h>
 #include <vi-map/vi-map-serialization.h>
 
-#include "rovioli/rovioli-node.h"
+#include "openvinsli/openvinsli-node.h"
 
 DEFINE_string(
     vio_localization_map_folder, "",
@@ -26,9 +26,9 @@ DEFINE_string(
 DEFINE_string(sensor_calibration_file, "", "Path to sensor calibration yaml.");
 
 DEFINE_string(
-    external_imu_parameters_rovio, "",
-    "Optional, path to the IMU configuration yaml for ROVIO. If none is "
-    "provided the maplab values will be used for ROVIO as well.");
+    external_imu_parameters_openvins, "",
+    "Optional, path to the IMU configuration yaml for OPENVINS. If none is "
+    "provided the maplab values will be used for OPENVINS as well.");
 DEFINE_string(
     save_map_folder, "", "Save map to folder; if empty nothing is saved.");
 DEFINE_bool(
@@ -40,7 +40,7 @@ DEFINE_bool(
     optimize_map_to_localization_map, false,
     "Optimize and process the map into a localization map before "
     "saving it.");
-DECLARE_double(rovioli_image_resize_factor);
+DECLARE_double(openvinsli_image_resize_factor);
 
 int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
@@ -49,42 +49,42 @@ int main(int argc, char** argv) {
   FLAGS_alsologtostderr = true;
   FLAGS_colorlogtostderr = true;
 
-  ros::init(argc, argv, "rovioli");
+  ros::init(argc, argv, "openvinsli");
   ros::NodeHandle nh, nh_private("~");
 
   ros_common::parseGflagsFromRosParams(argv[0], nh_private);
 
   // Load sensors.
   CHECK(!FLAGS_sensor_calibration_file.empty())
-      << "[ROVIOLI] No sensor calibration file was provided!";
+      << "[OPENVINSLI] No sensor calibration file was provided!";
   vi_map::SensorManager sensor_manager;
   if (!sensor_manager.deserializeFromFile(FLAGS_sensor_calibration_file)) {
-    LOG(FATAL) << "[ROVIOLI] Failed to read the sensor calibration from '"
+    LOG(FATAL) << "[OPENVINSLI] Failed to read the sensor calibration from '"
                << FLAGS_sensor_calibration_file << "'!";
   }
 
   CHECK(vi_map::getSelectedImu(sensor_manager))
-      << "[ROVIOLI] The sensor calibration does not contain an IMU!";
+      << "[OPENVINSLI] The sensor calibration does not contain an IMU!";
 
   aslam::NCamera::Ptr mapping_ncamera =
       vi_map::getSelectedNCamera(sensor_manager);
   CHECK(mapping_ncamera)
-      << "[ROVIOLI] The sensor calibration does not contain a NCamera!";
+      << "[OPENVINSLI] The sensor calibration does not contain a NCamera!";
 
-  if (fabs(FLAGS_rovioli_image_resize_factor - 1.0) > 1e-6) {
+  if (fabs(FLAGS_openvinsli_image_resize_factor - 1.0) > 1e-6) {
     for (size_t i = 0; i < mapping_ncamera->getNumCameras(); i++) {
       // The intrinsics of the camera can just be multiplied with the resize
       // factor. Distortion parameters are agnostic to the image size.
       aslam::Camera::Ptr camera = mapping_ncamera->getCameraShared(i);
       camera->setParameters(
-          camera->getParameters() * FLAGS_rovioli_image_resize_factor);
+          camera->getParameters() * FLAGS_openvinsli_image_resize_factor);
       camera->setImageWidth(
-          round(camera->imageWidth() * FLAGS_rovioli_image_resize_factor));
+          round(camera->imageWidth() * FLAGS_openvinsli_image_resize_factor));
       camera->setImageHeight(
-          round(camera->imageHeight() * FLAGS_rovioli_image_resize_factor));
+          round(camera->imageHeight() * FLAGS_openvinsli_image_resize_factor));
       camera->setDescription(
           camera->getDescription() + " - resized " +
-          std::to_string(FLAGS_rovioli_image_resize_factor));
+          std::to_string(FLAGS_openvinsli_image_resize_factor));
 
       // The parameters have changed so we need to generate a new sensor id.
       aslam::SensorId camera_id;
@@ -99,13 +99,13 @@ int main(int argc, char** argv) {
     localization_map.reset(new summary_map::LocalizationSummaryMap);
     if (!localization_map->loadFromFolder(FLAGS_vio_localization_map_folder)) {
       LOG(WARNING)
-          << "[ROVIOLI] Could not load a localization summary map from "
+          << "[OPENVINSLI] Could not load a localization summary map from "
           << FLAGS_vio_localization_map_folder
           << ". Will try to load it as a full VI map.";
       vi_map::VIMap vi_map;
       CHECK(vi_map::serialization::loadMapFromFolder(
           FLAGS_vio_localization_map_folder, &vi_map))
-          << "[ROVIOLI] Loading a VI map failed. Either provide a valid "
+          << "[OPENVINSLI] Loading a VI map failed. Either provide a valid "
              "localization map "
           << "or leave the map folder flag empty.";
 
@@ -117,18 +117,18 @@ int main(int argc, char** argv) {
     }
   }
 
-  // Optionally, load external values for the ROVIO sigmas; otherwise also use
-  // the maplab values for ROVIO.
-  vi_map::ImuSigmas rovio_imu_sigmas;
-  if (!FLAGS_external_imu_parameters_rovio.empty()) {
-    CHECK(rovio_imu_sigmas.loadFromYaml(FLAGS_external_imu_parameters_rovio))
-        << "[ROVIOLI] Could not load IMU parameters for ROVIO from: \'"
-        << FLAGS_external_imu_parameters_rovio << "\'";
-    CHECK(rovio_imu_sigmas.isValid());
+  // Optionally, load external values for the OPENVINS sigmas; otherwise also use
+  // the maplab values for OPENVINS.
+  vi_map::ImuSigmas openvins_imu_sigmas;
+  if (!FLAGS_external_imu_parameters_openvins.empty()) {
+    CHECK(openvins_imu_sigmas.loadFromYaml(FLAGS_external_imu_parameters_openvins))
+        << "[OPENVINSLI] Could not load IMU parameters for OPENVINS from: \'"
+        << FLAGS_external_imu_parameters_openvins << "\'";
+    CHECK(openvins_imu_sigmas.isValid());
   } else {
     const vi_map::Imu::Ptr imu = vi_map::getSelectedImu(sensor_manager);
-    CHECK(imu) << "[ROVIOLI] No imu was found in the sensor calibration!";
-    rovio_imu_sigmas = imu->getImuSigmas();
+    CHECK(imu) << "[OPENVINSLI] No imu was found in the sensor calibration!";
+    openvins_imu_sigmas = imu->getImuSigmas();
   }
 
   // Construct the application.
@@ -155,28 +155,28 @@ int main(int argc, char** argv) {
     }
   }
 
-  rovioli::RovioliNode rovio_localization_node(
-      sensor_manager, rovio_imu_sigmas, save_map_folder, localization_map.get(),
+  openvinsli::OpenvinsliNode openvins_localization_node(
+      sensor_manager, openvins_imu_sigmas, save_map_folder, localization_map.get(),
       flow.get());
 
   // Start the pipeline. The ROS spinner will handle SIGINT for us and abort
   // the application on CTRL+C.
   ros_spinner.start();
-  rovio_localization_node.start();
+  openvins_localization_node.start();
 
   std::atomic<bool>& end_of_days_signal_received =
-      rovio_localization_node.isDataSourceExhausted();
+      openvins_localization_node.isDataSourceExhausted();
   while (ros::ok() && !end_of_days_signal_received.load()) {
     VLOG_EVERY_N(1, 10) << "\n" << flow->printDeliveryQueueStatistics();
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  rovio_localization_node.shutdown();
+  openvins_localization_node.shutdown();
   flow->shutdown();
   flow->waitUntilIdle();
 
   if (!save_map_folder.empty()) {
-    rovio_localization_node.saveMapAndOptionallyOptimize(
+    openvins_localization_node.saveMapAndOptionallyOptimize(
         save_map_folder, FLAGS_overwrite_existing_map,
         FLAGS_optimize_map_to_localization_map);
   }

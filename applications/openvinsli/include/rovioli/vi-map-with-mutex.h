@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_VI_MAP_WITH_MUTEX_H_
-#define ROVIOLI_VI_MAP_WITH_MUTEX_H_
+#ifndef OPENVINSLI_VI_MAP_WITH_MUTEX_H_
+#define OPENVINSLI_VI_MAP_WITH_MUTEX_H_
 
 #include <memory>
 #include <mutex>
@@ -8,7 +8,7 @@
 #include <maplab-common/macros.h>
 #include <vi-map/vi-map.h>
 
-namespace rovioli {
+namespace openvinsli {
 
 struct VIMapWithMutex {
   MAPLAB_POINTER_TYPEDEFS(VIMapWithMutex);
@@ -18,6 +18,6 @@ struct VIMapWithMutex {
   mutable std::mutex mutex;
 };
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_VI_MAP_WITH_MUTEX_H_
+#endif  // OPENVINSLI_VI_MAP_WITH_MUTEX_H_

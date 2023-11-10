@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_DATASOURCE_FACTORY_H_
-#define ROVIOLI_DATASOURCE_FACTORY_H_
+#ifndef OPENVINSLI_DATASOURCE_FACTORY_H_
+#define OPENVINSLI_DATASOURCE_FACTORY_H_
 
 #include <string>
 
@@ -7,9 +7,9 @@
 #include <sensors/imu.h>
 #include <vio-common/rostopic-settings.h>
 
-#include "rovioli/datasource.h"
+#include "openvinsli/datasource.h"
 
-namespace rovioli {
+namespace openvinsli {
 enum class DataSourceType { kRosTopic, kRosBag };
 
 DataSourceType stringToDataSource(const std::string& str);
@@ -18,5 +18,5 @@ DataSourceType stringToDataSource(const std::string& str);
 // ownership!
 DataSource* createAndConfigureDataSourcefromGFlags(
     const vio_common::RosTopicSettings& topic_settings);
-}  // namespace rovioli
-#endif  // ROVIOLI_DATASOURCE_FACTORY_H_
+}  // namespace openvinsli
+#endif  // OPENVINSLI_DATASOURCE_FACTORY_H_

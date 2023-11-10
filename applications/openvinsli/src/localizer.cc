@@ -1,4 +1,4 @@
-#include "rovioli/localizer.h"
+#include "openvinsli/localizer.h"
 
 #include <aslam/common/occupancy-grid.h>
 #include <gflags/gflags.h>
@@ -7,14 +7,14 @@
 #include <vio-common/pose-lookup-buffer.h>
 #include <vio-common/vio-types.h>
 
-#include "rovioli/localizer-helpers.h"
+#include "openvinsli/localizer-helpers.h"
 
 DEFINE_uint64(
-    rovioli_max_num_localization_constraints, 25u,
+    openvinsli_max_num_localization_constraints, 25u,
     "Max. number of localization constraints to process per camera. "
     "No prunning when 0.");
 
-namespace rovioli {
+namespace openvinsli {
 Localizer::Localizer(
     const summary_map::LocalizationSummaryMap& localization_summary_map,
     const bool visualize_localization)
@@ -84,10 +84,10 @@ bool Localizer::localizeNFrameGlobal(
   // Optionally sub-select the localizations by ensuring a good coverage over
   // the image. In case of conflicts the largest disparity angle between all
   // rays of all observations of the landmark will be used as a score.
-  if (FLAGS_rovioli_max_num_localization_constraints > 0) {
+  if (FLAGS_openvinsli_max_num_localization_constraints > 0) {
     subselectStructureMatches(
         localization_summary_map_, map_cached_lookup_, *nframe,
-        FLAGS_rovioli_max_num_localization_constraints,
+        FLAGS_openvinsli_max_num_localization_constraints,
         &inlier_structure_matches);
   }
   convertVertexKeyPointToStructureMatchListToLocalizationResult(
@@ -104,4 +104,4 @@ bool Localizer::localizeNFrameMapTracking(
   return false;
 }
 
-}  // namespace rovioli
+}  // namespace openvinsli

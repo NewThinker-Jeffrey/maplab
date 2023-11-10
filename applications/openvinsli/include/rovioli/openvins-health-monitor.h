@@ -1,25 +1,25 @@
-#ifndef ROVIOLI_ROVIO_HEALTH_MONITOR_H_
-#define ROVIOLI_ROVIO_HEALTH_MONITOR_H_
+#ifndef OPENVINSLI_OPENVINS_HEALTH_MONITOR_H_
+#define OPENVINSLI_OPENVINS_HEALTH_MONITOR_H_
 #include <memory>
 
 #include <vector>
 
 #include <aslam/common/stl-helpers.h>
 
-#include "rovioli/rovio-estimate.h"
-#include "rovioli/rovio-factory.h"
+#include "openvinsli/openvins-estimate.h"
+#include "openvinsli/openvins-factory.h"
 
-namespace rovioli {
+namespace openvinsli {
 
-class RovioHealthMonitor {
+class OpenvinsHealthMonitor {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  RovioHealthMonitor() : num_subsequent_unhealthy_updates_(0) {}
+  OpenvinsHealthMonitor() : num_subsequent_unhealthy_updates_(0) {}
 
   // Returns true if healthy; false if unhealthy and reset was triggered.
-  bool shouldResetEstimator(const rovio::RovioState& state) {
+  bool shouldResetEstimator(const openvins::OpenvinsState& state) {
     CHECK(state.hasFeatureState());
-    const rovio::RovioFeatureState& feature_state = state.getFeatureState();
+    const openvins::OpenvinsFeatureState& feature_state = state.getFeatureState();
 
     const size_t max_num_features = feature_state.get_MaxNumFeatures();
     std::vector<float> distance_covs;
@@ -45,7 +45,7 @@ class RovioHealthMonitor {
                    << kMaxSubsequentUnhealthyUpdates << ". Might reset soon.";
 
       if (num_subsequent_unhealthy_updates_ > kMaxSubsequentUnhealthyUpdates) {
-        LOG(ERROR) << "Will reset ROVIOLI. Velocity norm: " << BvB_norm
+        LOG(ERROR) << "Will reset OPENVINSLI. Velocity norm: " << BvB_norm
                    << " (limit: " << kUnhealthyVelocity
                    << "), median of feature distance covariances: "
                    << feature_distance_covariance_median
@@ -69,15 +69,15 @@ class RovioHealthMonitor {
     return false;
   }
 
-  void resetRovioToLastHealthyPose(rovio::RovioInterface* rovio_interface) {
-    CHECK_NOTNULL(rovio_interface);
-    rovio_interface->requestResetToPose(
+  void resetOpenvinsToLastHealthyPose(openvins::OpenvinsInterface* openvins_interface) {
+    CHECK_NOTNULL(openvins_interface);
+    openvins_interface->requestResetToPose(
         last_safe_pose_.failsafe_WrWB, last_safe_pose_.failsafe_qBW);
   }
 
  private:
-  struct RovioFailsafePose {
-    RovioFailsafePose()
+  struct OpenvinsFailsafePose {
+    OpenvinsFailsafePose()
         : failsafe_WrWB(Eigen::Vector3d::Zero()),
           feature_distance_covariance_median(0.0) {
       failsafe_qBW.setIdentity();
@@ -87,7 +87,7 @@ class RovioHealthMonitor {
     kindr::RotationQuaternionPD failsafe_qBW;
     float feature_distance_covariance_median;
   };
-  RovioFailsafePose last_safe_pose_;
+  OpenvinsFailsafePose last_safe_pose_;
 
   int num_subsequent_unhealthy_updates_;
 
@@ -101,5 +101,5 @@ class RovioHealthMonitor {
   static constexpr float kUnhealthyVelocity = 6.0f;
 };
 
-}  // namespace rovioli
-#endif  // ROVIOLI_ROVIO_HEALTH_MONITOR_H_
+}  // namespace openvinsli
+#endif  // OPENVINSLI_OPENVINS_HEALTH_MONITOR_H_

@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_DATASOURCE_FLOW_H_
-#define ROVIOLI_DATASOURCE_FLOW_H_
+#ifndef OPENVINSLI_DATASOURCE_FLOW_H_
+#define OPENVINSLI_DATASOURCE_FLOW_H_
 #include <memory>
 
 #include <aslam/cameras/ncamera.h>
@@ -8,10 +8,10 @@
 #include <vio-common/rostopic-settings.h>
 #include <vio-common/vio-types.h>
 
-#include "rovioli/datasource-factory.h"
-#include "rovioli/flow-topics.h"
+#include "openvinsli/datasource-factory.h"
+#include "openvinsli/flow-topics.h"
 
-namespace rovioli {
+namespace openvinsli {
 
 class DataSourceFlow {
  public:
@@ -51,6 +51,6 @@ class DataSourceFlow {
   std::unique_ptr<DataSource> datasource_;
 };
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_DATASOURCE_FLOW_H_
+#endif  // OPENVINSLI_DATASOURCE_FLOW_H_

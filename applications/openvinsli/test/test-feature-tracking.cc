@@ -7,10 +7,10 @@
 #include <maplab-common/test/testing-entrypoint.h>
 #include <maplab-common/test/testing-predicates.h>
 
-#include "rovioli/feature-tracking.h"
-#include "rovioli/imu-camera-synchronizer.h"
+#include "openvinsli/feature-tracking.h"
+#include "openvinsli/imu-camera-synchronizer.h"
 
-namespace rovioli {
+namespace openvinsli {
 
 class VioPipelineTest : public ::testing::Test {
  public:
@@ -101,6 +101,6 @@ TEST_F(VioPipelineTest, PipelineWorks) {
   synchronizer_->shutdown();
 }
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
 MAPLAB_UNITTEST_ENTRYPOINT

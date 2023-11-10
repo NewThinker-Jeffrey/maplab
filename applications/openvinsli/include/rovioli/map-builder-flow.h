@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_MAP_BUILDER_FLOW_H_
-#define ROVIOLI_MAP_BUILDER_FLOW_H_
+#ifndef OPENVINSLI_MAP_BUILDER_FLOW_H_
+#define OPENVINSLI_MAP_BUILDER_FLOW_H_
 
 #include <atomic>
 #include <functional>
@@ -14,11 +14,11 @@
 #include <vi-map/vi-map.h>
 #include <vio-common/vio-types.h>
 
-#include "rovioli/flow-topics.h"
-#include "rovioli/vi-map-with-mutex.h"
-#include "rovioli/vio-update-builder.h"
+#include "openvinsli/flow-topics.h"
+#include "openvinsli/vi-map-with-mutex.h"
+#include "openvinsli/vio-update-builder.h"
 
-namespace rovioli {
+namespace openvinsli {
 
 // Note that the VisualNFrames are not deep-copied and the passed shared-pointer
 // is direcly added to the map.
@@ -44,6 +44,6 @@ class MapBuilderFlow {
   online_map_builders::StreamMapBuilder stream_map_builder_;
 };
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_MAP_BUILDER_FLOW_H_
+#endif  // OPENVINSLI_MAP_BUILDER_FLOW_H_

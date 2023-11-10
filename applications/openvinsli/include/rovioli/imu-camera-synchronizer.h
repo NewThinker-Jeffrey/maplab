@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_IMU_CAMERA_SYNCHRONIZER_H_
-#define ROVIOLI_IMU_CAMERA_SYNCHRONIZER_H_
+#ifndef OPENVINSLI_IMU_CAMERA_SYNCHRONIZER_H_
+#define OPENVINSLI_IMU_CAMERA_SYNCHRONIZER_H_
 
 #include <atomic>
 #include <memory>
@@ -13,7 +13,7 @@
 #include <vio-common/vio-types.h>
 #include <vio-common/vio-update.h>
 
-namespace rovioli {
+namespace openvinsli {
 
 class ImuCameraSynchronizer {
  public:
@@ -77,6 +77,6 @@ class ImuCameraSynchronizer {
   int64_t time_last_camera_message_received_or_checked_ns_;
 };
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_IMU_CAMERA_SYNCHRONIZER_H_
+#endif  // OPENVINSLI_IMU_CAMERA_SYNCHRONIZER_H_

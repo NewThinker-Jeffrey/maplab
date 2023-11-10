@@ -1,18 +1,18 @@
-#include "rovioli/localizer-flow.h"
+#include "openvinsli/localizer-flow.h"
 
 #include <gflags/gflags.h>
 #include <localization-summary-map/localization-summary-map.h>
 #include <message-flow/message-flow.h>
 #include <vio-common/vio-types.h>
 
-#include "rovioli/flow-topics.h"
-#include "rovioli/localizer.h"
+#include "openvinsli/flow-topics.h"
+#include "openvinsli/localizer.h"
 
 DEFINE_double(
     vio_max_localization_frequency_hz, 2.0,
     "Maximum localization frequency [hz].");
 
-namespace rovioli {
+namespace openvinsli {
 LocalizerFlow::LocalizerFlow(
     const summary_map::LocalizationSummaryMap& localization_map,
     const bool visualize_localization)
@@ -66,4 +66,4 @@ void LocalizerFlow::processTrackedNFrameAndImu(
     publish_localization_result_(loc_result);
   }
 }
-}  // namespace rovioli
+}  // namespace openvinsli

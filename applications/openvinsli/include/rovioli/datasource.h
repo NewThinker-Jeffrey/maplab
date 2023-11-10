@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_DATASOURCE_H_
-#define ROVIOLI_DATASOURCE_H_
+#ifndef OPENVINSLI_DATASOURCE_H_
+#define OPENVINSLI_DATASOURCE_H_
 
 #include <functional>
 #include <string>
@@ -9,7 +9,7 @@
 #include <maplab-common/macros.h>
 #include <vio-common/vio-types.h>
 
-namespace rovioli {
+namespace openvinsli {
 
 #define DECLARE_SENSOR_CALLBACK(SENSOR_NAME, MEASUREMENT_TYPE)             \
  public: /* NOLINT */                                                      \
@@ -104,6 +104,6 @@ class DataSource : public CallbackManager {
   std::atomic<int64_t> timestamp_at_start_ns_;
 };
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_DATASOURCE_H_
+#endif  // OPENVINSLI_DATASOURCE_H_

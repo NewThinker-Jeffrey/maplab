@@ -1,4 +1,4 @@
-#include "rovioli/localizer-helpers.h"
+#include "openvinsli/localizer-helpers.h"
 
 #include <aslam/common/occupancy-grid.h>
 #include <localization-summary-map/localization-summary-map-queries.h>
@@ -7,7 +7,7 @@
 #include <maplab-common/macros.h>
 #include <vio-common/vio-types.h>
 
-namespace rovioli {
+namespace openvinsli {
 void convertVertexKeyPointToStructureMatchListToLocalizationResult(
     const summary_map::LocalizationSummaryMap& map,
     const aslam::VisualNFrame& query_nframe,
@@ -143,4 +143,4 @@ void subselectStructureMatches(
       num_max_landmarks_to_keep_per_camera * nframe.getNumCameras());
   CHECK(!structure_matches->empty());
 }
-}  // namespace rovioli
+}  // namespace openvinsli

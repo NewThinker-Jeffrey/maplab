@@ -3,15 +3,15 @@
 <arg name="maplab_imu_to_camera_time_offset_ns" default="0"/>
 <arg name="maplab_image_topic_suffix" default="/image_raw"/>
 
-<!-- ROVIOLI CONFIG -->
+<!-- OPENVINSLI CONFIG -->
 <arg name="maplab_use_clahe" default="true"/>
 <arg name="maplab_map_directory" default="/tmp/maplab_node/"/>
 
-<!-- ROVIOLI -->
-<node name="rovioli" pkg="rovioli" type="rovioli" required="true" output="screen" clear_params="true">
+<!-- OPENVINSLI -->
+<node name="openvinsli" pkg="openvinsli" type="openvinsli" required="true" output="screen" clear_params="true">
 
 	<!-- GENERAL PARAMS -->
-	<rosparam command="load" file="$(find rovioli)/share/rovioli-rosparam.yaml"/>
+	<rosparam command="load" file="$(find openvinsli)/share/openvinsli-rosparam.yaml"/>
 
 	<!-- ROBOT SPECIFIC PARAMS -->
 	<!-- SENSORS -->
@@ -19,10 +19,10 @@
 	<param name="imu_to_camera_time_offset_ns" value="$(arg maplab_imu_to_camera_time_offset_ns)"/>
 	<param name="vio_camera_topic_suffix" value="$(arg maplab_image_topic_suffix)"/>
 
-	<!-- ROVIOLI CONFIG -->
-	<param name="rovioli_run_map_builder" value="true"/>
+	<!-- OPENVINSLI CONFIG -->
+	<param name="openvinsli_run_map_builder" value="true"/>
 	<param name="save_map_folder" value="$(arg maplab_map_directory)"/>
-	<param name="rovioli_image_apply_clahe_histogram_equalization" value="$(arg maplab_use_clahe)"/>
-	<param name="rovio_enable_frame_visualization" value="true"/>
-	<param name="rovioli_enable_health_checking" value="true"/>
+	<param name="openvinsli_image_apply_clahe_histogram_equalization" value="$(arg maplab_use_clahe)"/>
+	<param name="openvins_enable_frame_visualization" value="true"/>
+	<param name="openvinsli_enable_health_checking" value="true"/>
 </node>

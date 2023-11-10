@@ -1,4 +1,4 @@
-#include "rovioli/datasource-rostopic.h"
+#include "openvinsli/datasource-rostopic.h"
 
 #include <string>
 
@@ -7,11 +7,11 @@
 #include <maplab-common/accessors.h>
 #include <vio-common/rostopic-settings.h>
 
-#include "rovioli/ros-helpers.h"
+#include "openvinsli/ros-helpers.h"
 
-DECLARE_bool(rovioli_zero_initial_timestamps);
+DECLARE_bool(openvinsli_zero_initial_timestamps);
 
-namespace rovioli {
+namespace openvinsli {
 
 DataSourceRostopic::DataSourceRostopic(
     const vio_common::RosTopicSettings& ros_topics)
@@ -96,13 +96,13 @@ void DataSourceRostopic::imageCallback(
   }
 
   // Shift timestamps to start at 0.
-  if (!FLAGS_rovioli_zero_initial_timestamps ||
+  if (!FLAGS_openvinsli_zero_initial_timestamps ||
       shiftByFirstTimestamp(&(image_measurement->timestamp))) {
     // Check for strictly increasing image timestamps.
     CHECK_LT(camera_idx, last_image_timestamp_ns_.size());
     if (aslam::time::isValidTime(last_image_timestamp_ns_[camera_idx]) &&
         last_image_timestamp_ns_[camera_idx] >= image_measurement->timestamp) {
-      LOG(WARNING) << "[ROVIOLI-DataSource] Image message (cam " << camera_idx
+      LOG(WARNING) << "[OPENVINSLI-DataSource] Image message (cam " << camera_idx
                    << ") is not strictly "
                    << "increasing! Current timestamp: "
                    << image_measurement->timestamp << "ns vs last timestamp: "
@@ -125,12 +125,12 @@ void DataSourceRostopic::imuMeasurementCallback(
   vio::ImuMeasurement::Ptr imu_measurement = convertRosImuToMaplabImu(msg);
 
   // Shift timestamps to start at 0.
-  if (!FLAGS_rovioli_zero_initial_timestamps ||
+  if (!FLAGS_openvinsli_zero_initial_timestamps ||
       shiftByFirstTimestamp(&(imu_measurement->timestamp))) {
     // Check for strictly increasing imu timestamps.
     if (aslam::time::isValidTime(last_imu_timestamp_ns_) &&
         last_imu_timestamp_ns_ >= imu_measurement->timestamp) {
-      LOG(WARNING) << "[ROVIOLI-DataSource] IMU message is not strictly "
+      LOG(WARNING) << "[OPENVINSLI-DataSource] IMU message is not strictly "
                    << "increasing! Current timestamp: "
                    << imu_measurement->timestamp
                    << "ns vs last timestamp: " << last_imu_timestamp_ns_
@@ -154,7 +154,7 @@ void DataSourceRostopic::odometryMeasurementCallback(
       convertRosOdometryToOdometry(msg);
 
   // Shift timestamps to start at 0.
-  if (!FLAGS_rovioli_zero_initial_timestamps ||
+  if (!FLAGS_openvinsli_zero_initial_timestamps ||
       shiftByFirstTimestamp(&(odometry_measurement->timestamp))) {
     // Check for strictly increasing wheel odometry timestamps.
     if (aslam::time::isValidTime(last_odometry_timestamp_ns_) &&
@@ -172,4 +172,4 @@ void DataSourceRostopic::odometryMeasurementCallback(
   }
 }
 
-}  // namespace rovioli
+}  // namespace openvinsli

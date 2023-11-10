@@ -1,12 +1,12 @@
 #include <maplab-common/conversions.h>
 
-#include "rovioli/feature-tracking.h"
+#include "openvinsli/feature-tracking.h"
 
 DEFINE_bool(
-    rovioli_descriptor_rotation_invariance, true,
+    openvinsli_descriptor_rotation_invariance, true,
     "Use rotation invariant descriptors.");
 
-namespace rovioli {
+namespace openvinsli {
 FeatureTracking::FeatureTracking(
     const aslam::NCamera::Ptr& camera_system, const vi_map::Imu& imu_sensor)
     : camera_system_(camera_system),
@@ -20,7 +20,7 @@ FeatureTracking::FeatureTracking(
   const feature_tracking::FeatureTrackingDetectorSettings detector_settings;
   feature_tracking::FeatureTrackingExtractorSettings extractor_settings;
   extractor_settings.rotation_invariant =
-      FLAGS_rovioli_descriptor_rotation_invariance;
+      FLAGS_openvinsli_descriptor_rotation_invariance;
   const feature_tracking::FeatureTrackingOutlierSettings outlier_settings;
 
   tracker_.reset(new feature_tracking::VOFeatureTrackingPipeline(
@@ -75,20 +75,20 @@ bool FeatureTracking::trackSynchronizedNFrameImuCallback(
 }
 
 void FeatureTracking::setCurrentImuBias(
-    const RovioEstimate::ConstPtr& rovio_estimate) {
-  CHECK(rovio_estimate != nullptr);
+    const OpenvinsEstimate::ConstPtr& openvins_estimate) {
+  CHECK(openvins_estimate != nullptr);
 
   // Only update the bias if we have a newer measurement.
   std::unique_lock<std::mutex> lock(m_current_imu_bias_);
-  if (rovio_estimate->timestamp_ns > current_imu_bias_timestamp_nanoseconds_) {
-    current_imu_bias_timestamp_nanoseconds_ = rovio_estimate->timestamp_ns;
-    current_imu_bias_ = rovio_estimate->vinode.getImuBias();
+  if (openvins_estimate->timestamp_ns > current_imu_bias_timestamp_nanoseconds_) {
+    current_imu_bias_timestamp_nanoseconds_ = openvins_estimate->timestamp_ns;
+    current_imu_bias_ = openvins_estimate->vinode.getImuBias();
     VLOG(5) << "Updated IMU bias in Pipeline node.";
   } else {
     LOG(WARNING) << "Received an IMU bias estimate that has an earlier "
                  << "timestamp than the previous one. Previous timestamp: "
                  << current_imu_bias_timestamp_nanoseconds_
-                 << "ns, received timestamp: " << rovio_estimate->timestamp_ns
+                 << "ns, received timestamp: " << openvins_estimate->timestamp_ns
                  << "ns.";
   }
 }
@@ -134,4 +134,4 @@ void FeatureTracking::integrateInterframeImuRotation(
   *q_Ikp1_Ik = q_Ikp1_Ik->inverse();
 }
 
-}  // namespace rovioli
+}  // namespace openvinsli

@@ -47,7 +47,7 @@ sensors:
 
   - id: aabb23479caf7592b35518478a2fe08f
     sensor_type: ODOMETRY_6DOF
-    description: "ROVIOLI in Odometry mode"
+    description: "OPENVINSLI in Odometry mode"
     topic: /maplab_odom_T_M_I
 
 extrinsics:

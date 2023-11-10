@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 #include <maplab-common/test/testing-entrypoint.h>
 #include <nav_msgs/Odometry.h>
-#include "rovioli/ros-helpers.h"
+#include "openvinsli/ros-helpers.h"
 
-namespace rovioli {
+namespace openvinsli {
 
 TEST(EigenOdometryConversion, EigenOdometryConversion) {
   // setting up expected values
@@ -25,7 +25,7 @@ TEST(EigenOdometryConversion, EigenOdometryConversion) {
     CHECK_EQ(odom.pose.covariance[i], expected_odom_format[i]);
   }
 
-  rovioli::odometryCovarianceToEigenMatrix(
+  openvinsli::odometryCovarianceToEigenMatrix(
       expected_odom.pose.covariance, covariance);
   for (int i = 0; i < expected_covariance.rows(); i++) {
     for (int j = 0; j < expected_covariance.cols(); j++) {
@@ -34,6 +34,6 @@ TEST(EigenOdometryConversion, EigenOdometryConversion) {
   }
 }
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
 MAPLAB_UNITTEST_ENTRYPOINT

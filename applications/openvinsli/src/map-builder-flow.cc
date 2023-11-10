@@ -1,4 +1,4 @@
-#include "rovioli/map-builder-flow.h"
+#include "openvinsli/map-builder-flow.h"
 
 #include <functional>
 
@@ -18,9 +18,9 @@
 DEFINE_double(
     localization_map_keep_landmark_fraction, 0.0,
     "Fraction of landmarks to keep when creating a localization summary map.");
-DECLARE_bool(rovioli_visualize_map);
+DECLARE_bool(openvinsli_visualize_map);
 
-namespace rovioli {
+namespace openvinsli {
 
 MapBuilderFlow::MapBuilderFlow(
     const vi_map::SensorManager& sensor_manager,
@@ -73,13 +73,13 @@ void MapBuilderFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         vio_update_builder_.processSynchronizedNFrameImu(
             synchronized_nframe_imu);
       });
-  flow->registerSubscriber<message_flow_topics::ROVIO_ESTIMATES>(
+  flow->registerSubscriber<message_flow_topics::OPENVINS_ESTIMATES>(
       kSubscriberNodeName, message_flow::DeliveryOptions(),
-      [this](const RovioEstimate::ConstPtr& rovio_estimate) {
+      [this](const OpenvinsEstimate::ConstPtr& openvins_estimate) {
         if (mapping_terminated_) {
           return;
         }
-        vio_update_builder_.processRovioEstimate(rovio_estimate);
+        vio_update_builder_.processOpenvinsEstimate(openvins_estimate);
       });
   flow->registerSubscriber<message_flow_topics::LOCALIZATION_RESULT>(
       kSubscriberNodeName, message_flow::DeliveryOptions(),
@@ -104,7 +104,7 @@ void MapBuilderFlow::saveMapAndOptionallyOptimize(
   }
 
   visualization::ViwlsGraphRvizPlotter::UniquePtr plotter;
-  if (FLAGS_rovioli_visualize_map) {
+  if (FLAGS_openvinsli_visualize_map) {
     plotter = aligned_unique<visualization::ViwlsGraphRvizPlotter>();
   }
 
@@ -161,4 +161,4 @@ void MapBuilderFlow::saveMapAndOptionallyOptimize(
     LOG(INFO) << "Localization summary map saved to: " << localization_map_path;
   }
 }
-}  // namespace rovioli
+}  // namespace openvinsli

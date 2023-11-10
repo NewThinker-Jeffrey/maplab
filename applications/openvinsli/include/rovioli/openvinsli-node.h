@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_ROVIOLI_NODE_H_
-#define ROVIOLI_ROVIOLI_NODE_H_
+#ifndef OPENVINSLI_OPENVINSLI_NODE_H_
+#define OPENVINSLI_OPENVINSLI_NODE_H_
 #include <memory>
 
 #include <atomic>
@@ -9,24 +9,24 @@
 #include <sensors/imu.h>
 #include <sensors/wheel-odometry-sensor.h>
 
-#include "rovioli/data-publisher-flow.h"
-#include "rovioli/datasource-flow.h"
-#include "rovioli/feature-tracking-flow.h"
-#include "rovioli/imu-camera-synchronizer-flow.h"
-#include "rovioli/localizer-flow.h"
-#include "rovioli/map-builder-flow.h"
-#include "rovioli/rovio-flow.h"
+#include "openvinsli/data-publisher-flow.h"
+#include "openvinsli/datasource-flow.h"
+#include "openvinsli/feature-tracking-flow.h"
+#include "openvinsli/imu-camera-synchronizer-flow.h"
+#include "openvinsli/localizer-flow.h"
+#include "openvinsli/map-builder-flow.h"
+#include "openvinsli/openvins-flow.h"
 
-namespace rovioli {
-class RovioliNode final {
+namespace openvinsli {
+class OpenvinsliNode final {
  public:
-  RovioliNode(
+  OpenvinsliNode(
       const vi_map::SensorManager& sensor_manager,
-      const vi_map::ImuSigmas& rovio_imu_sigmas,
+      const vi_map::ImuSigmas& openvins_imu_sigmas,
       const std::string& save_map_folder,
       const summary_map::LocalizationSummaryMap* const localization_map,
       message_flow::MessageFlow* flow);
-  ~RovioliNode();
+  ~OpenvinsliNode();
 
   void start();
   void shutdown();
@@ -40,7 +40,7 @@ class RovioliNode final {
 
  private:
   std::unique_ptr<DataSourceFlow> datasource_flow_;
-  std::unique_ptr<RovioFlow> rovio_flow_;
+  std::unique_ptr<OpenvinsFlow> openvins_flow_;
   std::unique_ptr<LocalizerFlow> localizer_flow_;
   std::unique_ptr<ImuCameraSynchronizerFlow> synchronizer_flow_;
   std::unique_ptr<FeatureTrackingFlow> tracker_flow_;
@@ -51,5 +51,5 @@ class RovioliNode final {
   // be true for infinite data-sources (live-data).
   std::atomic<bool> is_datasource_exhausted_;
 };
-}  // namespace rovioli
-#endif  // ROVIOLI_ROVIOLI_NODE_H_
+}  // namespace openvinsli
+#endif  // OPENVINSLI_OPENVINSLI_NODE_H_

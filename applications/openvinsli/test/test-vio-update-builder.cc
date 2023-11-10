@@ -3,9 +3,9 @@
 #include <aslam/frames/visual-nframe.h>
 #include <gtest/gtest.h>
 #include <maplab-common/test/testing-entrypoint.h>
-#include "rovioli/vio-update-builder.h"
+#include "openvinsli/vio-update-builder.h"
 
-namespace rovioli {
+namespace openvinsli {
 
 class VioUpdateBuilderTest : public ::testing::Test {
  public:
@@ -41,10 +41,10 @@ class VioUpdateBuilderTest : public ::testing::Test {
     vi_node.setGyroBias(
         Eigen::Vector3d(timestamp_ns, kGyroBiasYOffset + timestamp_ns, 0));
     vi_node.setTimestamp(timestamp_ns);
-    RovioEstimate::Ptr rovio_estimate = aligned_shared<RovioEstimate>();
-    rovio_estimate->vinode = vi_node;
-    rovio_estimate->timestamp_ns = timestamp_ns;
-    vio_update_builder_.processRovioEstimate(rovio_estimate);
+    OpenvinsEstimate::Ptr openvins_estimate = aligned_shared<OpenvinsEstimate>();
+    openvins_estimate->vinode = vi_node;
+    openvins_estimate->timestamp_ns = timestamp_ns;
+    vio_update_builder_.processOpenvinsEstimate(openvins_estimate);
   }
 
   VioUpdateBuilder vio_update_builder_;
@@ -113,6 +113,6 @@ TEST_F(VioUpdateBuilderTest, VioUpdateBuilderTest) {
   }
 }
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
 MAPLAB_UNITTEST_ENTRYPOINT

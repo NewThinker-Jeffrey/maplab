@@ -1,13 +1,13 @@
-#include "rovioli/vio-update-builder.h"
+#include "openvinsli/vio-update-builder.h"
 
 #include <maplab-common/interpolation-helpers.h>
 
-namespace rovioli {
+namespace openvinsli {
 
 VioUpdateBuilder::VioUpdateBuilder()
     : last_received_timestamp_synced_nframe_queue_(
           aslam::time::getInvalidTime()),
-      last_received_timestamp_rovio_estimate_queue(
+      last_received_timestamp_openvins_estimate_queue(
           aslam::time::getInvalidTime()) {}
 
 void VioUpdateBuilder::processSynchronizedNFrameImu(
@@ -23,16 +23,16 @@ void VioUpdateBuilder::processSynchronizedNFrameImu(
   findMatchAndPublish();
 }
 
-void VioUpdateBuilder::processRovioEstimate(
-    const RovioEstimate::ConstPtr& rovio_estimate) {
-  CHECK(rovio_estimate != nullptr);
+void VioUpdateBuilder::processOpenvinsEstimate(
+    const OpenvinsEstimate::ConstPtr& openvins_estimate) {
+  CHECK(openvins_estimate != nullptr);
   CHECK_GT(
-      rovio_estimate->timestamp_ns,
-      last_received_timestamp_rovio_estimate_queue);
-  last_received_timestamp_rovio_estimate_queue = rovio_estimate->timestamp_ns;
+      openvins_estimate->timestamp_ns,
+      last_received_timestamp_openvins_estimate_queue);
+  last_received_timestamp_openvins_estimate_queue = openvins_estimate->timestamp_ns;
 
   std::lock_guard<std::recursive_mutex> lock(queue_mutex_);
-  rovio_estimate_queue_.push_back(rovio_estimate);
+  openvins_estimate_queue_.push_back(openvins_estimate);
   findMatchAndPublish();
 }
 
@@ -56,7 +56,7 @@ void VioUpdateBuilder::processLocalizationResult(
 void VioUpdateBuilder::findMatchAndPublish() {
   std::lock_guard<std::recursive_mutex> lock(queue_mutex_);
 
-  if (synced_nframe_imu_queue_.empty() || rovio_estimate_queue_.empty()) {
+  if (synced_nframe_imu_queue_.empty() || openvins_estimate_queue_.empty()) {
     // Nothing to do.
     return;
   }
@@ -67,28 +67,28 @@ void VioUpdateBuilder::findMatchAndPublish() {
 
   // We need to use iterator instead of const_iterator because erase isn't
   // defined for const_iterators in g++ 4.8.
-  RovioEstimateQueue::iterator it_rovio_estimate_before_nframe =
-      rovio_estimate_queue_.end();
-  RovioEstimateQueue::iterator it_rovio_estimate_after_nframe =
-      rovio_estimate_queue_.end();
+  OpenvinsEstimateQueue::iterator it_openvins_estimate_before_nframe =
+      openvins_estimate_queue_.end();
+  OpenvinsEstimateQueue::iterator it_openvins_estimate_after_nframe =
+      openvins_estimate_queue_.end();
 
   bool found_exact_match = false;
   bool found_matches_to_interpolate = false;
   // Need at least two values for interpolation.
-  for (it_rovio_estimate_before_nframe = rovio_estimate_queue_.begin();
-       it_rovio_estimate_before_nframe != rovio_estimate_queue_.end();
-       ++it_rovio_estimate_before_nframe) {
-    it_rovio_estimate_after_nframe = it_rovio_estimate_before_nframe + 1;
+  for (it_openvins_estimate_before_nframe = openvins_estimate_queue_.begin();
+       it_openvins_estimate_before_nframe != openvins_estimate_queue_.end();
+       ++it_openvins_estimate_before_nframe) {
+    it_openvins_estimate_after_nframe = it_openvins_estimate_before_nframe + 1;
     // Check if exact match.
-    if ((*it_rovio_estimate_before_nframe)->timestamp_ns ==
+    if ((*it_openvins_estimate_before_nframe)->timestamp_ns ==
         timestamp_nframe_ns) {
       found_exact_match = true;
       break;
     }
-    if (it_rovio_estimate_after_nframe != rovio_estimate_queue_.end() &&
-        (*it_rovio_estimate_before_nframe)->timestamp_ns <=
+    if (it_openvins_estimate_after_nframe != openvins_estimate_queue_.end() &&
+        (*it_openvins_estimate_before_nframe)->timestamp_ns <=
             timestamp_nframe_ns &&
-        (*it_rovio_estimate_after_nframe)->timestamp_ns > timestamp_nframe_ns) {
+        (*it_openvins_estimate_after_nframe)->timestamp_ns > timestamp_nframe_ns) {
       // Found matching vi nodes.
       found_matches_to_interpolate = true;
       break;
@@ -99,15 +99,15 @@ void VioUpdateBuilder::findMatchAndPublish() {
     return;
   }
 
-  CHECK(it_rovio_estimate_before_nframe != rovio_estimate_queue_.end());
+  CHECK(it_openvins_estimate_before_nframe != openvins_estimate_queue_.end());
   CHECK(
       found_exact_match ||
-      it_rovio_estimate_after_nframe != rovio_estimate_queue_.end());
-  CHECK(it_rovio_estimate_before_nframe != it_rovio_estimate_after_nframe);
-  const RovioEstimate::ConstPtr& rovio_estimate_before_nframe =
-      *it_rovio_estimate_before_nframe;
-  const RovioEstimate::ConstPtr& rovio_estimate_after_nframe =
-      *it_rovio_estimate_after_nframe;
+      it_openvins_estimate_after_nframe != openvins_estimate_queue_.end());
+  CHECK(it_openvins_estimate_before_nframe != it_openvins_estimate_after_nframe);
+  const OpenvinsEstimate::ConstPtr& openvins_estimate_before_nframe =
+      *it_openvins_estimate_before_nframe;
+  const OpenvinsEstimate::ConstPtr& openvins_estimate_after_nframe =
+      *it_openvins_estimate_after_nframe;
 
   // Build MapUpdate.
   vio::MapUpdate::Ptr vio_update = aligned_shared<vio::MapUpdate>();
@@ -120,28 +120,28 @@ void VioUpdateBuilder::findMatchAndPublish() {
       oldest_unmatched_synced_nframe->imu_measurements;
 
   if (found_exact_match) {
-    vio_update->vinode = rovio_estimate_before_nframe->vinode;
+    vio_update->vinode = openvins_estimate_before_nframe->vinode;
 
-    if (rovio_estimate_before_nframe->has_T_G_M) {
-      vio_update->T_G_M = rovio_estimate_before_nframe->T_G_M;
+    if (openvins_estimate_before_nframe->has_T_G_M) {
+      vio_update->T_G_M = openvins_estimate_before_nframe->T_G_M;
     }
   } else {
     // Need to interpolate ViNode.
-    const int64_t t_before = rovio_estimate_before_nframe->timestamp_ns;
-    const int64_t t_after = rovio_estimate_after_nframe->timestamp_ns;
+    const int64_t t_before = openvins_estimate_before_nframe->timestamp_ns;
+    const int64_t t_after = openvins_estimate_after_nframe->timestamp_ns;
 
     vio::ViNodeState interpolated_vi_node;
     interpolateViNodeState(
-        t_before, rovio_estimate_before_nframe->vinode, t_after,
-        rovio_estimate_after_nframe->vinode, timestamp_nframe_ns,
+        t_before, openvins_estimate_before_nframe->vinode, t_after,
+        openvins_estimate_after_nframe->vinode, timestamp_nframe_ns,
         &interpolated_vi_node);
     vio_update->vinode = interpolated_vi_node;
 
-    if (rovio_estimate_before_nframe->has_T_G_M &&
-        rovio_estimate_after_nframe->has_T_G_M) {
+    if (openvins_estimate_before_nframe->has_T_G_M &&
+        openvins_estimate_after_nframe->has_T_G_M) {
       common::interpolateTransformation(
-          t_before, rovio_estimate_before_nframe->T_G_M, t_after,
-          rovio_estimate_after_nframe->T_G_M, timestamp_nframe_ns,
+          t_before, openvins_estimate_before_nframe->T_G_M, t_after,
+          openvins_estimate_after_nframe->T_G_M, timestamp_nframe_ns,
           &vio_update->T_G_M);
     }
   }
@@ -159,16 +159,16 @@ void VioUpdateBuilder::findMatchAndPublish() {
   vio_update_publish_function_(vio_update);
 
   // Clean up queues.
-  if (it_rovio_estimate_before_nframe != rovio_estimate_queue_.begin()) {
+  if (it_openvins_estimate_before_nframe != openvins_estimate_queue_.begin()) {
     if (found_exact_match) {
-      rovio_estimate_queue_.erase(
-          rovio_estimate_queue_.begin(), it_rovio_estimate_before_nframe);
+      openvins_estimate_queue_.erase(
+          openvins_estimate_queue_.begin(), it_openvins_estimate_before_nframe);
     } else {
       // Keep the two ViNodeStates that were used for interpolation as a
       // subsequent SynchronizedNFrameImu may need to be interpolated between
       // those two points again.
-      rovio_estimate_queue_.erase(
-          rovio_estimate_queue_.begin(), it_rovio_estimate_before_nframe - 1);
+      openvins_estimate_queue_.erase(
+          openvins_estimate_queue_.begin(), it_openvins_estimate_before_nframe - 1);
     }
   }
   synced_nframe_imu_queue_.pop();
@@ -212,4 +212,4 @@ void VioUpdateBuilder::interpolateViNodeState(
   vi_node_interpolated->setGyroBias(interpolated_gyro_bias);
 }
 
-}  // namespace rovioli
+}  // namespace openvinsli

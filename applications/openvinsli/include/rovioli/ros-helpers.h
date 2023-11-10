@@ -1,5 +1,5 @@
-#ifndef ROVIOLI_ROS_HELPERS_H_
-#define ROVIOLI_ROS_HELPERS_H_
+#ifndef OPENVINSLI_ROS_HELPERS_H_
+#define OPENVINSLI_ROS_HELPERS_H_
 
 #include <atomic>
 #include <memory>
@@ -20,7 +20,7 @@
 
 #include <vio-common/vio-types.h>
 
-namespace rovioli {
+namespace openvinsli {
 
 constexpr int64_t rosTimeToNanoseconds(const ros::Time& rostime) {
   return aslam::time::seconds(static_cast<int64_t>(rostime.sec)) +
@@ -48,6 +48,6 @@ void eigenMatrixToOdometryCovariance(
     const Eigen::Matrix<double, 6, 6>& covariance,
     double* odometry_msg_covariance_data);
 
-}  // namespace rovioli
+}  // namespace openvinsli
 
-#endif  // ROVIOLI_ROS_HELPERS_H_
+#endif  // OPENVINSLI_ROS_HELPERS_H_

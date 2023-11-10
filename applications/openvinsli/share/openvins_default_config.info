@@ -5,7 +5,7 @@ Common
   depthType 1;           Type of depth parametrization (0: normal, 1: inverse depth, 2: log, 3: hyperbolic)
   verbose false;         Is the verbose active
 }
-Camera0; !!! These values will be overwritten by ROVIOLI !!!
+Camera0; !!! These values will be overwritten by OPENVINSLI !!!
 {
   CalibrationFile ;   Camera-Calibration file for intrinsics
   qCM_x  0.0;   X-entry of IMU to Camera quaterion (Hamilton)
@@ -16,7 +16,7 @@ Camera0; !!! These values will be overwritten by ROVIOLI !!!
   MrMC_y 0.0;   Y-entry of IMU to Camera vector (expressed in IMU CF) [m]
   MrMC_z 0.0;   Z-entry of IMU to Camera vector (expressed in IMU CF) [m]
 }
-Camera1; !!! These values will be overwritten by ROVIOLI !!!
+Camera1; !!! These values will be overwritten by OPENVINSLI !!!
 {
   CalibrationFile ;   Camera-Calibration file for intrinsics
   qCM_x  0.0;   X-entry of IMU to Camera quaterion (Hamilton)
@@ -48,13 +48,13 @@ Init
     att_z 0;  Z-entry of initial attitude (IMU to world, Hamilton)
     att_w 1;  W-entry of initial attitude (IMU to world, Hamilton)
 
-    pma_0_x 0; !!! This value will be overwritten by ROVIOLI !!!
-    pma_0_y 0; !!! This value will be overwritten by ROVIOLI !!!
-    pma_0_z 0; !!! This value will be overwritten by ROVIOLI !!!
-    pma_0_w 1; !!! This value will be overwritten by ROVIOLI !!!
-    pmp_0_0 0; !!! This value will be overwritten by ROVIOLI !!!
-    pmp_0_1 0; !!! This value will be overwritten by ROVIOLI !!!
-    pmp_0_2 0; !!! This value will be overwritten by ROVIOLI !!!
+    pma_0_x 0; !!! This value will be overwritten by OPENVINSLI !!!
+    pma_0_y 0; !!! This value will be overwritten by OPENVINSLI !!!
+    pma_0_z 0; !!! This value will be overwritten by OPENVINSLI !!!
+    pma_0_w 1; !!! This value will be overwritten by OPENVINSLI !!!
+    pmp_0_0 0; !!! This value will be overwritten by OPENVINSLI !!!
+    pmp_0_1 0; !!! This value will be overwritten by OPENVINSLI !!!
+    pmp_0_2 0; !!! This value will be overwritten by OPENVINSLI !!!
   }
   Covariance
   {
@@ -76,12 +76,12 @@ Init
     att_1 0.1;     Y-Covariance of initial attitude [rad^2]
     att_2 0.1;     Z-Covariance of initial attitude [rad^2]
     
-    pma_0 9.86; !!! This value will be overwritten by ROVIOLI !!!
-    pma_1 9.86; !!! This value will be overwritten by ROVIOLI !!!
-    pma_2 9.86; !!! This value will be overwritten by ROVIOLI !!!
-    pmp_0 50.0; !!! This value will be overwritten by ROVIOLI !!!
-    pmp_1 50.0; !!! This value will be overwritten by ROVIOLI !!!
-    pmp_2 50.0; !!! This value will be overwritten by ROVIOLI !!!
+    pma_0 9.86; !!! This value will be overwritten by OPENVINSLI !!!
+    pma_1 9.86; !!! This value will be overwritten by OPENVINSLI !!!
+    pma_2 9.86; !!! This value will be overwritten by OPENVINSLI !!!
+    pmp_0 50.0; !!! This value will be overwritten by OPENVINSLI !!!
+    pmp_1 50.0; !!! This value will be overwritten by OPENVINSLI !!!
+    pmp_2 50.0; !!! This value will be overwritten by OPENVINSLI !!!
   }
 }
 ImgUpdate
@@ -130,13 +130,13 @@ ImgUpdate
   useIntensityOffsetForAlignment true;Should an intensity offset between the patches be considered
   useIntensitySqewForAlignment true; Should an intensity sqew between the patches be considered
   removeNegativeFeatureAfterUpdate true;  Should feature with negative distance get removed
-  maxUncertaintyToDepthRatioForDepthInitialization 0.3;  If set to 0.0 the depth is initialized with the standard value provided above, otherwise ROVIO attempts to figure out a median depth in each frame
+  maxUncertaintyToDepthRatioForDepthInitialization 0.3;  If set to 0.0 the depth is initialized with the standard value provided above, otherwise OPENVINS attempts to figure out a median depth in each frame
   useCrossCameraMeasurements true;  Should cross measurements between frame be used. Might be turned of in calibration phase.
   doStereoInitialization true;      Should a stereo match be used for feature initialization.
   noiseGainForOffCamera 10.0;       Factor added on update noise if not main camera
   discriminativeSamplingDistance 0.02; Sampling distance for checking discriminativity of patch (if <= 0.0 no check is performed).
   discriminativeSamplingGain 1.1;   Gain for threshold above which the samples must lie (if <= 1.0 the patchRejectionTh is used).
-  imageMaskPath ;      Image mask applied to the feature detection. All features in this area will be rejected. !!! This value will be overwritten by ROVIOLI !!!
+  imageMaskPath ;      Image mask applied to the feature detection. All features in this area will be rejected. !!! This value will be overwritten by OPENVINSLI !!!
   MotionDetection
   {
     isEnabled 1;                            Is the motion detection enabled
@@ -162,7 +162,7 @@ Prediction
 {
   PredictionNoise 
   {
-  !!! The following values will be overwritten by ROVIOLI !!!
+  !!! The following values will be overwritten by OPENVINSLI !!!
     pos_0 1e-4;        X-covariance parameter of position prediction [m^2/s]
     pos_1 1e-4;        Y-covariance parameter of position prediction [m^2/s]
     pos_2 1e-4;        Z-covariance parameter of position prediction [m^2/s]
@@ -219,7 +219,7 @@ PoseUpdate
   doVisualization false;  Should the measured poses be vizualized
   enablePosition true;    Should the linear part be used during the update
   enableAttitude true;    Should the rotation part be used during the update (e.g. set to fals eif feeding GPS-measurement)
-  noFeedbackToRovio false; By default the pose update is only used for aligning coordinate frame. Set to false if ROVIO should benefit frome the posed measurements.
+  noFeedbackToOpenvins false; By default the pose update is only used for aligning coordinate frame. Set to false if OPENVINS should benefit frome the posed measurements.
   doInertialAlignmentAtStart false;   Should the transformation between I and W be explicitly computed and set with the first pose measurement.
   timeOffset 0.0;         Time offset added to the pose measurement timestamps
   useOdometryCov false;   Should the UpdateNoise position covariance be scaled using the covariance in the Odometry message

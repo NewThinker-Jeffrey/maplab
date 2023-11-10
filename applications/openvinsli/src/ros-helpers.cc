@@ -2,7 +2,7 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "rovioli/ros-helpers.h"
+#include "openvinsli/ros-helpers.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -17,27 +17,27 @@
 #include <vio-common/vio-types.h>
 
 DEFINE_bool(
-    rovioli_image_apply_clahe_histogram_equalization, false,
+    openvinsli_image_apply_clahe_histogram_equalization, false,
     "Apply CLAHE histogram equalization to image.");
 DEFINE_int32(
-    rovioli_image_clahe_clip_limit, 2,
+    openvinsli_image_clahe_clip_limit, 2,
     "CLAHE histogram equalization parameter: clip limit.");
 DEFINE_int32(
-    rovioli_image_clahe_grid_size, 8,
+    openvinsli_image_clahe_grid_size, 8,
     "CLAHE histogram equalization parameter: grid size.");
 
 DEFINE_double(
-    rovioli_image_16_bit_to_8_bit_scale_factor, 1,
+    openvinsli_image_16_bit_to_8_bit_scale_factor, 1,
     "Scale factor applied to 16bit images when converting them to 8bit "
     "images.");
 DEFINE_double(
-    rovioli_image_16_bit_to_8_bit_shift, 0,
+    openvinsli_image_16_bit_to_8_bit_shift, 0,
     "Shift applied to the scaled values when converting 16bit images to 8bit "
     "images.");
 
-DEFINE_double(rovioli_image_resize_factor, 1.0, "Factor to resize images.");
+DEFINE_double(openvinsli_image_resize_factor, 1.0, "Factor to resize images.");
 
-namespace rovioli {
+namespace openvinsli {
 vio::ImuMeasurement::Ptr convertRosImuToMaplabImu(
     const sensor_msgs::ImuConstPtr& imu_msg) {
   CHECK(imu_msg);
@@ -56,10 +56,10 @@ void applyHistogramEqualization(
   CHECK(!input_image.empty());
 
   static cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(
-      FLAGS_rovioli_image_clahe_clip_limit,
+      FLAGS_openvinsli_image_clahe_clip_limit,
       cv::Size(
-          FLAGS_rovioli_image_clahe_grid_size,
-          FLAGS_rovioli_image_clahe_grid_size));
+          FLAGS_openvinsli_image_clahe_grid_size,
+          FLAGS_openvinsli_image_clahe_grid_size));
   clahe->apply(input_image, *output_image);
 }
 
@@ -77,15 +77,15 @@ vio::ImageMeasurement::Ptr convertRosImageToMaplabImage(
       CHECK(cv_ptr);
 
       cv::Mat processed_image;
-      if (FLAGS_rovioli_image_apply_clahe_histogram_equalization) {
+      if (FLAGS_openvinsli_image_apply_clahe_histogram_equalization) {
         applyHistogramEqualization(cv_ptr->image, &processed_image);
       } else {
         processed_image = cv_ptr->image;
       }
       processed_image.convertTo(
           image_measurement->image, CV_8U,
-          FLAGS_rovioli_image_16_bit_to_8_bit_scale_factor,
-          FLAGS_rovioli_image_16_bit_to_8_bit_shift);
+          FLAGS_openvinsli_image_16_bit_to_8_bit_scale_factor,
+          FLAGS_openvinsli_image_16_bit_to_8_bit_shift);
     } else {
       if (image_message->encoding == sensor_msgs::image_encodings::TYPE_8UC1) {
         // NOTE: we assume all 8UC1 type images are monochrome images.
@@ -114,7 +114,7 @@ vio::ImageMeasurement::Ptr convertRosImageToMaplabImage(
       }
       CHECK(cv_ptr);
 
-      if (FLAGS_rovioli_image_apply_clahe_histogram_equalization) {
+      if (FLAGS_openvinsli_image_apply_clahe_histogram_equalization) {
         cv::Mat processed_image;
         applyHistogramEqualization(cv_ptr->image, &processed_image);
         image_measurement->image = processed_image;
@@ -127,11 +127,11 @@ vio::ImageMeasurement::Ptr convertRosImageToMaplabImage(
   }
   CHECK(cv_ptr);
 
-  if (fabs(FLAGS_rovioli_image_resize_factor - 1.0) > 1e-6) {
+  if (fabs(FLAGS_openvinsli_image_resize_factor - 1.0) > 1e-6) {
     const int newcols = round(
-        image_measurement->image.cols * FLAGS_rovioli_image_resize_factor);
+        image_measurement->image.cols * FLAGS_openvinsli_image_resize_factor);
     const int newrows = round(
-        image_measurement->image.rows * FLAGS_rovioli_image_resize_factor);
+        image_measurement->image.rows * FLAGS_openvinsli_image_resize_factor);
 
     cv::resize(
         image_measurement->image, image_measurement->image,
@@ -175,4 +175,4 @@ void eigenMatrixToOdometryCovariance(
   Eigen::Map<Eigen::MatrixXd>(odometry_msg_covariance_data, 6, 6) = covariance;
 }
 
-}  // namespace rovioli
+}  // namespace openvinsli

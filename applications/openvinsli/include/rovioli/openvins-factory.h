@@ -1,13 +1,13 @@
-#ifndef ROVIOLI_ROVIO_FACTORY_H_
-#define ROVIOLI_ROVIO_FACTORY_H_
+#ifndef OPENVINSLI_OPENVINS_FACTORY_H_
+#define OPENVINSLI_OPENVINS_FACTORY_H_
 
 #include <aslam/cameras/ncamera.h>
-#include <rovio/RovioInterfaceBuilder.hpp>
+#include <openvins/OpenvinsInterfaceBuilder.hpp>
 #include <sensors/imu.h>
 
-namespace rovioli {
-rovio::RovioInterface* constructAndConfigureRovio(
+namespace openvinsli {
+openvins::OpenvinsInterface* constructAndConfigureOpenvins(
     const aslam::NCamera& camera_calibration,
     const vi_map::ImuSigmas& imu_sigmas);
-}  // namespace rovioli
-#endif  // ROVIOLI_ROVIO_FACTORY_H_
+}  // namespace openvinsli
+#endif  // OPENVINSLI_OPENVINS_FACTORY_H_

@@ -1,4 +1,4 @@
-#include "rovioli/rovioli-node.h"
+#include "openvinsli/openvinsli-node.h"
 
 #include <string>
 
@@ -9,21 +9,21 @@
 #include <vi-map/sensor-utils.h>
 #include <vio-common/vio-types.h>
 
-#include "rovioli/datasource-flow.h"
-#include "rovioli/feature-tracking-flow.h"
-#include "rovioli/imu-camera-synchronizer-flow.h"
-#include "rovioli/localizer-flow.h"
-#include "rovioli/rovio-flow.h"
+#include "openvinsli/datasource-flow.h"
+#include "openvinsli/feature-tracking-flow.h"
+#include "openvinsli/imu-camera-synchronizer-flow.h"
+#include "openvinsli/localizer-flow.h"
+#include "openvinsli/openvins-flow.h"
 
 DEFINE_bool(
-    rovioli_run_map_builder, true,
+    openvinsli_run_map_builder, true,
     "When set to false, the map builder will be deactivated and no map will be "
-    "built. Rovio+Localization will still run as usual.");
+    "built. Openvins+Localization will still run as usual.");
 
-namespace rovioli {
-RovioliNode::RovioliNode(
+namespace openvinsli {
+OpenvinsliNode::OpenvinsliNode(
     const vi_map::SensorManager& sensor_manager,
-    const vi_map::ImuSigmas& rovio_imu_sigmas,
+    const vi_map::ImuSigmas& openvins_imu_sigmas,
     const std::string& save_map_folder,
     const summary_map::LocalizationSummaryMap* const localization_map,
     message_flow::MessageFlow* flow)
@@ -47,17 +47,17 @@ RovioliNode::RovioliNode(
   if (maplab_wheel_odometry_sensor != nullptr) {
     const aslam::Transformation& T_B_S =
         sensor_manager.getSensor_T_B_S(maplab_wheel_odometry_sensor->getId());
-    rovio_flow_.reset(new RovioFlow(*camera_system, rovio_imu_sigmas, T_B_S));
-    rovio_flow_->attachToMessageFlow(flow);
+    openvins_flow_.reset(new OpenvinsFlow(*camera_system, openvins_imu_sigmas, T_B_S));
+    openvins_flow_->attachToMessageFlow(flow);
   } else {
     // TODO(ben): remove identity transformation if no rel 6dof sensor available
-    rovio_flow_.reset(new RovioFlow(
-        *camera_system, rovio_imu_sigmas, aslam::Transformation()));
-    rovio_flow_->attachToMessageFlow(flow);
+    openvins_flow_.reset(new OpenvinsFlow(
+        *camera_system, openvins_imu_sigmas, aslam::Transformation()));
+    openvins_flow_->attachToMessageFlow(flow);
   }
 
   const bool localization_enabled = localization_map != nullptr;
-  if (FLAGS_rovioli_run_map_builder || localization_enabled) {
+  if (FLAGS_openvinsli_run_map_builder || localization_enabled) {
     // If there's no localization and no map should be built, no maplab feature
     // tracking is needed.
     if (localization_enabled) {
@@ -82,7 +82,7 @@ RovioliNode::RovioliNode(
   data_publisher_flow_.reset(new DataPublisherFlow);
   data_publisher_flow_->attachToMessageFlow(flow);
 
-  if (FLAGS_rovioli_run_map_builder) {
+  if (FLAGS_openvinsli_run_map_builder) {
     map_builder_flow_.reset(
         new MapBuilderFlow(sensor_manager, save_map_folder));
     map_builder_flow_->attachToMessageFlow(flow);
@@ -93,11 +93,11 @@ RovioliNode::RovioliNode(
       [&]() { is_datasource_exhausted_.store(true); });
 }
 
-RovioliNode::~RovioliNode() {
+OpenvinsliNode::~OpenvinsliNode() {
   shutdown();
 }
 
-void RovioliNode::saveMapAndOptionallyOptimize(
+void OpenvinsliNode::saveMapAndOptionallyOptimize(
     const std::string& path, const bool overwrite_existing_map,
     bool process_to_localization_map) {
   if (map_builder_flow_) {
@@ -106,7 +106,7 @@ void RovioliNode::saveMapAndOptionallyOptimize(
   }
 }
 
-void RovioliNode::start() {
+void OpenvinsliNode::start() {
   CHECK(!is_datasource_exhausted_.load())
       << "Cannot start localization node after the "
       << "end-of-days signal was received!";
@@ -114,13 +114,13 @@ void RovioliNode::start() {
   VLOG(1) << "Starting data source...";
 }
 
-void RovioliNode::shutdown() {
+void OpenvinsliNode::shutdown() {
   datasource_flow_->shutdown();
   VLOG(1) << "Closing data source...";
 }
 
-std::atomic<bool>& RovioliNode::isDataSourceExhausted() {
+std::atomic<bool>& OpenvinsliNode::isDataSourceExhausted() {
   return is_datasource_exhausted_;
 }
 
-}  // namespace rovioli
+}  // namespace openvinsli
