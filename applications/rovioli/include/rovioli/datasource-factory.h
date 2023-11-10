@@ -10,7 +10,7 @@
 #include "rovioli/datasource.h"
 
 namespace rovioli {
-enum class DataSourceType { kRosTopic, kRosBag };
+enum class DataSourceType { kRosTopic, kRosBag, kHearSlam };
 
 DataSourceType stringToDataSource(const std::string& str);
 

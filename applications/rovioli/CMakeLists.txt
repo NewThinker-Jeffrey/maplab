@@ -12,6 +12,7 @@ cs_add_library(${PROJECT_NAME}_lib
   src/datasource-factory.cc
   src/datasource-rosbag.cc
   src/datasource-rostopic.cc
+  src/datasource-hearslam.cc
   src/datasource.cc
   src/feature-tracking.cc
   src/imu-camera-synchronizer.cc

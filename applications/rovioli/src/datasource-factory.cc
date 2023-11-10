@@ -7,11 +7,15 @@
 #include <glog/logging.h>
 #include <maplab-common/file-system-tools.h>
 
+#include "rovioli/datasource-hearslam.h"
 #include "rovioli/datasource-rosbag.h"
 #include "rovioli/datasource-rostopic.h"
 
-DEFINE_string(datasource_type, "rosbag", "Data source type: rosbag / rostopic");
+DEFINE_string(
+    datasource_type, "rosbag",
+    "Data source type: rosbag / rostopic / hearslam");
 DEFINE_string(datasource_rosbag, "", "Path to rosbag for bag sources.");
+DEFINE_string(datasource_hearslam, "", "Path to hearslam dataset.");
 
 namespace rovioli {
 
@@ -20,6 +24,8 @@ DataSourceType stringToDataSource(const std::string& str) {
     return DataSourceType::kRosTopic;
   } else if (str == "rosbag") {
     return DataSourceType::kRosBag;
+  } else if (str == "hearslam") {
+    return DataSourceType::kHearSlam;
   }
   LOG(FATAL) << "Unknown datasource: " << str;
   return DataSourceType::kRosBag;  // Silence warning.
@@ -36,6 +42,11 @@ DataSource* createAndConfigureDataSourcefromGFlags(
       break;
     case DataSourceType::kRosTopic:
       return new DataSourceRostopic(topic_settings);
+      break;
+    case DataSourceType::kHearSlam:
+      // CHECK(!FLAGS_datasource_hearslam.empty());  // use rs_capture?
+      // CHECK(common::fileExists(FLAGS_datasource_hearslam));
+      return new DataSourceHearslam(FLAGS_datasource_hearslam, topic_settings);
       break;
     default:
       LOG(FATAL);
