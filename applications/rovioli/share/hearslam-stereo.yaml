@@ -1,0 +1,113 @@
+sensors:
+  - id: c63aecb41bfdfd6b7e1fac37c7cb37bf
+    topic: /imu0
+    description: "VI-Sensor IMU (Rs-D455.IMU)"
+    sensor_type: IMU
+    sigmas:
+      acc_noise_density: 0.00207649074 # 4e-3
+      # acc_noise_density: 0.207649074  # considering drastic vibration
+      acc_bias_random_walk_noise_density: 0.00041327852 # 4e-3
+      gyro_noise_density: 0.00020544166  # 1e-4
+      gyro_bias_random_walk_noise_density: 0.00001110622 # 1e-4
+    saturation_accel_max_mps2: 30.0  # 150.0
+    saturation_gyro_max_radps: 15.0  # 7.5
+    gravity_magnitude_mps2: 9.81
+
+  - id: 412eab8e4058621f7036b5e765df3812
+    sensor_type: NCAMERA
+    description: "VISensor - Hear-slam - original_calibration"
+    topic: ""
+    cameras:
+      - camera:
+          topic: /cam0
+          id: 54812562fa109c40fe90b29a59dd3798
+          description: "VI-Sensor cam0 (Rs-D455.Infra)"
+          sensor_type: CAMERA
+          line-delay-nanoseconds: 0
+          image_height: 480
+          image_width: 848
+          type: pinhole
+          intrinsics:
+            cols: 1
+            rows: 4
+            data: [429.278, 429.278, 429.302, 242.071]
+          distortion:
+            type: radial-tangential
+            parameters:
+              cols: 1
+              rows: 4
+              data: [0, 0, 0, 0]
+        T_B_C:
+          cols: 4
+          rows: 4
+          data: [1.0, 0.0, 0.0, -0.03022,
+                 0.0, 1.0, 0.0, 0.0074,
+                 0.0, 0.0, 1.0, 0.01602,
+                 0.0, 0.0, 0.0, 1.0]
+
+      - camera:
+          topic: /cam1
+          id: 54812562fa109c40fe90b29a59dd3723
+          description: "VI-Sensor cam1 (Rs-D455.Infra)"
+          sensor_type: CAMERA
+          line-delay-nanoseconds: 0
+          image_height: 480
+          image_width: 848
+          type: pinhole
+          intrinsics:
+            cols: 1
+            rows: 4
+            data: [429.278, 429.278, 429.302, 242.071]
+          distortion:
+            type: radial-tangential
+            parameters:
+              cols: 1
+              rows: 4
+              data: [0, 0, 0, 0]
+        T_B_C:
+          cols: 4
+          rows: 4
+          data: [1.0, 0.0, 0.0, 0.0648656,
+                 0.0, 1.0, 0.0, 0.0074,
+                 0.0, 0.0, 1.0, 0.01602,
+                 0.0, 0.0, 0.0, 1.0]
+
+  # - id: aabb23479caf7592b35518478a2f308f
+  #   sensor_type: ODOMETRY_6DOF
+  #   description: "ROVIOLI in Odometry mode"
+  #   topic: /maplab_odom_T_M_I
+
+extrinsics:
+
+  - sensor_id: 412eab8e4058621f7036b5e765df3812
+    base_sensor_id: c63aecb41bfdfd6b7e1fac37c7cb37bf
+    T_B_S:
+      cols: 4
+      rows: 4
+      data:
+        - [1,0,0,0]
+        - [0,1,0,0]
+        - [0,0,1,0]
+        - [0,0,0,1]
+
+  - sensor_id: c63aecb41bfdfd6b7e1fac37c7cb37bf
+    base_sensor_id: c63aecb41bfdfd6b7e1fac37c7cb37bf
+    T_B_S:
+      rows: 4
+      cols: 4
+      data:
+        - [1,0,0,0]
+        - [0,1,0,0]
+        - [0,0,1,0]
+        - [0,0,0,1]
+
+  # - sensor_id: aabb23479caf7592b35518478a2f308f
+  #   base_sensor_id: c63aecb41bfdfd6b7e1fac37c7cb37bf
+  #   T_B_S:
+  #     rows: 4
+  #     cols: 4
+  #     data:
+  #       - [1,0,0,0]
+  #       - [0,1,0,0]
+  #       - [0,0,1,0]
+  #       - [0,0,0,1]

@@ -46,7 +46,7 @@ DataSource* createAndConfigureDataSourcefromGFlags(
     case DataSourceType::kHearSlam:
       // CHECK(!FLAGS_datasource_hearslam.empty());  // use rs_capture?
       // CHECK(common::fileExists(FLAGS_datasource_hearslam));
-      return new DataSourceHearslam(FLAGS_datasource_hearslam, topic_settings);
+      return new DataSourceHearslam(FLAGS_datasource_hearslam);
       break;
     default:
       LOG(FATAL);

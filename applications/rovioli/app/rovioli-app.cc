@@ -57,6 +57,7 @@ int main(int argc, char** argv) {
   // Load sensors.
   CHECK(!FLAGS_sensor_calibration_file.empty())
       << "[ROVIOLI] No sensor calibration file was provided!";
+  LOG(INFO) << "sensor_calibration_file: " << FLAGS_sensor_calibration_file;
   vi_map::SensorManager sensor_manager;
   if (!sensor_manager.deserializeFromFile(FLAGS_sensor_calibration_file)) {
     LOG(FATAL) << "[ROVIOLI] Failed to read the sensor calibration from '"

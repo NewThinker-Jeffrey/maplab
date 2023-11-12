@@ -24,6 +24,10 @@
 #pragma GCC diagnostic pop
 
 #include "rovioli/datasource.h"
+#include "hear_slam/common/datasource/vi_source.h"
+#include "hear_slam/common/datasource/vi_recorder.h"
+#include "hear_slam/common/datasource/vi_player.h"
+#include "hear_slam/common/datasource/rs/rs_capture.h"
 
 DECLARE_int64(imu_to_camera_time_offset_ns);
 
@@ -32,33 +36,25 @@ namespace rovioli {
 class DataSourceHearslam : public DataSource {
  public:
   DataSourceHearslam(
-      const std::string& rosbag_path_filename,
-      const vio_common::RosTopicSettings& settings);
+      const std::string& dataset_path);
   virtual ~DataSourceHearslam();
-  void initialize();
 
   virtual void startStreaming();
   virtual void shutdown();
-  virtual bool allDataStreamed() const {
-    return all_data_streamed_;
-  }
+  virtual bool allDataStreamed() const;
   virtual std::string getDatasetName() const;
 
  private:
-  void streamingWorker();
+  void hearslamImageCallback(int image_idx, hear_slam::CameraData msg);
+  void hearslamImuCallback(int imu_idx, hear_slam::ImuData msg);
 
-  std::unique_ptr<std::thread> streaming_thread_;
-  std::atomic<bool> shutdown_requested_;
-  std::atomic<bool> all_data_streamed_;
-  std::string rosbag_path_filename_;
-  vio_common::RosTopicSettings ros_topics_;
-
-  std::unique_ptr<rosbag::Bag> bag_;
-  std::unique_ptr<rosbag::View> bag_view_;
+ private:
+  std::string dataset_path_;
+  std::shared_ptr<hear_slam::ViDatasource> source_;
+  std::shared_ptr<hear_slam::ViRecorder> recorder_;
 
   int64_t last_imu_timestamp_ns_;
   std::vector<int64_t> last_image_timestamp_ns_;
-  int64_t last_odometry_timestamp_ns_;
 };
 
 }  // namespace rovioli
