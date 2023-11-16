@@ -42,6 +42,22 @@ DEFINE_bool(
     "saving it.");
 DECLARE_double(rovioli_image_resize_factor);
 
+std::shared_ptr<rovioli::RovioliNode> rovio_localization_node = nullptr;
+__sighandler_t old_sigint_handler = nullptr;
+void shutdownSigintHandler(int sig) {
+  std::cout << "[APP STATUS] Stop Requested ... " << std::endl;
+  if (rovio_localization_node) {
+    rovio_localization_node->shutdown();
+  }
+  // Keep ros alive to finish the map visualization.
+
+  // ros::shutdown();
+
+  // if (old_sigint_handler) {
+  //   old_sigint_handler(sig);
+  // }
+}
+
 int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
   google::ParseCommandLineFlags(&argc, &argv, true);
@@ -53,6 +69,10 @@ int main(int argc, char** argv) {
   ros::NodeHandle nh, nh_private("~");
 
   ros_common::parseGflagsFromRosParams(argv[0], nh_private);
+
+  // Override the default sigint handler.
+  // This must be set after the first NodeHandle is created.
+  old_sigint_handler = signal(SIGINT, shutdownSigintHandler);
 
   // Load sensors.
   CHECK(!FLAGS_sensor_calibration_file.empty())
@@ -156,28 +176,28 @@ int main(int argc, char** argv) {
     }
   }
 
-  rovioli::RovioliNode rovio_localization_node(
+  rovio_localization_node = std::make_shared<rovioli::RovioliNode>(
       sensor_manager, rovio_imu_sigmas, save_map_folder, localization_map.get(),
       flow.get());
 
   // Start the pipeline. The ROS spinner will handle SIGINT for us and abort
   // the application on CTRL+C.
   ros_spinner.start();
-  rovio_localization_node.start();
+  rovio_localization_node->start();
 
   std::atomic<bool>& end_of_days_signal_received =
-      rovio_localization_node.isDataSourceExhausted();
+      rovio_localization_node->isDataSourceExhausted();
   while (ros::ok() && !end_of_days_signal_received.load()) {
     VLOG_EVERY_N(1, 10) << "\n" << flow->printDeliveryQueueStatistics();
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  rovio_localization_node.shutdown();
+  rovio_localization_node->shutdown();
   flow->shutdown();
   flow->waitUntilIdle();
 
   if (!save_map_folder.empty()) {
-    rovio_localization_node.saveMapAndOptionallyOptimize(
+    rovio_localization_node->saveMapAndOptionallyOptimize(
         save_map_folder, FLAGS_overwrite_existing_map,
         FLAGS_optimize_map_to_localization_map);
   }

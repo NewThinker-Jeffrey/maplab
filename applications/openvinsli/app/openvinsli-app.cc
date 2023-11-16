@@ -42,6 +42,23 @@ DEFINE_bool(
     "saving it.");
 DECLARE_double(openvinsli_image_resize_factor);
 
+
+std::shared_ptr<openvinsli::OpenvinsliNode> openvins_localization_node = nullptr;
+__sighandler_t old_sigint_handler = nullptr;
+void shutdownSigintHandler(int sig) {
+  std::cout << "[APP STATUS] Stop Requested ... " << std::endl;
+  if (openvins_localization_node) {
+    openvins_localization_node->shutdown();
+  }
+  // Keep ros alive to finish the map visualization.
+
+  // ros::shutdown();
+
+  // if (old_sigint_handler) {
+  //   old_sigint_handler(sig);
+  // }
+}
+
 int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
   google::ParseCommandLineFlags(&argc, &argv, true);
@@ -53,6 +70,10 @@ int main(int argc, char** argv) {
   ros::NodeHandle nh, nh_private("~");
 
   ros_common::parseGflagsFromRosParams(argv[0], nh_private);
+
+  // Override the default sigint handler.
+  // This must be set after the first NodeHandle is created.
+  old_sigint_handler = signal(SIGINT, shutdownSigintHandler);
 
   // Load sensors.
   CHECK(!FLAGS_sensor_calibration_file.empty())
@@ -155,30 +176,49 @@ int main(int argc, char** argv) {
     }
   }
 
-  openvinsli::OpenvinsliNode openvins_localization_node(
+  openvins_localization_node = std::make_shared<openvinsli::OpenvinsliNode>(
       sensor_manager, openvins_imu_sigmas, save_map_folder, localization_map.get(),
       flow.get());
 
   // Start the pipeline. The ROS spinner will handle SIGINT for us and abort
   // the application on CTRL+C.
+  std::cout << "[APP STATUS] Start ros_spinner ..." << std::endl;
   ros_spinner.start();
-  openvins_localization_node.start();
+  std::cout << "[APP STATUS] Start openvinsli node ..." << std::endl;
+  openvins_localization_node->start();
 
   std::atomic<bool>& end_of_days_signal_received =
-      openvins_localization_node.isDataSourceExhausted();
+      openvins_localization_node->isDataSourceExhausted();
+  int main_loop = 0;
   while (ros::ok() && !end_of_days_signal_received.load()) {
     VLOG_EVERY_N(1, 10) << "\n" << flow->printDeliveryQueueStatistics();
+    if (main_loop++ % 10 == 0) {
+      std::cout << "[APP STATUS] main_loop = " << main_loop << std::endl;
+    }
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  openvins_localization_node.shutdown();
+  std::cout << "[APP STATUS] Going to shutdown openvinsli node ..." << std::endl;
+
+  openvins_localization_node->shutdown();
+
+  std::cout << "[APP STATUS] Going to shutdown message flow ..." << std::endl;
+
   flow->shutdown();
+
+  std::cout << "[APP STATUS] Waiting message flow idle ..." << std::endl;
+
   flow->waitUntilIdle();
 
+  std::cout << "[APP STATUS] Saving and optimizing (optionally) the vimap ..." << std::endl;
+
   if (!save_map_folder.empty()) {
-    openvins_localization_node.saveMapAndOptionallyOptimize(
+    openvins_localization_node->saveMapAndOptionallyOptimize(
         save_map_folder, FLAGS_overwrite_existing_map,
         FLAGS_optimize_map_to_localization_map);
   }
+
+  std::cout << "[APP STATUS] All done." << std::endl;
+
   return 0;
 }

@@ -139,6 +139,9 @@ void DataSourceHearslam::startStreaming() {
 
 void DataSourceHearslam::shutdown() {
   CHECK(source_);
+  if (recorder_) {
+    recorder_->stopRecord();
+  }
   source_->stopStreaming();
 }
 
