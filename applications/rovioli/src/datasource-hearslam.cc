@@ -100,6 +100,10 @@ DataSourceHearslam::DataSourceHearslam(
     }
   }
 
+  source_->registerStreamingOverCallback([this](){
+    invokeEndOfDataCallbacks();
+  });
+
   if (num_cameras > 0u) {
     last_image_timestamp_ns_.resize(num_cameras, aslam::time::getInvalidTime());
   }
@@ -211,7 +215,5 @@ void DataSourceHearslam::hearslamImuCallback(int imu_idx, hear_slam::ImuData msg
     }
   }
 }
-
-// invokeEndOfDataCallbacks();
 
 }  // namespace rovioli
