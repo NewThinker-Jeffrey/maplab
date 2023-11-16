@@ -17,6 +17,11 @@
 #include <vi-map-helpers/vi-map-queries.h>
 #include <vi-map/landmark-quality-metrics.h>
 
+DEFINE_double(
+    map_optimization_acc_noise_density_multiplier, 1.0,
+    "acc_noise_density_multiplier used in map optimization.");
+
+
 namespace map_optimization {
 
 void addLandmarkTermForKeypoint(
@@ -431,17 +436,26 @@ int addInertialTermsForEdges(
   OptimizationStateBuffer* buffer =
       CHECK_NOTNULL(problem->getOptimizationStateBufferMutable());
 
+  double final_acc_noise_density =
+      imu_sigmas.acc_noise_density *
+      FLAGS_map_optimization_acc_noise_density_multiplier;
+  LOG(INFO) << "final_acc_noise_density used in map_optimization: "
+            << final_acc_noise_density << "(=" << imu_sigmas.acc_noise_density
+            << "*" << FLAGS_map_optimization_acc_noise_density_multiplier << ")";
+
   int num_residuals_added = 0;
   for (const pose_graph::EdgeId edge_id : edges) {
     const vi_map::ViwlsEdge& inertial_edge =
         map->getEdgeAs<vi_map::ViwlsEdge>(edge_id);
+
 
     std::shared_ptr<ceres_error_terms::InertialErrorTerm> inertial_term_cost(
         new ceres_error_terms::InertialErrorTerm(
             inertial_edge.getImuData(), inertial_edge.getImuTimestamps(),
             imu_sigmas.gyro_noise_density,
             imu_sigmas.gyro_bias_random_walk_noise_density,
-            imu_sigmas.acc_noise_density,
+            //imu_sigmas.acc_noise_density,
+            final_acc_noise_density,
             imu_sigmas.acc_bias_random_walk_noise_density, gravity_magnitude));
 
     vi_map::Vertex& vertex_from = map->getVertex(inertial_edge.from());
