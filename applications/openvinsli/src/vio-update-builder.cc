@@ -60,6 +60,24 @@ void VioUpdateBuilder::findMatchAndPublish() {
     return;
   }
 
+  const int64_t MAX_PRECISION_NS = 10;
+  const OpenvinsEstimate::ConstPtr& oldest_unmatched_estimate =
+      openvins_estimate_queue_.front();
+  const int64_t timestamp_estimate_ns =
+      oldest_unmatched_estimate->timestamp_ns - MAX_PRECISION_NS;
+
+  // remove frames earlier than the oldest_unmatched_estimate;
+  while(!synced_nframe_imu_queue_.empty()) {
+    const vio::SynchronizedNFrameImu::ConstPtr& front_frame =
+        synced_nframe_imu_queue_.front();
+    const int64_t tmp_timestamp_nframe_ns = front_frame->nframe->getMinTimestampNanoseconds();
+    if (tmp_timestamp_nframe_ns < timestamp_estimate_ns) {
+      synced_nframe_imu_queue_.pop();
+    } else {
+      break;
+    }
+  }
+
   const vio::SynchronizedNFrameImu::ConstPtr& oldest_unmatched_synced_nframe =
       synced_nframe_imu_queue_.front();
   const int64_t timestamp_nframe_ns =
@@ -80,25 +98,37 @@ void VioUpdateBuilder::findMatchAndPublish() {
        ++it_openvins_estimate_before_nframe) {
     it_openvins_estimate_after_nframe = it_openvins_estimate_before_nframe + 1;
     // Check if exact match.
-    if ((*it_openvins_estimate_before_nframe)->timestamp_ns ==
-        timestamp_nframe_ns) {
+    if (abs((*it_openvins_estimate_before_nframe)->timestamp_ns -
+        timestamp_nframe_ns) <= MAX_PRECISION_NS) {
+      LOG(INFO) << "findMatchAndPublish: Found exact_match. time_err_ns = "
+                << timestamp_nframe_ns - (*it_openvins_estimate_before_nframe)->timestamp_ns;
       found_exact_match = true;
       break;
     }
     if (it_openvins_estimate_after_nframe != openvins_estimate_queue_.end() &&
-        (*it_openvins_estimate_before_nframe)->timestamp_ns <=
+        (*it_openvins_estimate_before_nframe)->timestamp_ns + MAX_PRECISION_NS <=
             timestamp_nframe_ns &&
         (*it_openvins_estimate_after_nframe)->timestamp_ns > timestamp_nframe_ns) {
       // Found matching vi nodes.
+      LOG(WARNING) << "findMatchAndPublish: Found matching vi nodes. "
+                   << "But for openvinsli, all matches are expected to be exact! "
+                   << "Whether are there some bugs? time_gaps = "
+                   << timestamp_nframe_ns - (*it_openvins_estimate_before_nframe)->timestamp_ns
+                   << ", "
+                   << (*it_openvins_estimate_after_nframe)->timestamp_ns - timestamp_nframe_ns;
+
       found_matches_to_interpolate = true;
       break;
     }
   }
 
+  CHECK(found_exact_match) << "For openvinsli, the matches should always be exact!"
+                           << "Otherwise there might be some bugs in the code." ;
+
   if (!found_exact_match && !found_matches_to_interpolate) {
-    // std::cout << "DEBUG MapBuilderFlow findMatchAndPublish: Find no match. "
-    //           << "queue_size: sync_frame=" << synced_nframe_imu_queue_.size()
-    //           << "  estimate=" << openvins_estimate_queue_.size() << std::endl;
+    LOG(WARNING) << "findMatchAndPublish: Find no match. "
+                 << "queue_size: sync_frame=" << synced_nframe_imu_queue_.size()
+                 << "  estimate=" << openvins_estimate_queue_.size() << std::endl;
     return;
   }
 
@@ -129,6 +159,8 @@ void VioUpdateBuilder::findMatchAndPublish() {
       vio_update->T_G_M = openvins_estimate_before_nframe->T_G_M;
     }
   } else {
+    // It won't reach here for openvinsli.
+
     // Need to interpolate ViNode.
     const int64_t t_before = openvins_estimate_before_nframe->timestamp_ns;
     const int64_t t_after = openvins_estimate_after_nframe->timestamp_ns;
@@ -163,18 +195,37 @@ void VioUpdateBuilder::findMatchAndPublish() {
   vio_update_publish_function_(vio_update);
 
   // Clean up queues.
-  if (it_openvins_estimate_before_nframe != openvins_estimate_queue_.begin()) {
-    if (found_exact_match) {
-      openvins_estimate_queue_.erase(
-          openvins_estimate_queue_.begin(), it_openvins_estimate_before_nframe);
-    } else {
-      // Keep the two ViNodeStates that were used for interpolation as a
-      // subsequent SynchronizedNFrameImu may need to be interpolated between
-      // those two points again.
-      openvins_estimate_queue_.erase(
-          openvins_estimate_queue_.begin(), it_openvins_estimate_before_nframe - 1);
-    }
-  }
+
+  // For openvinsli, we need different clean up logic from that in rovioli.
+  // We should ensure every estimate corresponds to at most one nframe, so that
+  // the number of nframes added to vimap will be almost 1:1 to the number of
+  // frames used in vio.
+  // 
+  // Thus, we should erase all before it_openvins_estimate_before_nframe (including it self).
+  openvins_estimate_queue_.erase(
+      openvins_estimate_queue_.begin(), it_openvins_estimate_before_nframe + 1);
+
+  /// Original code from rovioli:
+  // if (it_rovio_estimate_before_nframe != rovio_estimate_queue_.begin()) {
+  //   if (found_exact_match) {
+  //     rovio_estimate_queue_.erase(
+  //         rovio_estimate_queue_.begin(), it_rovio_estimate_before_nframe);
+  //   } else {
+  //     // Keep the two ViNodeStates that were used for interpolation as a
+  //     // subsequent SynchronizedNFrameImu may need to be interpolated between
+  //     // those two points again.
+
+  //     // NOTE(jeffrey): it might be a minor mistake in rovoili: ' - 1 ' is unnecessary.
+  //     // Maybe the code shuold be modified as below:
+  //     //   rovio_estimate_queue_.erase(
+  //     //       rovio_estimate_queue_.begin(), it_rovio_estimate_before_nframe);
+  //     // However, it doesn't cause any problem, so we keep the original code here.
+
+  //     rovio_estimate_queue_.erase(
+  //         rovio_estimate_queue_.begin(), it_rovio_estimate_before_nframe - 1);
+  //   }
+  // }
+
   synced_nframe_imu_queue_.pop();
 }
 

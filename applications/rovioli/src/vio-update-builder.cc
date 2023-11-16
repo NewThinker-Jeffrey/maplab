@@ -167,6 +167,13 @@ void VioUpdateBuilder::findMatchAndPublish() {
       // Keep the two ViNodeStates that were used for interpolation as a
       // subsequent SynchronizedNFrameImu may need to be interpolated between
       // those two points again.
+
+      // NOTE(jeffrey): it might be a minor mistake in rovoili: ' - 1 ' is unnecessary.
+      // Maybe the code shuold be modified as below:
+      //   rovio_estimate_queue_.erase(
+      //       rovio_estimate_queue_.begin(), it_rovio_estimate_before_nframe);
+      // However, it doesn't cause any problem, so we keep the original code here.
+
       rovio_estimate_queue_.erase(
           rovio_estimate_queue_.begin(), it_rovio_estimate_before_nframe - 1);
     }
