@@ -33,6 +33,9 @@ class FeatureTrackingFlow {
         [publish_result,
          this](const vio::SynchronizedNFrameImu::Ptr& nframe_imu) {
           CHECK(nframe_imu);
+
+          LOG(INFO) << "FeatureTrackingFlow: Received nframe with ts "
+                    << nframe_imu->nframe->getMinTimestampNanoseconds();
           const bool success =
               this->tracking_pipeline_.trackSynchronizedNFrameImuCallback(
                   nframe_imu);

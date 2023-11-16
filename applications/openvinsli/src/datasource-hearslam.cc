@@ -38,6 +38,10 @@ DEFINE_bool(
     "If set to true, the timestamps outputted by the estimator start with 0. "
     "Not zeroing the timestamps may lead to less accurate results due to "
     "rounding errors.");
+DEFINE_int32(
+    hearslam_data_image_downsample_rate, 3,
+    "The downsample rate for image data. Our realsense works at 30 FPS, "
+    "and usually we need 10 FPS.");
 
 namespace openvinsli {
 
@@ -147,6 +151,10 @@ bool DataSourceHearslam::allDataStreamed() const {
 }
 
 void DataSourceHearslam::hearslamImageCallback(int image_idx, hear_slam::CameraData msg) {
+  if (image_idx % FLAGS_hearslam_data_image_downsample_rate != 0) {
+    return;
+  }
+
   size_t n_cam = msg.sensor_ids.size();
 
   for (size_t i=0; i<n_cam; i++) {

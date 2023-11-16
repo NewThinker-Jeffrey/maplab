@@ -214,6 +214,8 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         CHECK(nframe_imu);
         aslam::VisualNFrame::Ptr nframe = nframe_imu->nframe;
         CHECK(nframe);
+        LOG(INFO) << "OpenvinsFlow: Received nframe with ts "
+                  << nframe->getMinTimestampNanoseconds();
 
         std::map<size_t, cv::Mat> ov_idx_to_img;
         for (size_t i=0; i<nframe->getNumFrames(); i++) {

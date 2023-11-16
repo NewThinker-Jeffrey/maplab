@@ -60,7 +60,7 @@ void VioUpdateBuilder::findMatchAndPublish() {
     return;
   }
 
-  const int64_t MAX_PRECISION_NS = 10;
+  const int64_t MAX_PRECISION_NS = 10;  // Maybe 1 is enough.
   const OpenvinsEstimate::ConstPtr& oldest_unmatched_estimate =
       openvins_estimate_queue_.front();
   const int64_t timestamp_estimate_ns =
