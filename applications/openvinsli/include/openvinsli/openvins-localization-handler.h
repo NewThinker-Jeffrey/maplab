@@ -26,13 +26,15 @@
 #include "openvinsli/openvins-factory.h"
 #include "openvinsli/openvins-maplab-timetranslation.h"
 
+#include "core/VioManager.h"         // ov_msckf
+
 namespace openvinsli {
 
 // Logic and state machine to feed localization constraints to OPENVINS.
 class OpenvinsLocalizationHandler {
  public:
   OpenvinsLocalizationHandler(
-      openvins::OpenvinsInterface* openvins_interface,
+      ov_msckf::VioManager* openvins_interface,
       OpenvinsMaplabTimeTranslation* time_translator,
       const aslam::NCamera& camera_calibration,
       const common::BidirectionalMap<size_t, size_t>&
@@ -63,7 +65,7 @@ class OpenvinsLocalizationHandler {
       std::vector<double>* lc_reprojection_errors,
       std::vector<double>* filter_reprojection_errors);
 
-  openvins::OpenvinsInterface* const openvins_interface_;
+  ov_msckf::VioManager* const openvins_interface_;
   OpenvinsMaplabTimeTranslation* const time_translator_;
 
   common::LocalizationState localization_state_;
@@ -93,7 +95,7 @@ class OpenvinsLocalizationHandler {
 };
 
 bool extractLocalizationFromOpenvinsState(
-    const openvins::OpenvinsState& state, aslam::Transformation* T_G_M);
+    const ov_msckf::VioManager::Output& output, aslam::Transformation* T_G_M);
 
 }  //  namespace openvinsli
 

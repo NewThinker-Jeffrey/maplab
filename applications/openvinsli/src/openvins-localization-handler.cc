@@ -89,7 +89,7 @@ bool getReprojectionErrorForGlobalLandmark(
 }  // namespace
 
 OpenvinsLocalizationHandler::OpenvinsLocalizationHandler(
-    openvins::OpenvinsInterface* openvins_interface,
+    ov_msckf::VioManager* openvins_interface,
     OpenvinsMaplabTimeTranslation* time_translator,
     const aslam::NCamera& camera_calibration,
     const common::BidirectionalMap<size_t, size_t>&
@@ -150,6 +150,9 @@ bool OpenvinsLocalizationHandler::initializeBaseframe(
   switch (T_M_I_buffer_.getPoseAt(localization_result->timestamp_ns, &T_M_I)) {
     case vio_common::PoseLookupBuffer::ResultStatus::kFailedNotYetAvailable:
     // Fall through intended.
+    // todo(jeffrey):
+    //     Why not waiting for new T_M_Is? We may need a queue to buffer the 
+    //     localization_results and retry the interpolation when new T_M_I becomes available.
     case vio_common::PoseLookupBuffer::ResultStatus::kFailedWillNeverSucceed:
       LOG(WARNING) << "Could not get T_M_I for baseframe initialization.";
       return false;
@@ -187,14 +190,19 @@ bool OpenvinsLocalizationHandler::initializeBaseframe(
     return false;
   }
 
-  const aslam::Transformation T_M_G_lsq = T_G_M_lsq.inverse();
-  const Eigen::Vector3d WrWG = T_M_G_lsq.getPosition();
-  const kindr::RotationQuaternionPD qWG(
-      T_M_G_lsq.getRotation().toImplementation());
+  // todo(jeffrey): how to integrate the initial T_G_M_lsq with open_vins?
+  //
+  // 
 
-  openvins_interface_->resetLocalizationMapBaseframeAndCovariance(
-      WrWG, qWG, FLAGS_openvinsli_baseframe_init_position_covariance_msq,
-      FLAGS_openvinsli_baseframe_init_rotation_covariance_radsq);
+  // const aslam::Transformation T_M_G_lsq = T_G_M_lsq.inverse();
+  // const Eigen::Vector3d WrWG = T_M_G_lsq.getPosition();
+  // const kindr::RotationQuaternionPD qWG(
+  //     T_M_G_lsq.getRotation().toImplementation());
+
+  // openvins_interface_->resetLocalizationMapBaseframeAndCovariance(
+  //     WrWG, qWG, FLAGS_openvinsli_baseframe_init_position_covariance_msq,
+  //     FLAGS_openvinsli_baseframe_init_rotation_covariance_radsq);
+
   return true;
 }
 
@@ -238,6 +246,9 @@ bool OpenvinsLocalizationHandler::processAsUpdate(
   aslam::Transformation T_M_I_filter;
   const vio_common::PoseLookupBuffer::ResultStatus result =
       T_M_I_buffer_.getPoseAt(localization_result->timestamp_ns, &T_M_I_filter);
+
+  // todo(jeffrey): Why it can be assumed that the filter(vio)'s results (T_M_I_filter) always
+  //                come earlier than localization_results?
   CHECK(
       result !=
       vio_common::PoseLookupBuffer::ResultStatus::kFailedNotYetAvailable);
@@ -277,8 +288,11 @@ bool OpenvinsLocalizationHandler::processAsUpdate(
     const Eigen::Vector3d JrJV = localization_result->T_G_B.getPosition();
     const kindr::RotationQuaternionPD qJV(
         localization_result->T_G_B.getRotation().toImplementation());
-    measurement_accepted = openvins_interface_->processGroundTruthUpdate(
-        JrJV, qJV, openvins_timestamp_sec);
+
+    // todo(jeffrey):
+    // measurement_accepted = openvins_interface_->processGroundTruthUpdate(
+    //     JrJV, qJV, openvins_timestamp_sec);
+    measurement_accepted = false;
   } else {
     // Check if there are any matches to be processed in the camera frames that
     // are used by OPENVINS for estimation (inactive).
@@ -308,8 +322,10 @@ bool OpenvinsLocalizationHandler::processAsUpdate(
         const Eigen::Vector3d JrJV = localization_result->T_G_B.getPosition();
         const kindr::RotationQuaternionPD qJV(
             localization_result->T_G_B.getRotation().toImplementation());
-        measurement_accepted = openvins_interface_->processGroundTruthUpdate(
-            JrJV, qJV, openvins_timestamp_sec);
+        // todo(jeffrey):
+        // measurement_accepted = openvins_interface_->processGroundTruthUpdate(
+        //     JrJV, qJV, openvins_timestamp_sec);
+        measurement_accepted = false;
 
         VLOG_IF(1, measurement_accepted)
             << "No localization found for active camera, successfully updated "
@@ -317,7 +333,7 @@ bool OpenvinsLocalizationHandler::processAsUpdate(
             << "inactive cameras.";
 
         LOG_IF(
-            WARNING, !measurement_accepted && openvins_interface_->isInitialized())
+            WARNING, !measurement_accepted && openvins_interface_->getLastOutput(false,false)->status.initialized)
             << "No localization found for active camera, failed to update "
             << "OPENVINS using 6DoF constraints based on localization from "
             << "inactive cameras, because OPENVINS rejected the localization "
@@ -382,17 +398,19 @@ bool OpenvinsLocalizationHandler::processAsUpdate(
         // Skip this localization result, as the camera was marked as inactive.
         continue;
       }
-      measurement_accepted &=
-          openvins_interface_->processLocalizationLandmarkUpdates(
-              *openvins_cam_idx,
-              localization_result
-                  ->keypoint_measurements_per_camera[maplab_cam_idx],
-              localization_result->G_landmarks_per_camera[maplab_cam_idx],
-              openvins_timestamp_sec);
+      // todo(jeffrey):
+      // measurement_accepted &=
+      //     openvins_interface_->processLocalizationLandmarkUpdates(
+      //         *openvins_cam_idx,
+      //         localization_result
+      //             ->keypoint_measurements_per_camera[maplab_cam_idx],
+      //         localization_result->G_landmarks_per_camera[maplab_cam_idx],
+      //         openvins_timestamp_sec);
+      measurement_accepted &= false;
     }
   }
 
-  LOG_IF(WARNING, !measurement_accepted && openvins_interface_->isInitialized())
+  LOG_IF(WARNING, !measurement_accepted && openvins_interface_->getLastOutput(false,false)->status.initialized)
       << "OPENVINS rejected localization update at time = "
       << localization_result->timestamp_ns << "ns. The latency was too large; "
       << "consider reducing the localization rate.";
@@ -473,26 +491,26 @@ double OpenvinsLocalizationHandler::getLocalizationReprojectionErrors(
 }
 
 bool extractLocalizationFromOpenvinsState(
-    const openvins::OpenvinsState& state, aslam::Transformation* T_G_M) {
+    const ov_msckf::VioManager::Output& output, aslam::Transformation* T_G_M) {
   CHECK_NOTNULL(T_G_M);
 
   bool has_T_G_M = false;
-  if (FLAGS_openvinsli_use_6dof_localization) {
-    if (state.getHasInertialPose()) {
-      *T_G_M = aslam::Transformation(
-          state.get_qWI().inverted().toImplementation(), state.get_IrIW());
-      common::ensurePositiveQuaternion(&T_G_M->getRotation());
-    }
-    has_T_G_M = true;
-  } else {
-    if (state.getHasMapLocalizationPose()) {
-      aslam::Transformation T_M_G = aslam::Transformation(
-          state.get_qWG().toImplementation(), state.get_WrWG());
-      *T_G_M = T_M_G.inverse();
-      common::ensurePositiveQuaternion(&T_G_M->getRotation());
-    }
-    has_T_G_M = true;
-  }
+  // if (FLAGS_openvinsli_use_6dof_localization) {
+  //   if (state.getHasInertialPose()) {
+  //     *T_G_M = aslam::Transformation(
+  //         state.get_qWI().inverted().toImplementation(), state.get_IrIW());
+  //     common::ensurePositiveQuaternion(&T_G_M->getRotation());
+  //   }
+  //   has_T_G_M = true;
+  // } else {
+  //   if (state.getHasMapLocalizationPose()) {
+  //     aslam::Transformation T_M_G = aslam::Transformation(
+  //         state.get_qWG().toImplementation(), state.get_WrWG());
+  //     *T_G_M = T_M_G.inverse();
+  //     common::ensurePositiveQuaternion(&T_G_M->getRotation());
+  //   }
+  //   has_T_G_M = true;
+  // }
   return has_T_G_M;
 }
 

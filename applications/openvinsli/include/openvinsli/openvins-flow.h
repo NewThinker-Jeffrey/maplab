@@ -15,6 +15,9 @@
 #include "openvinsli/openvins-health-monitor.h"
 #include "openvinsli/openvins-maplab-timetranslation.h"
 
+#include "core/VioManager.h"         // ov_msckf
+#include "no_ros/Viewer.h"           // ov_msckf
+
 namespace openvinsli {
 class OpenvinsLocalizationHandler;
 
@@ -28,14 +31,24 @@ class OpenvinsFlow {
 
   void attachToMessageFlow(message_flow::MessageFlow* flow);
 
-  void processAndPublishOpenvinsUpdate(const openvins::OpenvinsState& state);
+  void processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::Output& output);
 
  private:
-  std::unique_ptr<openvins::OpenvinsInterface> openvins_interface_;
+  std::unique_ptr<ov_msckf::VioManager> openvins_interface_;
+
+  // gl visualization
+  std::shared_ptr<ov_msckf::Viewer> gl_viewer_;
+  std::shared_ptr<std::thread> vis_thread_;
+  std::atomic<bool> stop_viz_request_;
+  double last_visualization_timestamp_ = 0;
+
+
+
+  int openvins_num_cameras_;
   std::function<void(const OpenvinsEstimate::ConstPtr&)> publish_openvins_estimates_;
 
   OpenvinsMaplabTimeTranslation time_translation_;
-  OpenvinsHealthMonitor health_monitor_;
+  // OpenvinsHealthMonitor health_monitor_;
 
   // A camera without a mapping is not being used for motion tracking in OPENVINS.
   common::BidirectionalMap<size_t, size_t> maplab_to_openvins_cam_indices_mapping_;

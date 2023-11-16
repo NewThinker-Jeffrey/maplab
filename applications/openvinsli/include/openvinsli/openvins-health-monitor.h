@@ -9,6 +9,20 @@
 #include "openvinsli/openvins-estimate.h"
 #include "openvinsli/openvins-factory.h"
 
+// todo(jeffrey): remove rovioli headers (now we need them for compile)
+#include <Eigen/Core>
+#include <kindr/Core>
+// #include <Eigen/Geometry>
+// #include <kindr/rotations/RotationQuaternion.hpp>
+// #include <aslam/common/memory.h>
+// #include <aslam/common/pose-types.h>
+// #include <maplab-common/macros.h>
+// #include <vio-common/vio-types.h>
+// #include <aslam/cameras/ncamera.h>
+// #include <sensors/imu.h>
+
+#include "core/VioManager.h"         // ov_msckf
+
 namespace openvinsli {
 
 class OpenvinsHealthMonitor {
@@ -17,62 +31,62 @@ class OpenvinsHealthMonitor {
   OpenvinsHealthMonitor() : num_subsequent_unhealthy_updates_(0) {}
 
   // Returns true if healthy; false if unhealthy and reset was triggered.
-  bool shouldResetEstimator(const openvins::OpenvinsState& state) {
-    CHECK(state.hasFeatureState());
-    const openvins::OpenvinsFeatureState& feature_state = state.getFeatureState();
+  bool shouldResetEstimator(const ov_msckf::VioManager::Output& output) {
+    // CHECK(state.hasFeatureState());
+    // const ov_msckf::OpenvinsFeatureState& feature_state = state.getFeatureState();
 
-    const size_t max_num_features = feature_state.get_MaxNumFeatures();
-    std::vector<float> distance_covs;
-    for (size_t i = 0u; i < max_num_features; ++i) {
-      if (feature_state.get_isFeatureValid(i)) {
-        distance_covs.push_back(feature_state.get_DistanceCov(i));
-      }
-    }
+    // const size_t max_num_features = feature_state.get_MaxNumFeatures();
+    // std::vector<float> distance_covs;
+    // for (size_t i = 0u; i < max_num_features; ++i) {
+    //   if (feature_state.get_isFeatureValid(i)) {
+    //     distance_covs.push_back(feature_state.get_DistanceCov(i));
+    //   }
+    // }
 
-    float feature_distance_covariance_median = 0;
-    if (!distance_covs.empty()) {
-      feature_distance_covariance_median =
-          aslam::common::median(distance_covs.begin(), distance_covs.end());
-    }
-    const float BvB_norm = state.get_BvB().norm();
+    // float feature_distance_covariance_median = 0;
+    // if (!distance_covs.empty()) {
+    //   feature_distance_covariance_median =
+    //       aslam::common::median(distance_covs.begin(), distance_covs.end());
+    // }
+    // const float BvB_norm = state.get_BvB().norm();
 
-    if ((BvB_norm > kVelocityToConsiderStatic) &&
-        ((BvB_norm > kUnhealthyVelocity) ||
-         (feature_distance_covariance_median > kUnhealthyFeatureDistanceCov))) {
-      ++num_subsequent_unhealthy_updates_;
-      LOG(WARNING) << "Estimator fault counter: "
-                   << num_subsequent_unhealthy_updates_ << "/"
-                   << kMaxSubsequentUnhealthyUpdates << ". Might reset soon.";
+    // if ((BvB_norm > kVelocityToConsiderStatic) &&
+    //     ((BvB_norm > kUnhealthyVelocity) ||
+    //      (feature_distance_covariance_median > kUnhealthyFeatureDistanceCov))) {
+    //   ++num_subsequent_unhealthy_updates_;
+    //   LOG(WARNING) << "Estimator fault counter: "
+    //                << num_subsequent_unhealthy_updates_ << "/"
+    //                << kMaxSubsequentUnhealthyUpdates << ". Might reset soon.";
 
-      if (num_subsequent_unhealthy_updates_ > kMaxSubsequentUnhealthyUpdates) {
-        LOG(ERROR) << "Will reset OPENVINSLI. Velocity norm: " << BvB_norm
-                   << " (limit: " << kUnhealthyVelocity
-                   << "), median of feature distance covariances: "
-                   << feature_distance_covariance_median
-                   << " (limit: " << kUnhealthyFeatureDistanceCov << ").";
-        return true;
-      }
-    } else {
-      if (feature_distance_covariance_median < kHealthyFeatureDistanceCov) {
-        if (std::abs(
-                feature_distance_covariance_median -
-                last_safe_pose_.feature_distance_covariance_median) <
-            kHealthyFeatureDistanceCovIncrement) {
-          last_safe_pose_.failsafe_WrWB = state.get_WrWB();
-          last_safe_pose_.failsafe_qBW = state.get_qBW();
-          last_safe_pose_.feature_distance_covariance_median =
-              feature_distance_covariance_median;
-        }
-      }
-      num_subsequent_unhealthy_updates_ = 0;
-    }
+    //   if (num_subsequent_unhealthy_updates_ > kMaxSubsequentUnhealthyUpdates) {
+    //     LOG(ERROR) << "Will reset OPENVINSLI. Velocity norm: " << BvB_norm
+    //                << " (limit: " << kUnhealthyVelocity
+    //                << "), median of feature distance covariances: "
+    //                << feature_distance_covariance_median
+    //                << " (limit: " << kUnhealthyFeatureDistanceCov << ").";
+    //     return true;
+    //   }
+    // } else {
+    //   if (feature_distance_covariance_median < kHealthyFeatureDistanceCov) {
+    //     if (std::abs(
+    //             feature_distance_covariance_median -
+    //             last_safe_pose_.feature_distance_covariance_median) <
+    //         kHealthyFeatureDistanceCovIncrement) {
+    //       last_safe_pose_.failsafe_WrWB = state.get_WrWB();
+    //       last_safe_pose_.failsafe_qBW = state.get_qBW();
+    //       last_safe_pose_.feature_distance_covariance_median =
+    //           feature_distance_covariance_median;
+    //     }
+    //   }
+    //   num_subsequent_unhealthy_updates_ = 0;
+    // }
     return false;
   }
 
-  void resetOpenvinsToLastHealthyPose(openvins::OpenvinsInterface* openvins_interface) {
+  void resetOpenvinsToLastHealthyPose(ov_msckf::VioManager* openvins_interface) {
     CHECK_NOTNULL(openvins_interface);
-    openvins_interface->requestResetToPose(
-        last_safe_pose_.failsafe_WrWB, last_safe_pose_.failsafe_qBW);
+    // openvins_interface->requestResetToPose(
+    //     last_safe_pose_.failsafe_WrWB, last_safe_pose_.failsafe_qBW);
   }
 
  private:

@@ -55,11 +55,11 @@ void VioUpdateBuilder::processLocalizationResult(
 
 void VioUpdateBuilder::findMatchAndPublish() {
   std::lock_guard<std::recursive_mutex> lock(queue_mutex_);
-
   if (synced_nframe_imu_queue_.empty() || openvins_estimate_queue_.empty()) {
     // Nothing to do.
     return;
   }
+
   const vio::SynchronizedNFrameImu::ConstPtr& oldest_unmatched_synced_nframe =
       synced_nframe_imu_queue_.front();
   const int64_t timestamp_nframe_ns =
@@ -96,6 +96,9 @@ void VioUpdateBuilder::findMatchAndPublish() {
   }
 
   if (!found_exact_match && !found_matches_to_interpolate) {
+    // std::cout << "DEBUG MapBuilderFlow findMatchAndPublish: Find no match. "
+    //           << "queue_size: sync_frame=" << synced_nframe_imu_queue_.size()
+    //           << "  estimate=" << openvins_estimate_queue_.size() << std::endl;
     return;
   }
 
@@ -156,6 +159,7 @@ void VioUpdateBuilder::findMatchAndPublish() {
 
   // Publish VIO update.
   CHECK(vio_update_publish_function_);
+  // std::cout << "DEBUG MapBuilderFlow findMatchAndPublish: Publish VIO update" << std::endl;
   vio_update_publish_function_(vio_update);
 
   // Clean up queues.
