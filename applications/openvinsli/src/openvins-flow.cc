@@ -335,16 +335,15 @@ void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::O
               .second);
   }
 
-  // todo(jeffrey): deal with localizations.
-  // // Optional localizations.
-  // openvins_estimate->has_T_G_M =
-  //     extractLocalizationFromOpenvinsState(output, &openvins_estimate->T_G_M);
-  // localization_handler_->T_M_I_buffer_mutable()->bufferOdometryEstimate(
-  //     openvins_estimate->vinode);
-  // if (openvins_estimate->has_T_G_M) {
-  //   localization_handler_->buffer_T_G_M(openvins_estimate->T_G_M);
-  // }
-  openvins_estimate->has_T_G_M = false;
+  // Optional localizations.
+  openvins_estimate->has_T_G_M =
+      extractLocalizationFromOpenvinsState(output, &openvins_estimate->T_G_M);
+  localization_handler_->T_M_I_buffer_mutable()->bufferOdometryEstimate(
+      openvins_estimate->vinode);
+  if (openvins_estimate->has_T_G_M) {
+    localization_handler_->buffer_T_G_M(openvins_estimate->T_G_M);
+  }
+  localization_handler_->dealWithBufferedLocalizations();
 
   publish_openvins_estimates_(openvins_estimate);
 }

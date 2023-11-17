@@ -27,6 +27,7 @@
 #include "openvinsli/openvins-maplab-timetranslation.h"
 
 #include "core/VioManager.h"         // ov_msckf
+#include "utils/sensor_data.h"       // ov_core
 
 namespace openvinsli {
 
@@ -42,6 +43,7 @@ class OpenvinsLocalizationHandler {
 
   void processLocalizationResult(
       const vio::LocalizationResult::ConstPtr& localization_result);
+  void dealWithBufferedLocalizations();
 
   vio_common::PoseLookupBuffer* T_M_I_buffer_mutable() {
     return &T_M_I_buffer_;
@@ -58,6 +60,11 @@ class OpenvinsLocalizationHandler {
   bool processAsUpdate(
       const vio::LocalizationResult::ConstPtr& localization_result);
 
+  void processLocalizationResultInternal(
+      const vio::LocalizationResult::ConstPtr& localization_result);
+  ov_core::LocalizationData makeOpenvinsLocalizationData(
+      const vio::LocalizationResult::ConstPtr& localization_result);
+
   // Returns the ratio of successfully reprojected matches.
   double getLocalizationReprojectionErrors(
       const vio::LocalizationResult& localization_result,
@@ -70,15 +77,26 @@ class OpenvinsLocalizationHandler {
 
   common::LocalizationState localization_state_;
 
+  // buffer the localizations. If a localization comes earlier than the T_M_I (from VIO)
+  // of the same image time, we need to wait for the T_M_I.
+  //   static constexpr size_t kLocalizationBufferSize = 2u;
+  std::deque<vio::LocalizationResult::ConstPtr> localization_buffer_;
+  std::mutex m_localization_buffer_;
+
   static constexpr int64_t kBufferPoseHistoryNs = aslam::time::seconds(5);
   static constexpr int64_t kBufferMaxPropagationNs =
       aslam::time::milliseconds(500);
-  vio_common::PoseLookupBuffer T_M_I_buffer_;
+  vio_common::PoseLookupBuffer T_M_I_buffer_;  // buffer the T_M_Is provided by vio.
 
   static constexpr size_t kFilterBaseframeBufferSize = 1u;
+  // buffer the T_G_Ms recorded by vio.
+  // Only need in structure constraint method, used to calculate T_G_I_filter
+  // and then compute reprojection errors w.r.t T_G_I_filter.
   common::FixedSizeQueue<aslam::Transformation> T_G_M_filter_buffer_;
   std::mutex m_T_G_M_filter_buffer_;
 
+  // buffer the T_G_Ms provided by localization.
+  // only used for initializing the localization (by ransac), see initializeBaseframe();
   common::FixedSizeQueue<aslam::Transformation> T_G_M_loc_buffer_;
 
   const aslam::NCamera& camera_calibration_;

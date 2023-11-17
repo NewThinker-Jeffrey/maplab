@@ -22,8 +22,9 @@
 #include "openvinsli/openvins-maplab-timetranslation.h"
 
 DEFINE_bool(
-    openvinsli_use_6dof_localization, false,
-    "Localize using 6dof constraints instead of structure constraints.");
+    openvinsli_use_6dof_localization, true,
+    "Localize using 6dof constraints instead of structure constraints."
+    "For now, we only implemented 6dof constraints in openvins");
 DEFINE_uint64(
     openvinsli_min_num_baseframe_estimates_before_init, 2u,
     "Number of T_G_M measurements to collect before initializing T_G_M.");
@@ -39,10 +40,11 @@ DEFINE_double(
     "If mean reprojection error of the matches exceeds this value, "
     "reinitialize the baseframe.");
 
-DEFINE_double(
-    openvinsli_localization_max_gravity_misalignment_deg, 5.0,
-    "Localization results are rejected if the angle between the gravity"
-    "direction of the odometry and the localization exceeds this value.");
+//// Gravity check will be done inside openvins.
+// DEFINE_double(
+//     openvinsli_localization_max_gravity_misalignment_deg, 5.0,
+//     "Localization results are rejected if the angle between the gravity"
+//     "direction of the odometry and the localization exceeds this value.");
 
 DEFINE_bool(
     openvinsli_use_6dof_localization_for_inactive_cameras, false,
@@ -96,10 +98,15 @@ OpenvinsLocalizationHandler::OpenvinsLocalizationHandler(
         maplab_to_openvins_cam_indices_mapping)
     : openvins_interface_(CHECK_NOTNULL(openvins_interface)),
       time_translator_(CHECK_NOTNULL(time_translator)),
-      // 6dof constraint based localization does not need initialization.
+      // note(jeffrey): for openvins, we initialize localization by collecting
+      //                several raw localizations and check their similarity. and this
+      //                is done in openvins, we don't extra pre-filter for the raw
+      //                localizations. (and we only implement 6dof constraint in openvins).
+      // 6dof constraint based localization does not need initialization. (it's done inside openvins)
       localization_state_(
           FLAGS_openvinsli_use_6dof_localization
-              ? common::LocalizationState::kLocalized
+              ? common::LocalizationState::kLocalized  // in this state we simply invoke processAsUpdate()
+                                                       // for the raw localization.
               : common::LocalizationState::kUninitialized),
       T_M_I_buffer_(kBufferPoseHistoryNs, kBufferMaxPropagationNs),
       T_G_M_filter_buffer_(kFilterBaseframeBufferSize),
@@ -114,13 +121,15 @@ OpenvinsLocalizationHandler::OpenvinsLocalizationHandler(
   }
 }
 
-void OpenvinsLocalizationHandler::processLocalizationResult(
+void OpenvinsLocalizationHandler::processLocalizationResultInternal(
     const vio::LocalizationResult::ConstPtr& localization_result) {
   CHECK(localization_result);
   switch (localization_state_) {
     // Fall-through intended.
     case common::LocalizationState::kUninitialized:
     case common::LocalizationState::kNotLocalized: {
+      // initializeBaseframe() is unnecessary for openvins (6dof-constraint)
+      // since the intialzation of localization will be handled inside openvins.
       const bool success = initializeBaseframe(localization_result);
       if (success) {
         LOG(INFO) << "(Re-)initialized the localization baseframe.";
@@ -140,6 +149,73 @@ void OpenvinsLocalizationHandler::processLocalizationResult(
   }
 }
 
+void OpenvinsLocalizationHandler::dealWithBufferedLocalizations() {
+  int64_t newest_TMI_timestamp_ns;
+  if (!T_M_I_buffer_.getNewestTimestampOfAvailablePose(&newest_TMI_timestamp_ns)) {
+    return;
+  }
+
+  while (1) {
+    vio::LocalizationResult::ConstPtr localization_result;
+    {
+      std::lock_guard<std::mutex> lock(m_localization_buffer_);
+      if (localization_buffer_.empty()) {
+        return;
+      }
+      localization_result = localization_buffer_.front();
+      if (localization_result->timestamp_ns > newest_TMI_timestamp_ns) {
+        return;
+      }
+      localization_buffer_.pop_front();
+    }
+    processLocalizationResultInternal(localization_result);
+  }
+}
+
+
+void OpenvinsLocalizationHandler::processLocalizationResult(
+      const vio::LocalizationResult::ConstPtr& localization_result) {
+
+  // let openvins itself deal with the localization_result.
+  openvins_interface_->feed_measurement_localization(
+      makeOpenvinsLocalizationData(localization_result));
+
+  // {
+  //   std::lock_guard<std::mutex> lock(m_localization_buffer_);
+  //   localization_buffer_.push_back(localization_result);
+  // }
+  // dealWithBufferedLocalizations();
+}
+
+
+ov_core::LocalizationData OpenvinsLocalizationHandler::makeOpenvinsLocalizationData(
+    const vio::LocalizationResult::ConstPtr& localization_result) {
+
+  ov_core::LocalizationData raw_loc;
+  raw_loc.timestamp =
+      time_translator_->convertMaplabToOpenvinsTimestamp(
+          localization_result->timestamp_ns);
+  // localization_result->T_G_B
+  raw_loc.pm = localization_result->T_G_B.getPosition();
+  auto q = localization_result->T_G_B.getRotation().toImplementation();
+  raw_loc.qm << q.x(), q.y(), q.z(), q.w();
+  // raw_loc.qp_cov = localization_result->T_G_B_covariance;
+  raw_loc.qp_cov = Eigen::Matrix<double, 6, 6>::Identity();
+
+  const double loc_orientation_uncertainty = 0.04;  // about 2°
+  const double loc_position_uncertainty = 0.3;  // 
+  double loc_orientation_var = loc_orientation_uncertainty * loc_orientation_uncertainty;
+  double loc_position_var = loc_position_uncertainty * loc_position_uncertainty;
+  raw_loc.qp_cov.block<3,3>(0,0) = loc_orientation_var * Eigen::Matrix3d::Identity();
+  raw_loc.qp_cov.block<3,3>(3,3) = loc_position_var * Eigen::Matrix3d::Identity();
+
+  return raw_loc;
+}
+
+
+// For now, we only support 6dof constraint in openvins and similar initialization process
+// has been done inside openvins. So actually we don't need the method initializeBaseframe().
+// We just keep the code for reference.
 bool OpenvinsLocalizationHandler::initializeBaseframe(
     const vio::LocalizationResult::ConstPtr& localization_result) {
   CHECK(localization_result);
@@ -190,18 +266,21 @@ bool OpenvinsLocalizationHandler::initializeBaseframe(
     return false;
   }
 
-  // todo(jeffrey): how to integrate the initial T_G_M_lsq with open_vins?
-  //
-  // 
+  // // todo(jeffrey):
+  // //     consider how to integrate the initial T_G_M_lsq with open_vins if we
+  // //     plan to use structure constraint.
+  // //
+  // openvins_interface_->feed_measurement_localization(
+  //     makeOpenvinsLocalizationData(localization_result));
 
-  // const aslam::Transformation T_M_G_lsq = T_G_M_lsq.inverse();
-  // const Eigen::Vector3d WrWG = T_M_G_lsq.getPosition();
-  // const kindr::RotationQuaternionPD qWG(
-  //     T_M_G_lsq.getRotation().toImplementation());
+  // // const aslam::Transformation T_M_G_lsq = T_G_M_lsq.inverse();
+  // // const Eigen::Vector3d WrWG = T_M_G_lsq.getPosition();
+  // // const kindr::RotationQuaternionPD qWG(
+  // //     T_M_G_lsq.getRotation().toImplementation());
 
-  // openvins_interface_->resetLocalizationMapBaseframeAndCovariance(
-  //     WrWG, qWG, FLAGS_openvinsli_baseframe_init_position_covariance_msq,
-  //     FLAGS_openvinsli_baseframe_init_rotation_covariance_radsq);
+  // // openvins_interface_->resetLocalizationMapBaseframeAndCovariance(
+  // //     WrWG, qWG, FLAGS_openvinsli_baseframe_init_position_covariance_msq,
+  // //     FLAGS_openvinsli_baseframe_init_rotation_covariance_radsq);
 
   return true;
 }
@@ -247,8 +326,6 @@ bool OpenvinsLocalizationHandler::processAsUpdate(
   const vio_common::PoseLookupBuffer::ResultStatus result =
       T_M_I_buffer_.getPoseAt(localization_result->timestamp_ns, &T_M_I_filter);
 
-  // todo(jeffrey): Why it can be assumed that the filter(vio)'s results (T_M_I_filter) always
-  //                come earlier than localization_results?
   CHECK(
       result !=
       vio_common::PoseLookupBuffer::ResultStatus::kFailedNotYetAvailable);
@@ -256,44 +333,29 @@ bool OpenvinsLocalizationHandler::processAsUpdate(
       result !=
       vio_common::PoseLookupBuffer::ResultStatus::kFailedWillNeverSucceed);
 
-  pose::Transformation T_G_M_filter;
-  {
-    std::lock_guard<std::mutex> lock(m_T_G_M_filter_buffer_);
-    // Buffer cannot be empty as we must have received at least one filter
-    // update.
-    CHECK(!T_G_M_filter_buffer_.buffer().empty());
-    T_G_M_filter = T_G_M_filter_buffer_.buffer().back();
-  }
-
-  const pose::Transformation T_G_I_filter = T_G_M_filter * T_M_I_filter;
-
-  const double gravity_error_angle_deg =
-      getLocalizationResultGravityDisparityAngleDeg(
-          localization_result, T_M_I_filter);
-  if (gravity_error_angle_deg >
-      FLAGS_openvinsli_localization_max_gravity_misalignment_deg) {
-    LOG(WARNING) << "The gravity direction of the localization is not "
-                 << "consistent with the VIO estimate. The disparity angle "
-                 << "is " << gravity_error_angle_deg << "deg (threshold: "
-                 << FLAGS_openvinsli_localization_max_gravity_misalignment_deg
-                 << "). Rejected the localization result.";
-    return false;
-  }
+  //// Gravity check will be done inside openvins.
+  //
+  // const double gravity_error_angle_deg =
+  //     getLocalizationResultGravityDisparityAngleDeg(
+  //         localization_result, T_M_I_filter);
+  // if (gravity_error_angle_deg >
+  //     FLAGS_openvinsli_localization_max_gravity_misalignment_deg) {
+  //   LOG(WARNING) << "The gravity direction of the localization is not "
+  //                << "consistent with the VIO estimate. The disparity angle "
+  //                << "is " << gravity_error_angle_deg << "deg (threshold: "
+  //                << FLAGS_openvinsli_localization_max_gravity_misalignment_deg
+  //                << "). Rejected the localization result.";
+  //   return false;
+  // }
 
   bool measurement_accepted = true;
   if (FLAGS_openvinsli_use_6dof_localization) {
-    // OPENVINS coordinate frames:
-    //  - J: Inertial frame of pose update
-    //  - V: Body frame of pose update sensor
-    const Eigen::Vector3d JrJV = localization_result->T_G_B.getPosition();
-    const kindr::RotationQuaternionPD qJV(
-        localization_result->T_G_B.getRotation().toImplementation());
-
-    // todo(jeffrey):
-    // measurement_accepted = openvins_interface_->processGroundTruthUpdate(
-    //     JrJV, qJV, openvins_timestamp_sec);
-    measurement_accepted = false;
+    openvins_interface_->feed_measurement_localization(
+        makeOpenvinsLocalizationData(localization_result));
+    measurement_accepted = true;  // always accept here.
   } else {
+    // NOT implemented yet for openvins.
+
     // Check if there are any matches to be processed in the camera frames that
     // are used by OPENVINS for estimation (inactive).
     const size_t num_cameras =
@@ -345,6 +407,17 @@ bool OpenvinsLocalizationHandler::processAsUpdate(
       }
       return false;
     }
+
+    pose::Transformation T_G_M_filter;
+    {
+      std::lock_guard<std::mutex> lock(m_T_G_M_filter_buffer_);
+      // Buffer cannot be empty as we must have received at least one filter
+      // update.
+      CHECK(!T_G_M_filter_buffer_.buffer().empty());
+      T_G_M_filter = T_G_M_filter_buffer_.buffer().back();
+    }
+
+    const pose::Transformation T_G_I_filter = T_G_M_filter * T_M_I_filter;
 
     std::vector<double> lc_reprojection_errors;
     std::vector<double> filter_reprojection_errors;
@@ -493,24 +566,13 @@ double OpenvinsLocalizationHandler::getLocalizationReprojectionErrors(
 bool extractLocalizationFromOpenvinsState(
     const ov_msckf::VioManager::Output& output, aslam::Transformation* T_G_M) {
   CHECK_NOTNULL(T_G_M);
-
-  bool has_T_G_M = false;
-  // if (FLAGS_openvinsli_use_6dof_localization) {
-  //   if (state.getHasInertialPose()) {
-  //     *T_G_M = aslam::Transformation(
-  //         state.get_qWI().inverted().toImplementation(), state.get_IrIW());
-  //     common::ensurePositiveQuaternion(&T_G_M->getRotation());
-  //   }
-  //   has_T_G_M = true;
-  // } else {
-  //   if (state.getHasMapLocalizationPose()) {
-  //     aslam::Transformation T_M_G = aslam::Transformation(
-  //         state.get_qWG().toImplementation(), state.get_WrWG());
-  //     *T_G_M = T_M_G.inverse();
-  //     common::ensurePositiveQuaternion(&T_G_M->getRotation());
-  //   }
-  //   has_T_G_M = true;
-  // }
+  bool has_T_G_M = output.status.localized;
+  if (has_T_G_M) {
+    *T_G_M = aslam::Transformation(
+        output.status.T_MtoG.block<3,1>(0,3),
+        Eigen::Quaterniond(output.status.T_MtoG.block<3,3>(0,0)));
+    common::ensurePositiveQuaternion(&T_G_M->getRotation());
+  }
   return has_T_G_M;
 }
 
