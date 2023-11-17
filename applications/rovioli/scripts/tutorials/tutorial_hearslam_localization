@@ -5,15 +5,20 @@
 LOCALIZATION_MAP_INPUT=$1
 LOCALIZATION_MAP_OUTPUT=$2
 DATASET=$3
-NCAMERA_CALIBRATION="$ROVIO_CONFIG_DIR/ncamera-hearslam.yaml"
-IMU_PARAMETERS_MAPLAB="$ROVIO_CONFIG_DIR/imu-hearslam.yaml"
+
+# NCAMERA_CALIBRATION="$ROVIO_CONFIG_DIR/ncamera-hearslam.yaml"
+# IMU_PARAMETERS_MAPLAB="$ROVIO_CONFIG_DIR/imu-hearslam.yaml"
+# sensor_option=" --ncamera_calibration=$NCAMERA_CALIBRATION --imu_parameters_maplab=$IMU_PARAMETERS_MAPLAB "
+
+SENSOR_CALIBRATION="$ROVIO_CONFIG_DIR/hearslam-stereo.yaml"
+sensor_option=" --sensor_calibration_file=$SENSOR_CALIBRATION "
+
 REST=$@
 
 rosrun rovioli rovioli \
   --alsologtostderr=1 \
   --v=2 \
-  --ncamera_calibration=$NCAMERA_CALIBRATION  \
-  --imu_parameters_maplab=$IMU_PARAMETERS_MAPLAB \
+  $sensor_option \
   --publish_debug_markers  \
   --datasource_type="hearslam" \
   --optimize_map_to_localization_map=false \
