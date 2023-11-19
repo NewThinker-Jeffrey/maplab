@@ -203,7 +203,9 @@ ov_core::LocalizationData OpenvinsLocalizationHandler::makeOpenvinsLocalizationD
   raw_loc.qp_cov = Eigen::Matrix<double, 6, 6>::Identity();
 
   const double loc_orientation_uncertainty = 0.04;  // about 2°
-  const double loc_position_uncertainty = 0.3;  // 
+  // const double loc_position_uncertainty = 0.3;  // 
+  // const double loc_position_uncertainty = 0.5;  // 
+  const double loc_position_uncertainty = 0.8;  // 
   double loc_orientation_var = loc_orientation_uncertainty * loc_orientation_uncertainty;
   double loc_position_var = loc_position_uncertainty * loc_position_uncertainty;
   raw_loc.qp_cov.block<3,3>(0,0) = loc_orientation_var * Eigen::Matrix3d::Identity();
