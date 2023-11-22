@@ -20,6 +20,8 @@ DEFINE_bool(
     "When set to false, the map builder will be deactivated and no map will be "
     "built. Openvins+Localization will still run as usual.");
 
+DECLARE_double(vio_max_localization_frequency_hz);
+
 namespace openvinsli {
 OpenvinsliNode::OpenvinsliNode(
     const vi_map::SensorManager& sensor_manager,
@@ -74,8 +76,14 @@ OpenvinsliNode::OpenvinsliNode(
     synchronizer_flow_.reset(new ImuCameraSynchronizerFlow(camera_system));
     synchronizer_flow_->attachToMessageFlow(flow);
 
+    double max_feattrack_frequency_hz = -1.0;
+    if (!FLAGS_openvinsli_run_map_builder) {
+      // only localization is enabled.
+      // we don't need high feattrack frequency for localization.
+      max_feattrack_frequency_hz = FLAGS_vio_max_localization_frequency_hz;
+    }
     tracker_flow_.reset(
-        new FeatureTrackingFlow(camera_system, *maplab_imu_sensor));
+        new FeatureTrackingFlow(camera_system, *maplab_imu_sensor, max_feattrack_frequency_hz));
     tracker_flow_->attachToMessageFlow(flow);
   }
 

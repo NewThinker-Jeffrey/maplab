@@ -25,4 +25,6 @@ rosrun openvinsli openvinsli \
   --vio_localization_map_folder=$LOCALIZATION_MAP_INPUT \
   --save_map_folder=$LOCALIZATION_MAP_OUTPUT \
   --map_builder_save_image_as_resources=false \
+  --openvinsli_run_map_builder=false \
+  --vio_max_localization_frequency_hz=2.0 \
   --datasource_hearslam=$DATASET $REST
