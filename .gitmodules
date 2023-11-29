@@ -3,31 +3,31 @@
 	url = git@github.com:ethz-asl/maplab_test_data.git
 [submodule "dependencies/3rdparty/protobuf_catkin"]
 	path = dependencies/3rdparty/protobuf_catkin
-	url = git@github.com:ethz-asl/protobuf_catkin.git
+	url = git@github.com:NewThinker-maplab/protobuf_catkin.git
 [submodule "dependencies/3rdparty/glog_catkin"]
 	path = dependencies/3rdparty/glog_catkin
-	url = git@github.com:ethz-asl/glog_catkin.git
+	url = git@github.com:NewThinker-maplab/glog_catkin.git
 [submodule "dependencies/3rdparty/gflags_catkin"]
 	path = dependencies/3rdparty/gflags_catkin
-	url = git@github.com:ethz-asl/gflags_catkin.git
+	url = git@github.com:NewThinker-maplab/gflags_catkin.git
 [submodule "dependencies/3rdparty/ceres_catkin"]
 	path = dependencies/3rdparty/ceres_catkin
-	url = git@github.com:ethz-asl/ceres_catkin.git
+	url = git@github.com:NewThinker-maplab/ceres_catkin.git
 [submodule "dependencies/3rdparty/suitesparse"]
 	path = dependencies/3rdparty/suitesparse
-	url = git@github.com:ethz-asl/suitesparse.git
+	url = git@github.com:NewThinker-maplab/suitesparse.git
 [submodule "dependencies/3rdparty/eigen_catkin"]
 	path = dependencies/3rdparty/eigen_catkin
-	url = git@github.com:ethz-asl/eigen_catkin.git
+	url = git@github.com:NewThinker-maplab/eigen_catkin.git
 [submodule "dependencies/3rdparty/yaml_cpp_catkin"]
 	path = dependencies/3rdparty/yaml_cpp_catkin
-	url = git@github.com:ethz-asl/yaml_cpp_catkin.git
+	url = git@github.com:NewThinker-maplab/yaml_cpp_catkin.git
 [submodule "dependencies/3rdparty/lpsolve_catkin"]
 	path = dependencies/3rdparty/lpsolve_catkin
-	url = git@github.com:ethz-asl/lpsolve_catkin.git
+	url = git@github.com:NewThinker-maplab/lpsolve_catkin.git
 [submodule "dependencies/3rdparty/metis_catkin"]
 	path = dependencies/3rdparty/metis_catkin
-	url = git@github.com:ethz-asl/metis_catkin.git
+	url = git@github.com:NewThinker-maplab/metis_catkin.git
 [submodule "dependencies/3rdparty/opencv3_catkin"]
 	path = dependencies/3rdparty/opencv3_catkin
 	url = git@github.com:ethz-asl/opencv3_catkin.git
@@ -66,7 +66,7 @@
 	url = git@github.com:ethz-asl/plotty.git
 [submodule "dependencies/internal/linter"]
 	path = dependencies/internal/linter
-	url = git@github.com:NewThinker-Jeffrey/linter.git
+	url = git@github.com:NewThinker-maplab/linter.git
 	branch = python3
 [submodule "dependencies/internal/maplab_msgs"]
 	path = dependencies/internal/maplab_msgs
