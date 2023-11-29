@@ -29,6 +29,7 @@
   <depend>message_flow</depend>
   <depend>online_map_builders</depend>
   <depend>ov_msckf</depend>
+  <depend>kindr</depend>
   <depend>sensors</depend>
   <depend>vi_map</depend>
   <depend>vi_mapping_test_app</depend>
