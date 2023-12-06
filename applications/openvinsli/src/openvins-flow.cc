@@ -24,6 +24,9 @@
 #include "openvinsli/openvins-localization-handler.h"
 #include "openvinsli/openvins-maplab-timetranslation.h"
 
+#include "openvinsli/mini-nav2d-flow.h"
+
+
 #include "core/VioManager.h"         // ov_msckf
 #include "core/VioManagerOptions.h"  // ov_msckf
 #include "state/Propagator.h"        // ov_msckf
@@ -49,7 +52,6 @@ OpenvinsFlow::OpenvinsFlow(
     const aslam::NCamera& camera_calibration,
     const vi_map::ImuSigmas& imu_sigmas,
     const aslam::Transformation& odom_calibration) {
-
   const size_t num_cameras = camera_calibration.getNumCameras();
   LOG_IF(WARNING, num_cameras > 2u)
       << "OPENVINS supports only 1 or 2 (for stereo) cameras. "
@@ -81,7 +83,7 @@ OpenvinsFlow::OpenvinsFlow(
   // Construct OPENVINS interface using only the active cameras.
   openvins_interface_.reset(
       constructAndConfigureOpenvins(motion_tracking_ncamera, imu_sigmas));
-  gl_viewer_ = std::make_shared<ov_msckf::Viewer>(openvins_interface_.get());
+  gl_viewer_ = std::make_shared<OpenvinsliViewer>(openvins_interface_.get());
   double visualization_rate = 40;
   stop_viz_request_ = false;
   vis_thread_ = std::make_shared<std::thread>([this, visualization_rate] {
@@ -250,6 +252,16 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
       std::bind(
           &OpenvinsLocalizationHandler::processLocalizationResult,
           localization_handler_.get(), std::placeholders::_1));
+
+
+  flow->registerSubscriber<message_flow_topics::NAV2D_CMD>(
+      kSubscriberNodeName, openvins_subscriber_options,
+      [this](const openvinsli::Nav2dCmd::ConstPtr& nav_cmd) {
+        if (gl_viewer_) {
+          gl_viewer_->setNavCmd(nav_cmd);
+        }
+      });
+
 
   // Output OPENVINS estimates.
   publish_openvins_estimates_ =

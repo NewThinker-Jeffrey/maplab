@@ -14,11 +14,19 @@
 #include "openvinsli/imu-camera-synchronizer-flow.h"
 #include "openvinsli/localizer-flow.h"
 #include "openvinsli/openvins-flow.h"
+#include "openvinsli/mini-nav2d-flow.h"
 
 DEFINE_bool(
     openvinsli_run_map_builder, true,
     "When set to false, the map builder will be deactivated and no map will be "
     "built. Openvins+Localization will still run as usual.");
+
+DEFINE_bool(
+    openvinsli_run_nav, true,
+    "Run nav");
+
+DEFINE_string(openvinsli_nav_config, "", "nav_config: traj and target points for navigation");
+
 
 DECLARE_double(vio_max_localization_frequency_hz);
 
@@ -85,6 +93,21 @@ OpenvinsliNode::OpenvinsliNode(
     tracker_flow_.reset(
         new FeatureTrackingFlow(camera_system, *maplab_imu_sensor, max_feattrack_frequency_hz));
     tracker_flow_->attachToMessageFlow(flow);
+  }
+
+  if (FLAGS_openvinsli_run_nav) {
+    nav2d_flow_.reset(new Nav2dFlow());
+    nav2d_flow_->attachToMessageFlow(flow);
+    if (!FLAGS_openvinsli_nav_config.empty()) {
+      if (common::fileExists(FLAGS_openvinsli_nav_config)) {
+        nav2d_flow_->deserialize(FLAGS_openvinsli_nav_config);
+      } else {
+        LOG(WARNING) << "BadNavConfig: the nav config file specified by --openvinsli_nav_config ("
+                     << FLAGS_openvinsli_nav_config << ") doesn't exist!";
+      }
+    }
+
+    openvins_flow_->setNavForViewer(nav2d_flow_.get());
   }
 
   data_publisher_flow_.reset(new DataPublisherFlow);

@@ -55,6 +55,8 @@ cs_add_library(${PROJECT_NAME}_lib
   src/openvins-localization-handler.cc
   src/openvinsli-node.cc
   src/vio-update-builder.cc
+  src/viewer.cpp
+  src/mini-nav2d-flow.cc
 )
 
 target_link_libraries(${PROJECT_NAME}_lib ${openvins_dep_libs})

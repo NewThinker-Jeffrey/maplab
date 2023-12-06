@@ -16,10 +16,10 @@
 #include "openvinsli/openvins-maplab-timetranslation.h"
 
 #include "core/VioManager.h"         // ov_msckf
-#include "no_ros/Viewer.h"           // ov_msckf
-
+#include "openvinsli/viewer.h"       
 namespace openvinsli {
 class OpenvinsLocalizationHandler;
+class Nav2dFlow;
 
 class OpenvinsFlow {
  public:
@@ -33,11 +33,18 @@ class OpenvinsFlow {
 
   void processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::Output& output);
 
+  // visualization for nav
+  void setNavForViewer(Nav2dFlow* nav) {
+    if (gl_viewer_) {
+      gl_viewer_->setNav(nav);
+    }
+  }
+
  private:
   std::unique_ptr<ov_msckf::VioManager> openvins_interface_;
 
   // gl visualization
-  std::shared_ptr<ov_msckf::Viewer> gl_viewer_;
+  std::shared_ptr<OpenvinsliViewer> gl_viewer_;
   std::shared_ptr<std::thread> vis_thread_;
   std::atomic<bool> stop_viz_request_;
   double last_visualization_timestamp_ = 0;
