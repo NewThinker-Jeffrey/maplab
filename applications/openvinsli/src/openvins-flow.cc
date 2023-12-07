@@ -83,38 +83,6 @@ OpenvinsFlow::OpenvinsFlow(
   // Construct OPENVINS interface using only the active cameras.
   openvins_interface_.reset(
       constructAndConfigureOpenvins(motion_tracking_ncamera, imu_sigmas));
-  gl_viewer_ = std::make_shared<OpenvinsliViewer>(openvins_interface_.get());
-  double visualization_rate = 40;
-  stop_viz_request_ = false;
-  vis_thread_ = std::make_shared<std::thread>([this, visualization_rate] {
-std::cout << "DEBUG ov_visualize 0: enter" << std::endl;
-    pthread_setname_np(pthread_self(), "ov_visualize");
-    if (gl_viewer_) {
-std::cout << "DEBUG ov_visualize 1: init" << std::endl;
-      gl_viewer_->init();
-    }
-
-    // use a high rate to ensure the vis_output to update in time (which is also needed in visualize_odometry()).
-    ros::Rate  loop_rate(visualization_rate);
-    while (ros::ok() && !stop_viz_request_) {
-// std::cout << "DEBUG ov_visualize 2: loop begin" << std::endl;
-      auto simple_output = openvins_interface_->getLastOutput(false, false);
-      if (simple_output->status.timestamp <= 0 || last_visualization_timestamp_ == simple_output->status.timestamp && simple_output->status.initialized) {
-// std::cout << "DEBUG ov_visualize 2: continue early" << std::endl;
-        continue;
-      }
-
-      auto vis_output = openvins_interface_->getLastOutput(true, true);
-      // last_visualization_timestamp_ = vis_output->state_clone->_timestamp;
-      last_visualization_timestamp_ = vis_output->status.timestamp;
-      if (gl_viewer_) {
-        gl_viewer_->show(vis_output);
-      }
-      openvins_interface_->clear_older_tracking_cache(vis_output->status.prev_timestamp);  // clear tracking cache at the prev timestamp after images are published
-
-      loop_rate.sleep();
-    }
-  });
 
   localization_handler_.reset(new OpenvinsLocalizationHandler(
       openvins_interface_.get(), &time_translation_, camera_calibration,
@@ -125,11 +93,6 @@ std::cout << "DEBUG ov_visualize 1: init" << std::endl;
 }
 
 OpenvinsFlow::~OpenvinsFlow() {
-  if (vis_thread_) {
-    stop_viz_request_ = true;
-    vis_thread_->join();
-    vis_thread_.reset();
-  }
 }
 
 void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
@@ -252,16 +215,6 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
       std::bind(
           &OpenvinsLocalizationHandler::processLocalizationResult,
           localization_handler_.get(), std::placeholders::_1));
-
-
-  flow->registerSubscriber<message_flow_topics::NAV2D_CMD>(
-      kSubscriberNodeName, openvins_subscriber_options,
-      [this](const openvinsli::Nav2dCmd::ConstPtr& nav_cmd) {
-        if (gl_viewer_) {
-          gl_viewer_->setNavCmd(nav_cmd);
-        }
-      });
-
 
   // Output OPENVINS estimates.
   publish_openvins_estimates_ =

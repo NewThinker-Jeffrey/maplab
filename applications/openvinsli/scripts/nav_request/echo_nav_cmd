@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+rostopic echo /nav2d_cmd

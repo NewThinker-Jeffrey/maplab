@@ -19,7 +19,6 @@
 #include "openvinsli/viewer.h"       
 namespace openvinsli {
 class OpenvinsLocalizationHandler;
-class Nav2dFlow;
 
 class OpenvinsFlow {
  public:
@@ -33,23 +32,12 @@ class OpenvinsFlow {
 
   void processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::Output& output);
 
-  // visualization for nav
-  void setNavForViewer(Nav2dFlow* nav) {
-    if (gl_viewer_) {
-      gl_viewer_->setNav(nav);
-    }
+  ov_msckf::VioManager* openvinsInterface() const {
+    return openvins_interface_.get();
   }
 
  private:
   std::unique_ptr<ov_msckf::VioManager> openvins_interface_;
-
-  // gl visualization
-  std::shared_ptr<OpenvinsliViewer> gl_viewer_;
-  std::shared_ptr<std::thread> vis_thread_;
-  std::atomic<bool> stop_viz_request_;
-  double last_visualization_timestamp_ = 0;
-
-
 
   int openvins_num_cameras_;
   std::function<void(const OpenvinsEstimate::ConstPtr&)> publish_openvins_estimates_;

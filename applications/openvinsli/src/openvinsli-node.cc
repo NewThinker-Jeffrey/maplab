@@ -95,9 +95,40 @@ OpenvinsliNode::OpenvinsliNode(
     tracker_flow_->attachToMessageFlow(flow);
   }
 
+  gl_viewer_.reset(new OpenvinsliViewer(openvins_flow_->openvinsInterface()));
+  double visualization_rate = 40;
+  stop_viz_request_ = false;
+  vis_thread_.reset(new std::thread([this, visualization_rate] {
+    pthread_setname_np(pthread_self(), "ov_visualize");
+    if (gl_viewer_) {
+      gl_viewer_->init();
+    }
+
+    // use a high rate to ensure the vis_output to update in time (which is also needed in visualize_odometry()).
+    ros::Rate  loop_rate(visualization_rate);
+    while (ros::ok() && !stop_viz_request_) {
+      auto simple_output = openvins_flow_->openvinsInterface()->getLastOutput(false, false);
+      if (simple_output->status.timestamp <= 0 || last_visualization_timestamp_ == simple_output->status.timestamp && simple_output->status.initialized) {
+        continue;
+      }
+
+      auto vis_output = openvins_flow_->openvinsInterface()->getLastOutput(true, true);
+      // last_visualization_timestamp_ = vis_output->state_clone->_timestamp;
+      last_visualization_timestamp_ = vis_output->status.timestamp;
+      if (gl_viewer_) {
+        gl_viewer_->show(vis_output);
+      }
+      openvins_flow_->openvinsInterface()->clear_older_tracking_cache(vis_output->status.prev_timestamp);  // clear tracking cache at the prev timestamp after images are published
+
+      loop_rate.sleep();
+    }
+  }));
+
+
   if (FLAGS_openvinsli_run_nav) {
     nav2d_flow_.reset(new Nav2dFlow());
     nav2d_flow_->attachToMessageFlow(flow);
+
     if (!FLAGS_openvinsli_nav_config.empty()) {
       if (common::fileExists(FLAGS_openvinsli_nav_config)) {
         nav2d_flow_->deserialize(FLAGS_openvinsli_nav_config);
@@ -107,7 +138,18 @@ OpenvinsliNode::OpenvinsliNode(
       }
     }
 
-    openvins_flow_->setNavForViewer(nav2d_flow_.get());
+
+    gl_viewer_->setNav(nav2d_flow_.get());
+    message_flow::DeliveryOptions subscriber_options;
+    subscriber_options.exclusivity_group_id =
+        kExclusivityGroupIdOpenvinsSensorSubscribers;
+    flow->registerSubscriber<message_flow_topics::NAV2D_CMD>(
+        "Nav2dVisualization", subscriber_options,
+        [this](const openvinsli::Nav2dCmd::ConstPtr& nav_cmd) {
+          if (gl_viewer_) {
+            gl_viewer_->setNavCmd(nav_cmd);
+          }
+        });
   }
 
   data_publisher_flow_.reset(new DataPublisherFlow);
@@ -148,6 +190,12 @@ void OpenvinsliNode::start() {
 void OpenvinsliNode::shutdown() {
   datasource_flow_->shutdown();
   VLOG(1) << "Closing data source...";
+
+  if (vis_thread_) {
+    stop_viz_request_ = true;
+    vis_thread_->join();
+    vis_thread_.reset();
+  }
 }
 
 std::atomic<bool>& OpenvinsliNode::isDataSourceExhausted() {

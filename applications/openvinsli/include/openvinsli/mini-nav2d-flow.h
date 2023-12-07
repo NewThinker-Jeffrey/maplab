@@ -147,8 +147,9 @@ class Nav2dFlow {
   ros::NodeHandle node_handle_;
   ros::ServiceServer ros_nav_srv_;
   ros::Publisher ros_pub_nav_cmd_;
+  uint32_t ros_nav_cmd_seq_ = 0;
   void initRosInterface();
-  bool dealWithRosRequest(openvinsli::RosNavRequest::Request &request, openvinsli::RosNavRequest::Response &response);
+  bool dealWithRosRequest(RosNavRequest::Request &request, RosNavRequest::Response &response);
   void convertAndPublishNavCmd(const Nav2dCmd& cmd);
 #endif
 };

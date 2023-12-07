@@ -502,25 +502,17 @@ Nav2dFlow::getCurNavInfoForDisplay() {
 #ifdef EANBLE_ROS_NAV_INTERFACE
 
 void Nav2dFlow::initRosInterface() {
-  // std::function<bool(openvinsli::RosNavRequest::Request&, openvinsli::RosNavRequest::Response&)>
+  // std::function<bool(RosNavRequest::Request&, RosNavRequest::Response&)>
   //     srv_callback =
   //         std::bind(&Nav2dFlow::dealWithRosRequest, this, std::placeholders::_1, std::placeholders::_2);
 	// ros_nav_srv_ = node_handle_.advertiseService("NavRequest", srv_callback);
 	ros_nav_srv_ = node_handle_.advertiseService("NavRequest", &Nav2dFlow::dealWithRosRequest, this);
 
-
-  // boost::function<bool(std_srvs::Empty::Request&, std_srvs::Empty::Response&)>
-  //     save_map_callback =
-  //         boost::bind(&MaplabRosNode::saveMapCallback, this, _1, _2);
-  // save_map_srv_ = nh_.advertiseService("save_map", save_map_callback);
-
-
-
   ros_pub_nav_cmd_ =
-      node_handle_.advertise<openvinsli::RosNav2dCmd>("nav2d_cmd", 1);
+      node_handle_.advertise<RosNav2dCmd>("nav2d_cmd", 1);
 }
 
-bool Nav2dFlow::dealWithRosRequest(openvinsli::RosNavRequest::Request &request, openvinsli::RosNavRequest::Response &response) {
+bool Nav2dFlow::dealWithRosRequest(RosNavRequest::Request &request, RosNavRequest::Response &response) {
   std::string cmd = request.cmd;
   if (cmd == "startPathRecording") {
     response.ack = startPathRecording();
@@ -546,9 +538,8 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
     return;
   }
 
-  static uint32_t seq = 0;
   RosNav2dCmd roscmd;
-  roscmd.header.seq = seq++;
+  roscmd.header.seq = ros_nav_cmd_seq_++;
   roscmd.header.stamp.sec = 0;
   roscmd.header.stamp.nsec = 0;
   roscmd.header.frame_id = "NAV";
