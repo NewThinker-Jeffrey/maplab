@@ -95,6 +95,10 @@ Eigen::Isometry3d transformPoseFrom2dTo3d(const Eigen::Vector3d& pose_2d) {
 
 Nav2dFlow::Nav2dFlow() : state_(NavState::IDLE) {
 
+#ifdef EANBLE_ROS_NAV_INTERFACE
+  initRosInterface();
+#endif
+
   stop_request_ = false;
   nav_thread_ = std::make_shared<std::thread>(std::bind(&Nav2dFlow::nav_worker, this));
 }
@@ -195,27 +199,27 @@ bool Nav2dFlow::addTargetPoint(const std::string& target_name) {
   return false;
 }
 
-bool Nav2dFlow::naviageTo(size_t target_idx) {
+bool Nav2dFlow::navigateTo(size_t target_idx) {
   std::unique_lock<std::mutex> lock(mutex_nav_);
   if (state_ == NavState::IDLE) {
     state_ = NavState::PATH_PLANNING;
     current_target_idx_ = target_idx;
-    LOG(INFO) << "Nav2dFlow: naviageTo() OK!";
+    LOG(INFO) << "Nav2dFlow: navigateTo() OK!";
     return true;
   }
 
-  LOG(WARNING) << "Nav2dFlow: naviageTo() failed since we're in IDLE state!";
+  LOG(WARNING) << "Nav2dFlow: navigateTo() failed since we're in IDLE state!";
   return false;
 }
 
-bool Nav2dFlow::naviageTo(const std::string& target_name) {
+bool Nav2dFlow::navigateTo(const std::string& target_name) {
   for (size_t i=0; i<target_point_names_.size(); i++) {
     if (target_point_names_[i] == target_name) {
-      return naviageTo(i);
+      return navigateTo(i);
     }
   }
 
-  LOG(WARNING) << "Nav2dFlow: naviageTo() failed since we can't find a target named \"" << target_name << "\"";
+  LOG(WARNING) << "Nav2dFlow: navigateTo() failed since we can't find a target named \"" << target_name << "\"";
   return false;
 }
 
@@ -367,6 +371,9 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
       nav_cmd->is_last_pathpoint = true;
     }
 
+#ifdef EANBLE_ROS_NAV_INTERFACE
+    convertAndPublishNavCmd(*nav_cmd);
+#endif
     publish_nav_(nav_cmd);
   } else if (NavState::PATH_PLANNING == state_) {
     // find the nearest traj point
@@ -490,6 +497,76 @@ Nav2dFlow::getCurNavInfoForDisplay() {
   info.state = stateStr(state_);
   return info_ptr;
 }
+
+
+#ifdef EANBLE_ROS_NAV_INTERFACE
+
+void Nav2dFlow::initRosInterface() {
+  // std::function<bool(openvinsli::RosNavRequest::Request&, openvinsli::RosNavRequest::Response&)>
+  //     srv_callback =
+  //         std::bind(&Nav2dFlow::dealWithRosRequest, this, std::placeholders::_1, std::placeholders::_2);
+	// ros_nav_srv_ = node_handle_.advertiseService("NavRequest", srv_callback);
+	ros_nav_srv_ = node_handle_.advertiseService("NavRequest", &Nav2dFlow::dealWithRosRequest, this);
+
+
+  // boost::function<bool(std_srvs::Empty::Request&, std_srvs::Empty::Response&)>
+  //     save_map_callback =
+  //         boost::bind(&MaplabRosNode::saveMapCallback, this, _1, _2);
+  // save_map_srv_ = nh_.advertiseService("save_map", save_map_callback);
+
+
+
+  ros_pub_nav_cmd_ =
+      node_handle_.advertise<openvinsli::RosNav2dCmd>("nav2d_cmd", 1);
+}
+
+bool Nav2dFlow::dealWithRosRequest(openvinsli::RosNavRequest::Request &request, openvinsli::RosNavRequest::Response &response) {
+  std::string cmd = request.cmd;
+  if (cmd == "startPathRecording") {
+    response.ack = startPathRecording();
+  } else if (cmd == "addTargetPoint") {
+    std::string target_name = request.arg;
+    response.ack = addTargetPoint(target_name);
+  } else if (cmd == "finishPathRecording") {
+    response.ack = finishPathRecording();
+  } else if (cmd == "navigateTo") {
+    std::string target_name = request.arg;
+    response.ack = navigateTo(target_name);
+  } else if (cmd == "stopNav") {
+    response.ack = stopNav();
+  } else {
+    response.ack = false;
+    response.error_info = "Unknown cmd!";
+  }
+  return true;
+}
+
+void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
+  if (ros_pub_nav_cmd_.getNumSubscribers() == 0) {
+    return;
+  }
+
+  static uint32_t seq = 0;
+  RosNav2dCmd roscmd;
+  roscmd.header.seq = seq++;
+  roscmd.header.stamp.sec = 0;
+  roscmd.header.stamp.nsec = 0;
+  roscmd.header.frame_id = "NAV";
+  roscmd.cur_pose2d.x = cmd.cur_pose2d.x();
+  roscmd.cur_pose2d.y = cmd.cur_pose2d.y();
+  roscmd.cur_pose2d.theta = cmd.cur_pose2d.z();
+
+  for (const Eigen::Vector3d& next_pathpoint : cmd.next_pathpoints) {
+    geometry_msgs::Pose2D p;
+    p.x = next_pathpoint.x();
+    p.y = next_pathpoint.y();
+    p.theta = next_pathpoint.z();
+    roscmd.next_pathpoints.push_back(p);
+  }
+  roscmd.is_last_pathpoint = cmd.is_last_pathpoint;
+  ros_pub_nav_cmd_.publish(roscmd);
+}
+#endif
 
 
 }  // namespace openvinsli

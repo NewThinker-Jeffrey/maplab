@@ -18,6 +18,14 @@
 
 #include "openvinsli/mini-nav2d-msg.h"
 
+// ros interface
+#define EANBLE_ROS_NAV_INTERFACE
+#ifdef EANBLE_ROS_NAV_INTERFACE
+#include <ros/ros.h>
+#include "openvinsli/RosNavRequest.h"
+#include "openvinsli/RosNav2dCmd.h"
+#endif
+
 namespace openvinsli {
 
 
@@ -54,9 +62,9 @@ class Nav2dFlow {
 
   bool addTargetPoint(const std::string& target_name="");
 
-  bool naviageTo(size_t target_idx);
+  bool navigateTo(size_t target_idx);
 
-  bool naviageTo(const std::string& target_name);
+  bool navigateTo(const std::string& target_name);
 
   bool stopNav();
 
@@ -132,6 +140,17 @@ class Nav2dFlow {
 
   // std::deque<Eigen::Vector3d> traj_2d_recroding_;  // used for recording
 
+
+#ifdef EANBLE_ROS_NAV_INTERFACE
+ private:
+  // ros interface
+  ros::NodeHandle node_handle_;
+  ros::ServiceServer ros_nav_srv_;
+  ros::Publisher ros_pub_nav_cmd_;
+  void initRosInterface();
+  bool dealWithRosRequest(openvinsli::RosNavRequest::Request &request, openvinsli::RosNavRequest::Response &response);
+  void convertAndPublishNavCmd(const Nav2dCmd& cmd);
+#endif
 };
 }  // namespace openvinsli
 #endif  // OPENVINSLI_MINI_NAV2D_FLOW_H_

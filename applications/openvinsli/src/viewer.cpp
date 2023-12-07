@@ -85,7 +85,7 @@ void OpenvinsliViewer::init() {
   });
   pangolin::Var<std::function<void()>> navigate_to_var("menu.NavigateTo", [this](){
     if (nav_) {
-      nav_->naviageTo(*target_point_name_var_);
+      nav_->navigateTo(*target_point_name_var_);
       (*target_point_name_var_) = "";
     }
   });
