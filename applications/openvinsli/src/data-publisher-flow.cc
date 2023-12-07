@@ -227,7 +227,9 @@ void DataPublisherFlow::publishVinsState(
 
   // Publish pose in global frame.
   aslam::Transformation T_G_I = T_G_M * T_M_I;
-  if (pub_pose_T_G_I_.getNumSubscribers() > 0) {
+  // jeffrey: only publish T_G_I when (has T_G_M == true)
+  // if (pub_pose_T_G_I_.getNumSubscribers() > 0) {
+  if (has_T_G_M && pub_pose_T_G_I_.getNumSubscribers() > 0) {
     geometry_msgs::PoseStamped T_G_I_message;
     tf::poseStampedKindrToMsg(
         T_G_I, timestamp_ros, FLAGS_tf_map_frame, &T_G_I_message);
