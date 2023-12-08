@@ -17,6 +17,7 @@ DEFINE_string(
 DEFINE_string(datasource_rosbag, "", "Path to rosbag for bag sources.");
 DEFINE_string(datasource_hearslam, "", "Path to hearslam dataset.");
 
+
 namespace openvinsli {
 
 DataSourceType stringToDataSource(const std::string& str) {

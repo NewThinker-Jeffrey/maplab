@@ -28,6 +28,8 @@ DEFINE_bool(
 DEFINE_string(openvinsli_nav_config, "", "nav_config: traj and target points for navigation");
 
 
+DEFINE_double(openvinsli_gl_viz_rate, 40.0, "gl visualization rate");
+
 DECLARE_double(vio_max_localization_frequency_hz);
 
 namespace openvinsli {
@@ -96,16 +98,15 @@ OpenvinsliNode::OpenvinsliNode(
   }
 
   gl_viewer_.reset(new OpenvinsliViewer(openvins_flow_->openvinsInterface()));
-  double visualization_rate = 40;
   stop_viz_request_ = false;
-  vis_thread_.reset(new std::thread([this, visualization_rate] {
+  vis_thread_.reset(new std::thread([this] {
     pthread_setname_np(pthread_self(), "ov_visualize");
     if (gl_viewer_) {
       gl_viewer_->init();
     }
 
     // use a high rate to ensure the vis_output to update in time (which is also needed in visualize_odometry()).
-    ros::Rate  loop_rate(visualization_rate);
+    ros::Rate  loop_rate(FLAGS_openvinsli_gl_viz_rate);
     while (ros::ok() && !stop_viz_request_) {
       auto simple_output = openvins_flow_->openvinsInterface()->getLastOutput(false, false);
       if (simple_output->status.timestamp <= 0 || last_visualization_timestamp_ == simple_output->status.timestamp && simple_output->status.initialized) {

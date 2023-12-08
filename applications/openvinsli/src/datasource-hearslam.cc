@@ -42,6 +42,9 @@ DEFINE_int32(
     hearslam_data_image_downsample_rate, 3,
     "The downsample rate for image data. Our realsense works at 30 FPS, "
     "and usually we need 10 FPS.");
+DEFINE_string(hearslam_data_rs_serial_num, "", "realsense serial num for hearslam datasource");
+DEFINE_string(hearslam_data_rs_name_hint, "", "realsense name_hint for hearslam datasource");
+DEFINE_string(hearslam_data_rs_port_hint, "", "realsense port hint for hearslam datasource");
 
 namespace openvinsli {
 
@@ -74,15 +77,20 @@ DataSourceHearslam::DataSourceHearslam(
     bs.infra_height = image_height;
     LOGW(YELLOW "Sensor settings for realsense: image size_wh(%d, %d), imu_rate(%d)\n" RESET, bs.infra_width, bs.infra_height, bs.gyro_framerate);
 
+    hear_slam::RsCapture::DevicePreference dp;
+    dp.serial_num = FLAGS_hearslam_data_rs_serial_num;
+    dp.name_hint = FLAGS_hearslam_data_rs_name_hint;
+    dp.port_hint = FLAGS_hearslam_data_rs_port_hint;
+
     if (num_cameras == 2) {
       source_ = std::make_shared<hear_slam::RsCapture>(
           hear_slam::ViDatasource::VisualSensorType::STEREO,
-          true, image_cb, imu_cb, bs);
+          true, image_cb, imu_cb, bs, dp);
     } else {
       assert(num_cameras == 1);
       source_ = std::make_shared<hear_slam::RsCapture>(
           hear_slam::ViDatasource::VisualSensorType::MONO,
-          true, image_cb, imu_cb, bs);
+          true, image_cb, imu_cb, bs, dp);
     }
     recorder_ = std::make_shared<hear_slam::ViRecorder>();
     recorder_->startRecord(source_.get());
