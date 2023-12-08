@@ -15,6 +15,7 @@
 #include "openvinsli/localizer-flow.h"
 #include "openvinsli/openvins-flow.h"
 #include "openvinsli/mini-nav2d-flow.h"
+#include "openvinsli/datasource-hearslam.h"
 
 DEFINE_bool(
     openvinsli_run_map_builder, true,
@@ -98,6 +99,15 @@ OpenvinsliNode::OpenvinsliNode(
   }
 
   gl_viewer_.reset(new OpenvinsliViewer(openvins_flow_->openvinsInterface()));
+  {
+    DataSourceHearslam* hearslam_ds = dynamic_cast<DataSourceHearslam*>(datasource_flow_->getDataSource());
+    if (hearslam_ds) {
+      hear_slam::ViPlayer* vi_player = hearslam_ds->getPlayer();
+      if (vi_player) {
+        gl_viewer_->setViPlayer(vi_player);
+      }
+    }
+  }
   stop_viz_request_ = false;
   vis_thread_.reset(new std::thread([this] {
     pthread_setname_np(pthread_self(), "ov_visualize");
@@ -109,7 +119,10 @@ OpenvinsliNode::OpenvinsliNode(
     ros::Rate  loop_rate(FLAGS_openvinsli_gl_viz_rate);
     while (ros::ok() && !stop_viz_request_) {
       auto simple_output = openvins_flow_->openvinsInterface()->getLastOutput(false, false);
-      if (simple_output->status.timestamp <= 0 || last_visualization_timestamp_ == simple_output->status.timestamp && simple_output->status.initialized) {
+      // if (simple_output->status.timestamp <= 0 || last_visualization_timestamp_ == simple_output->status.timestamp && simple_output->status.initialized) {
+      //   continue;
+      // }
+      if (simple_output->status.timestamp <= 0) {
         continue;
       }
 

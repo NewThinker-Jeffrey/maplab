@@ -44,6 +44,8 @@ class DataSourceHearslam : public DataSource {
   virtual bool allDataStreamed() const;
   virtual std::string getDatasetName() const;
 
+  hear_slam::ViPlayer* getPlayer() const;
+
  private:
   void hearslamImageCallback(int image_idx, hear_slam::CameraData msg);
   void hearslamImuCallback(int imu_idx, hear_slam::ImuData msg);

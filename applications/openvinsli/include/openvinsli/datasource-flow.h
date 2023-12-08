@@ -47,6 +47,10 @@ class DataSourceFlow {
     datasource_->registerEndOfDataCallback(cb);
   }
 
+  DataSource* getDataSource() const {
+    return datasource_.get();
+  }
+
  private:
   std::unique_ptr<DataSource> datasource_;
 };

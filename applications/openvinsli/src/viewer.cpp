@@ -48,6 +48,8 @@ OpenvinsliViewer::OpenvinsliViewer(VioManager* interal_app) : _interal_app(inter
 
   nav_ = nullptr;
 
+  vi_player_ = nullptr;
+
   std::cout << "OpenvinsliViewer::OpenvinsliViewer():  Use Pangolin!" << std::endl;
 
   // std::cout << "OpenvinsliViewer::OpenvinsliViewer():  Loading Chinese font ..." << std::endl;
@@ -66,6 +68,23 @@ void OpenvinsliViewer::init() {
   // pangolin::Var<bool> boolVar1("menu.boolVar1", false, true);
   // pangolin::Var<int> intVar1("menu.intVar1", 10, 0, 20);
   // pangolin::Var<double> doubleVar1("menu.doubleVar1",10, 0, 20);
+  pangolin::Var<std::function<void()>> pause_var("menu.PauseData", [this](){
+    if (vi_player_) {
+      vi_player_->pause();
+    }
+  });
+  //// Currently FrameByFrame mode can't work well with the imu-camera-synchronizer in maplab.
+  // pangolin::Var<std::function<void()>> frame_by_frame_var("menu.FrameByFrame", [this](){
+  //   if (vi_player_) {
+  //     vi_player_->pauseAtEveryImage();
+  //   }
+  // });
+  pangolin::Var<std::function<void()>> resume_var("menu.ResumeData", [this](){
+    if (vi_player_) {
+      vi_player_->resume();
+    }
+  });
+
   pangolin::Var<std::function<void()>> start_path_record_var("menu.StartPathRecrod", [this](){
     if (nav_) {
       nav_->startPathRecording();

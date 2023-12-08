@@ -132,6 +132,15 @@ DataSourceHearslam::~DataSourceHearslam() {
   shutdown();
 }
 
+hear_slam::ViPlayer* DataSourceHearslam::getPlayer() const {
+  if (!source_) {
+    return nullptr;
+  } else {
+    // Return non-null only when we're using ViPlayer as the source_.
+    return dynamic_cast<hear_slam::ViPlayer*>(source_.get());
+  }
+}
+
 std::string DataSourceHearslam::getDatasetName() const {
   std::string path, filename;
   if (!dataset_path_.empty()) {

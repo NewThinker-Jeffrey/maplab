@@ -31,6 +31,7 @@
 #include "slam_viz/pangolin_helper_types.h"
 
 #include "openvinsli/mini-nav2d-flow.h"
+#include "hear_slam/common/datasource/vi_player.h"
 
 namespace openvinsli {
 
@@ -48,6 +49,10 @@ public:
   void setNavCmd(const openvinsli::Nav2dCmd::ConstPtr& nav_cmd) {
     std::unique_lock<std::mutex> lock(mutex_);
     cur_nav_cmd_ = nav_cmd;
+  }
+
+  void setViPlayer(hear_slam::ViPlayer* vi_player) {
+    vi_player_ = vi_player;
   }
 
 private:
@@ -70,6 +75,7 @@ private:
   Nav2dFlow* nav_;
   Nav2dCmd::ConstPtr cur_nav_cmd_;
 
+  hear_slam::ViPlayer* vi_player_;
 
   // widgets
   std::shared_ptr<pangolin::Var<std::string>> target_point_name_var_;
