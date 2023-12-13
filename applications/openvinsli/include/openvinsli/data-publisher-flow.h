@@ -16,6 +16,7 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Vector3Stamped.h>
+#include <image_transport/image_transport.h>
 #include <ros/ros.h>
 #pragma GCC diagnostic pop
 
@@ -65,6 +66,10 @@ class DataPublisherFlow {
   // Maplab odometry message publisher (includes IMU biases).
   ros::Publisher pub_maplab_odom_T_M_I_;
   ros::Publisher pub_odom_T_M_I_;
+
+  // Publish images from cam0
+  std::unique_ptr<image_transport::ImageTransport> it_;
+  image_transport::Publisher pub_raw_image0_;
 
   common::TimeoutCounter map_publisher_timeout_;
 

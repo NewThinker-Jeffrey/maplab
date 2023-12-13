@@ -34,6 +34,9 @@ DEFINE_double(
     "Playback rate of the hearslam_data. Real-time corresponds to 1.0. "
     "This only makes sense when using offline data sources.");
 DEFINE_bool(
+    hearslam_data_auto_record_live, true,
+    "If set to true, the live data will be auto recorded.");
+DEFINE_bool(
     hearslam_data_openvinsli_zero_initial_timestamps, false,
     "If set to true, the timestamps outputted by the estimator start with 0. "
     "Not zeroing the timestamps may lead to less accurate results due to "
@@ -92,9 +95,11 @@ DataSourceHearslam::DataSourceHearslam(
           hear_slam::ViDatasource::VisualSensorType::MONO,
           true, image_cb, imu_cb, bs, dp);
     }
-    recorder_ = std::make_shared<hear_slam::ViRecorder>();
-    recorder_->startRecord(source_.get());
-    // recorder_->enableImageWindow();
+    if (FLAGS_hearslam_data_auto_record_live) {
+      recorder_ = std::make_shared<hear_slam::ViRecorder>();
+      recorder_->startRecord(source_.get());
+      // recorder_->enableImageWindow();
+    }
   } else {
     if (num_cameras == 2) {
       source_ = std::make_shared<hear_slam::ViPlayer>(

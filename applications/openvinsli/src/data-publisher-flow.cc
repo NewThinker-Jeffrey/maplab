@@ -6,6 +6,11 @@
 #include <maplab_msgs/OdometryWithImuBiases.h>
 #include <minkindr_conversions/kindr_msg.h>
 #include <nav_msgs/Odometry.h>
+
+#include <sensor_msgs/Image.h>
+#include <opencv2/opencv.hpp>
+#include <cv_bridge/cv_bridge.h>
+
 #include "openvinsli/ros-helpers.h"
 
 DEFINE_double(
@@ -30,6 +35,10 @@ DEFINE_bool(
     openvinsli_visualize_map, true,
     "Set to false to disable map visualization. Note: map building needs to be "
     "active for the visualization.");
+
+DEFINE_string(
+    share_raw_image0_topic, "/raw_image0",
+    "Publish raw image [0] in this topic if it's set to non-empty");
 
 DECLARE_bool(openvinsli_run_map_builder);
 
@@ -75,6 +84,10 @@ void DataPublisherFlow::registerPublishers() {
           kTopicMaplabOdomMsg, 1);
   pub_odom_T_M_I_ =
       node_handle_.advertise<nav_msgs::Odometry>(kTopicOdomMsg, 1);
+  if (!FLAGS_share_raw_image0_topic.empty()) {
+    it_.reset(new image_transport::ImageTransport(node_handle_));
+    pub_raw_image0_ = it_->advertise(FLAGS_share_raw_image0_topic, 1);
+  }
 }
 
 void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
@@ -100,6 +113,26 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
       [this](const vio::LocalizationResult::ConstPtr& localization) {
         CHECK(localization != nullptr);
         localizationCallback(localization->T_G_B.getPosition());
+      });
+
+  // Publish raw image.
+  flow->registerSubscriber<message_flow_topics::IMAGE_MEASUREMENTS>(
+      kSubscriberNodeName, message_flow::DeliveryOptions(),
+      [this](const vio::ImageMeasurement::Ptr& image) {
+        CHECK(image);
+        if (!FLAGS_share_raw_image0_topic.empty() &&
+            pub_raw_image0_.getNumSubscribers() > 0 &&
+            image->camera_index == 0) {
+
+          sensor_msgs::Image img_msg;
+          cv_bridge::CvImage cv_img;
+          cv_img.header.frame_id = "";
+          cv_img.header.stamp = createRosTimestamp(image->timestamp);
+          cv_img.encoding = "mono8";  // "mono16"  "bgr8"  "rgb8"  "bgra8"  "rgba8"
+          cv_img.image = image->image;
+          sensor_msgs::ImagePtr msg = cv_img.toImageMsg();
+          pub_raw_image0_.publish(msg);
+        }
       });
 
   if (FLAGS_publish_only_on_keyframes) {
