@@ -358,11 +358,14 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
         theta_diff += 2.0 * M_PI;
       }
 
-      if (dist < 0.15 && theta_diff < 0.05) {
-        LOG(WARNING) << "Nav2dFlow:  Finished navigation.";
-        state_ = NavState::IDLE;
-        return;
-      }
+      // For now we skip the following check since it will be done by the downstream controller.
+
+      // // Check whether the robot has reached the target point.
+      // if (dist < 0.15 && theta_diff < 0.05) {
+      //   LOG(WARNING) << "Nav2dFlow:  Finished navigation.";
+      //   state_ = NavState::IDLE;
+      //   return;
+      // }
 
 
       // nav_cmd->cur_pathpoint = current_path_[current_pathpoint_idx_];
