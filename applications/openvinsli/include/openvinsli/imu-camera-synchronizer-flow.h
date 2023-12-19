@@ -37,8 +37,15 @@ class ImuCameraSynchronizerFlow {
             // we use negative camera_index for depth images.
             return;
           }
+          cv::Mat gray;
+          if (image->image.channels() == 3) {
+            cv::cvtColor(image->image, gray, cv::COLOR_RGB2GRAY);
+          } else {
+            CHECK_EQ(image->image.channels(), 1);
+            gray = image->image;
+          }
           this->synchronizing_pipeline_.addCameraImage(
-              image->camera_index, image->image, image->timestamp);
+              image->camera_index, gray, image->timestamp);
         });
     // IMU input.
     flow->registerSubscriber<message_flow_topics::IMU_MEASUREMENTS>(

@@ -20,6 +20,7 @@ void VioUpdateBuilder::processSynchronizedNFrameImu(
 
   std::lock_guard<std::recursive_mutex> lock(queue_mutex_);
   synced_nframe_imu_queue_.push(synced_nframe_imu);
+  // std::cout << "DEBUG VioUpdateBuilder::processSynchronizedNFrameImu " << std::endl;
   findMatchAndPublish();
 }
 
@@ -33,6 +34,7 @@ void VioUpdateBuilder::processOpenvinsEstimate(
 
   std::lock_guard<std::recursive_mutex> lock(queue_mutex_);
   openvins_estimate_queue_.push_back(openvins_estimate);
+  // std::cout << "DEBUG VioUpdateBuilder::processOpenvinsEstimate " << std::endl;
   findMatchAndPublish();
 }
 

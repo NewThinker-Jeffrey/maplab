@@ -48,11 +48,14 @@ class FeatureTrackingFlow {
             }
             prev_processed_nframe_ts_ = ts;
           }
+
+          // LOG(INFO) << "FeatureTrackingFlow: Before processing nframe with ts "
+          //           << ts;
           const bool success =
               this->tracking_pipeline_.trackSynchronizedNFrameImuCallback(
                   nframe_imu);
           LOG(INFO) << "FeatureTrackingFlow: Processed nframe with ts "
-                    << ts;
+                    << ts << ", success = " << success;
           
           if (success) {
             // This will only fail for the first frame.
