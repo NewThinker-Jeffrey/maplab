@@ -15,7 +15,7 @@ use_rgbd: true
 virtual_baseline_for_rgbd: 0.095
 depth_unit_for_rgbd: 0.001
 
-calib_cam_extrinsics: true # if the transform between camera and IMU should be optimized R_ItoC, p_CinI
+calib_cam_extrinsics: false # if the transform between camera and IMU should be optimized R_ItoC, p_CinI
 calib_cam_intrinsics: true # if camera intrinsics should be optimized (focal, center, distortion)
 calib_cam_timeoffset: true # if timeoffset between camera and IMU should be optimized
 

@@ -190,7 +190,6 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
               continue;
             }
 
-
             ov_core::CameraData cam;
             cam.timestamp = time_translation_.convertMaplabToOpenvinsTimestamp(image0->timestamp);
 
@@ -339,8 +338,8 @@ void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::O
 
     // todo(jeffrey): retrieve the updated extrisincs from output.state_clone.
     aslam::Transformation T_B_C(
-        openvins_params.T_CtoIs.at(openvins_cam_idx).block<3,1>(0,3),
-        Eigen::Quaterniond(openvins_params.T_CtoIs.at(openvins_cam_idx).block<3,3>(0,0)));
+        openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,1>(0,3),
+        Eigen::Quaterniond(openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,3>(0,0)));
     // aslam::Transformation T_B_C(
     //     openvins_params.T_CtoIs.at(openvins_cam_idx).block<3,3>(0,0),
     //     openvins_params.T_CtoIs.at(openvins_cam_idx).block<3,1>(0,3));
