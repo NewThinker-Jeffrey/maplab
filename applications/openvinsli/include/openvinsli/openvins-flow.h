@@ -52,6 +52,10 @@ class OpenvinsFlow {
 
   // External OPENVINS odometry calibration
   aslam::Transformation odom_calibration_;
+
+  // camera synchronizing
+  using ImageQueue = std::deque<vio::ImageMeasurement::ConstPtr>;
+  std::map<size_t, ImageQueue> cam_id_to_image_queue_;
 };
 }  // namespace openvinsli
 #endif  // OPENVINSLI_OPENVINS_FLOW_H_

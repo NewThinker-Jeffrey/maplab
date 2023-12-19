@@ -148,66 +148,116 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
       });
 
   // Input camera.
-  // flow->registerSubscriber<message_flow_topics::IMAGE_MEASUREMENTS>(
-  //     kSubscriberNodeName, openvins_subscriber_options,
-  //     [this](const vio::ImageMeasurement::ConstPtr& image) {
-  //       const size_t maplab_cam_idx = image->camera_index;
-  //       const size_t* openvins_cam_index =
-  //           maplab_to_openvins_cam_indices_mapping_.getRight(maplab_cam_idx);
-  //       if (openvins_cam_index == nullptr) {
-  //         // Skip this image, as the camera was marked as inactive.
-  //         return;
-  //       }
-
-  //       const double openvins_timestamp_sec =
-  //           time_translation_.convertMaplabToOpenvinsTimestamp(image->timestamp);
-  //       const bool measurement_accepted =
-  //           this->openvins_interface_->processImageUpdate(
-  //               *openvins_cam_index, image->image, openvins_timestamp_sec);
-  //       LOG_IF(
-  //           WARNING, !measurement_accepted && openvins_interface_->isInitialized())
-  //           << "OPENVINS rejected image measurement of camera " << maplab_cam_idx
-  //           << " (openvins cam idx: " << *openvins_cam_index << ") at time "
-  //           << aslam::time::timeNanosecondsToString(image->timestamp)
-  //           << ". Latency is too large.";
-  //     });
-
-  // We need synced images (while imu is not required)
-  flow->registerSubscriber<message_flow_topics::SYNCED_NFRAMES_AND_IMU>(
+  flow->registerSubscriber<message_flow_topics::IMAGE_MEASUREMENTS>(
       kSubscriberNodeName, openvins_subscriber_options,
-      [this](const vio::SynchronizedNFrameImu::Ptr& nframe_imu) {
-        CHECK(nframe_imu);
-        aslam::VisualNFrame::Ptr nframe = nframe_imu->nframe;
-        CHECK(nframe);
-        LOG(INFO) << "OpenvinsFlow: Received nframe with ts "
-                  << nframe->getMinTimestampNanoseconds();
-
-        std::map<size_t, cv::Mat> ov_idx_to_img;
-        for (size_t i=0; i<nframe->getNumFrames(); i++) {
-          const size_t* openvins_cam_index =
-              maplab_to_openvins_cam_indices_mapping_.getRight(i);
-          if (openvins_cam_index == nullptr) {
+      [this](const vio::ImageMeasurement::ConstPtr& image) {
+        size_t openvins_cam_id = 0;
+        auto openvins_params = openvins_interface_->get_params();
+        if (image->camera_index < 0 && openvins_params.use_rgbd) {
+          // we use negative camera_index for depth images.
+          openvins_cam_id = 1;  // we fix the depth cam id to be 1.
+        } else {
+          const size_t maplab_cam_idx = image->camera_index;
+          const size_t* p_openvins_cam_index =
+              maplab_to_openvins_cam_indices_mapping_.getRight(maplab_cam_idx);
+          
+          if (p_openvins_cam_index == nullptr) {
             // Skip this image, as the camera was marked as inactive.
-            continue;
+            return;
           }
-          const aslam::VisualFrame& frame = nframe->getFrame(i);
-          ov_idx_to_img[*openvins_cam_index] = frame.getRawImage();
+          openvins_cam_id = *p_openvins_cam_index;
         }
-        CHECK_EQ(openvins_num_cameras_, ov_idx_to_img.size());
 
-        ov_core::CameraData cam;
-        cam.timestamp =
-            time_translation_.convertMaplabToOpenvinsTimestamp(
-                nframe->getMinTimestampNanoseconds());
-        for (const auto& item : ov_idx_to_img) {
-          cam.sensor_ids.push_back(item.first);
-          cam.images.push_back(item.second);
-          int rows = item.second.rows;
-          int cols = item.second.cols;
-          cam.masks.push_back(cv::Mat::zeros(rows, cols, CV_8UC1));
+        const double openvins_timestamp_sec =
+            time_translation_.convertMaplabToOpenvinsTimestamp(image->timestamp);
+
+        // we only support three settings in openvins: mono, stereo, rgbd.
+        assert(openvins_cam_id == 0 || openvins_cam_id == 1);
+        cam_id_to_image_queue_[openvins_cam_id].push_back(image);
+
+        // try synchronizing
+        const int64_t MAX_PRECISION_NS = 10;  // Maybe 1 is enough.
+        if (openvins_params.state_options.num_cameras == 2 || openvins_params.use_rgbd) {
+          while (!cam_id_to_image_queue_[0].empty() && !cam_id_to_image_queue_[1].empty()) {
+            vio::ImageMeasurement::ConstPtr image0 = cam_id_to_image_queue_[0].front();
+            vio::ImageMeasurement::ConstPtr image1 = cam_id_to_image_queue_[1].front();
+            if (abs(image0->timestamp - image1->timestamp) > MAX_PRECISION_NS) {
+              if (image0->timestamp < image1->timestamp) {
+                cam_id_to_image_queue_[0].pop_front();
+              } else {
+                cam_id_to_image_queue_[1].pop_front();
+              }
+              continue;
+            }
+
+
+            ov_core::CameraData cam;
+            cam.timestamp = time_translation_.convertMaplabToOpenvinsTimestamp(image0->timestamp);
+
+            cam.sensor_ids.push_back(0);
+            cam.images.push_back(image0->image);
+            cam.masks.push_back(cv::Mat::zeros(image0->image.rows, image0->image.cols, CV_8UC1));
+
+            cam.sensor_ids.push_back(1);
+            cam.images.push_back(image1->image);
+            cam.masks.push_back(cv::Mat::zeros(image1->image.rows, image1->image.cols, CV_8UC1));
+
+            openvins_interface_->feed_measurement_camera(cam);
+            cam_id_to_image_queue_[0].pop_front();
+            cam_id_to_image_queue_[1].pop_front();
+          }
+        } else {
+          while (!cam_id_to_image_queue_[0].empty()) {
+            vio::ImageMeasurement::ConstPtr image0 = cam_id_to_image_queue_[0].front();
+            ov_core::CameraData cam;
+            cam.timestamp = time_translation_.convertMaplabToOpenvinsTimestamp(image0->timestamp);
+
+            cam.sensor_ids.push_back(0);
+            cam.images.push_back(image0->image);
+            cam.masks.push_back(cv::Mat::zeros(image0->image.rows, image0->image.cols, CV_8UC1));
+
+            openvins_interface_->feed_measurement_camera(cam);
+            cam_id_to_image_queue_[0].pop_front();
+          }
         }
-        openvins_interface_->feed_measurement_camera(cam);
       });
+
+//   // We need synced images (while imu is not required)
+//   flow->registerSubscriber<message_flow_topics::SYNCED_NFRAMES_AND_IMU>(
+//       kSubscriberNodeName, openvins_subscriber_options,
+//       [this](const vio::SynchronizedNFrameImu::Ptr& nframe_imu) {
+//         CHECK(nframe_imu);
+//         aslam::VisualNFrame::Ptr nframe = nframe_imu->nframe;
+//         CHECK(nframe);
+//         LOG(INFO) << "OpenvinsFlow: Received nframe with ts "
+//                   << nframe->getMinTimestampNanoseconds();
+
+//         std::map<size_t, cv::Mat> ov_idx_to_img;
+//         for (size_t i=0; i<nframe->getNumFrames(); i++) {
+//           const size_t* openvins_cam_index =
+//               maplab_to_openvins_cam_indices_mapping_.getRight(i);
+//           if (openvins_cam_index == nullptr) {
+//             // Skip this image, as the camera was marked as inactive.
+//             continue;
+//           }
+//           const aslam::VisualFrame& frame = nframe->getFrame(i);
+//           ov_idx_to_img[*openvins_cam_index] = frame.getRawImage();
+//         }
+//         CHECK_EQ(openvins_num_cameras_, ov_idx_to_img.size());
+
+//         ov_core::CameraData cam;
+//         cam.timestamp =
+//             time_translation_.convertMaplabToOpenvinsTimestamp(
+//                 nframe->getMinTimestampNanoseconds());
+//         for (const auto& item : ov_idx_to_img) {
+//           cam.sensor_ids.push_back(item.first);
+//           cam.images.push_back(item.second);
+//           int rows = item.second.rows;
+//           int cols = item.second.cols;
+//           cam.masks.push_back(cv::Mat::zeros(rows, cols, CV_8UC1));
+//         }
+//         openvins_interface_->feed_measurement_camera(cam);
+//       });
 
   // Input localization updates.
   flow->registerSubscriber<message_flow_topics::LOCALIZATION_RESULT>(

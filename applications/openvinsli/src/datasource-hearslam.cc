@@ -45,6 +45,9 @@ DEFINE_int32(
     hearslam_data_image_downsample_rate, 3,
     "The downsample rate for image data. Our realsense works at 30 FPS, "
     "and usually we need 10 FPS.");
+DEFINE_int32(
+    hearslam_data_rgbd_sampling_fps, 5,
+    "FPS for rgbd.");
 DEFINE_string(hearslam_data_rs_serial_num, "", "realsense serial num for hearslam datasource");
 DEFINE_string(hearslam_data_rs_name_hint, "", "realsense name_hint for hearslam datasource");
 DEFINE_string(hearslam_data_rs_port_hint, "", "realsense port hint for hearslam datasource");
@@ -52,10 +55,15 @@ DEFINE_string(hearslam_data_rs_port_hint, "", "realsense port hint for hearslam 
 namespace openvinsli {
 
 DataSourceHearslam::DataSourceHearslam(
-    const std::string& dataset_path)
+    const std::string& dataset_path, bool rgbd)
     : dataset_path_(dataset_path),
+      rgbd_(rgbd),
+      last_depth_timestamp_ns_(aslam::time::getInvalidTime()),
       last_imu_timestamp_ns_(aslam::time::getInvalidTime()) {
-  const uint8_t num_cameras = 2;
+  uint8_t num_cameras = 2;
+  if (rgbd_) {
+    num_cameras = 1;
+  }
 
   auto image_cb = [this](int image_idx, hear_slam::CameraData msg) {
     // std::cout << "play image_idx: " << image_idx << std::endl;
@@ -85,7 +93,18 @@ DataSourceHearslam::DataSourceHearslam(
     dp.name_hint = FLAGS_hearslam_data_rs_name_hint;
     dp.port_hint = FLAGS_hearslam_data_rs_port_hint;
 
-    if (num_cameras == 2) {
+    if (rgbd_) {
+      assert(num_cameras == 1);
+      bs.depth_framerate = FLAGS_hearslam_data_rgbd_sampling_fps;
+      bs.color_framerate = FLAGS_hearslam_data_rgbd_sampling_fps;
+      bs.depth_width = image_width;
+      bs.depth_height = image_height;
+      bs.color_width = image_width;
+      bs.color_height = image_height;
+      source_ = std::make_shared<hear_slam::RsCapture>(
+          hear_slam::ViDatasource::VisualSensorType::RGBD,
+          true, image_cb, imu_cb, bs, dp);
+    } else if (num_cameras == 2) {
       source_ = std::make_shared<hear_slam::RsCapture>(
           hear_slam::ViDatasource::VisualSensorType::STEREO,
           true, image_cb, imu_cb, bs, dp);
@@ -101,7 +120,14 @@ DataSourceHearslam::DataSourceHearslam(
       // recorder_->enableImageWindow();
     }
   } else {
-    if (num_cameras == 2) {
+    if (rgbd_) {
+      assert(num_cameras == 1);
+      source_ = std::make_shared<hear_slam::ViPlayer>(
+              dataset_path_,
+              FLAGS_hearslam_data_realtime_playback_rate,
+              hear_slam::ViDatasource::VisualSensorType::RGBD,
+              true, image_cb, imu_cb);
+    } else if (num_cameras == 2) {
       source_ = std::make_shared<hear_slam::ViPlayer>(
               dataset_path_,
               FLAGS_hearslam_data_realtime_playback_rate,
@@ -181,11 +207,13 @@ void DataSourceHearslam::hearslamImageCallback(int image_idx, hear_slam::CameraD
   }
 
   size_t n_cam = msg.sensor_ids.size();
-
   for (size_t i=0; i<n_cam; i++) {
-    // const size_t camera_idx = i;
-    const size_t camera_idx = msg.sensor_ids[i];
     CHECK_EQ(msg.sensor_ids[i], i);
+    // int camera_idx = i;
+    int camera_idx = msg.sensor_ids[i];
+    if (rgbd_ && i == 1) {
+      camera_idx = -1;
+    }
 
     vio::ImageMeasurement::Ptr image_measurement = 
         std::make_shared<vio::ImageMeasurement>();
@@ -202,21 +230,38 @@ void DataSourceHearslam::hearslamImageCallback(int image_idx, hear_slam::CameraD
     if (!FLAGS_hearslam_data_openvinsli_zero_initial_timestamps ||
         shiftByFirstTimestamp(&(image_measurement->timestamp))) {
       // Check for strictly increasing image timestamps.
-      CHECK_LT(camera_idx, last_image_timestamp_ns_.size());
-      if (aslam::time::isValidTime(last_image_timestamp_ns_[camera_idx]) &&
-          last_image_timestamp_ns_[camera_idx] >=
-              image_measurement->timestamp) {
-        LOG(WARNING) << "[OPENVINSLI-DataSource] Image message (cam "
-                      << camera_idx << ") is not strictly "
-                      << "increasing! Current timestamp: "
-                      << image_measurement->timestamp
-                      << "ns vs last timestamp: "
-                      << last_image_timestamp_ns_[camera_idx] << "ns.";
-      } else {
-        last_image_timestamp_ns_[camera_idx] = image_measurement->timestamp;
 
-        VLOG(3) << "Publish Image measurement...";
-        invokeImageCallbacks(image_measurement);
+      if (camera_idx < 0) {
+        assert(rgbd_ && i == 1);
+        if (aslam::time::isValidTime(last_depth_timestamp_ns_) &&
+            last_depth_timestamp_ns_ >= image_measurement->timestamp) {
+          LOG(WARNING) << "[OPENVINSLI-DataSource] Depth Image message is not strictly "
+                        << "increasing! Current timestamp: "
+                        << image_measurement->timestamp
+                        << "ns vs last timestamp: " << last_depth_timestamp_ns_
+                        << "ns.";
+        } else {
+          last_depth_timestamp_ns_ = image_measurement->timestamp;
+          VLOG(3) << "Publish Depth Image measurement...";
+          invokeImageCallbacks(image_measurement);
+        }
+      } else {
+        CHECK_LT(camera_idx, last_image_timestamp_ns_.size());
+        if (aslam::time::isValidTime(last_image_timestamp_ns_[camera_idx]) &&
+            last_image_timestamp_ns_[camera_idx] >=
+                image_measurement->timestamp) {
+          LOG(WARNING) << "[OPENVINSLI-DataSource] Image message (cam "
+                        << camera_idx << ") is not strictly "
+                        << "increasing! Current timestamp: "
+                        << image_measurement->timestamp
+                        << "ns vs last timestamp: "
+                        << last_image_timestamp_ns_[camera_idx] << "ns.";
+        } else {
+          last_image_timestamp_ns_[camera_idx] = image_measurement->timestamp;
+
+          VLOG(3) << "Publish Image measurement...";
+          invokeImageCallbacks(image_measurement);
+        }
       }
     }
   }

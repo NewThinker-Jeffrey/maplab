@@ -15,8 +15,8 @@ namespace openvinsli {
 
 class DataSourceFlow {
  public:
-  explicit DataSourceFlow(const vio_common::RosTopicSettings& topic_settings) {
-    datasource_.reset(createAndConfigureDataSourcefromGFlags(topic_settings));
+  explicit DataSourceFlow(const vio_common::RosTopicSettings& topic_settings, bool rgbd=false) {
+    datasource_.reset(createAndConfigureDataSourcefromGFlags(topic_settings, rgbd));
     CHECK(datasource_);
   }
 

@@ -183,7 +183,7 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
   drawCvImageOnView(
       img_history,
       pangolin::Display("feature_tracking"),
-      true);
+      false);
   
   double image_time = output->status.timestamp;
   Eigen::Vector3f new_pos = output->state_clone->_imu->pos().cast<float>();

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Script to run OPENVINSLI from a Euroc rosbag data source.
+# Usage: tutorial_euroc <output save folder> <rosbag path> [<additional openvinsli flags>]
+
+LOCALIZATION_MAP_OUTPUT=$1
+DATASET=$2
+
+SENSOR_CALIBRATION="$OPENVINS_CONFIG_DIR/hearslam-mono-rgb.yaml"
+sensor_option=" --sensor_calibration_file=$SENSOR_CALIBRATION "
+
+REST=$@
+
+
+
+rosrun openvinsli openvinsli \
+  --alsologtostderr=1 \
+  --v=2 \
+  $sensor_option \
+  --openvins_config_path="$OPENVINS_CONFIG_DIR/openvins_rgbd_estimator_config.yaml" \
+  --datasource_type="hearslam" \
+  --hearslam_data_image_downsample_rate=1 \
+  --save_map_folder="$LOCALIZATION_MAP_OUTPUT" \
+  --optimize_map_to_localization_map=false \
+  --map_builder_save_image_as_resources=false \
+  --datasource_hearslam=$DATASET $REST

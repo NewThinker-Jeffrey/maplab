@@ -1,0 +1,85 @@
+sensors:
+  - id: c63aecb41bfdfd6b7e1fac37c7cb47bf
+    topic: /imu0
+    description: "VI-Sensor IMU (Rs-D455.IMU)"
+    sensor_type: IMU
+    sigmas:
+      acc_noise_density: 0.00207649074 # 4e-3
+      # acc_noise_density: 0.207649074  # considering drastic vibration
+      acc_bias_random_walk_noise_density: 0.00041327852 # 4e-3
+      gyro_noise_density: 0.00020544166  # 1e-4
+      gyro_bias_random_walk_noise_density: 0.00001110622 # 1e-4
+    saturation_accel_max_mps2: 30.0  # 150.0
+    saturation_gyro_max_radps: 15.0  # 7.5
+    gravity_magnitude_mps2: 9.81
+
+  - id: 412eab8e4058621f7036b5e765df4812
+    sensor_type: NCAMERA
+    description: "VISensor - Hear-slam - original_calibration"
+    topic: ""
+    cameras:
+      - camera:
+          topic: /cam0
+          description: "VI-Sensor cam0 (Rs-D455.Color)"
+          id: 54812562fa109c40fe90b29a59dd4798
+          sensor_type: CAMERA
+          line-delay-nanoseconds: 0
+          image_height: 480
+          image_width: 848
+          type: pinhole
+          intrinsics:
+            cols: 1
+            rows: 4
+            data: [425.780, 424.799, 436.380, 239.206]
+          distortion:
+            type: radial-tangential
+            parameters:
+              cols: 1
+              rows: 4
+              data: [-0.056, 0.068, 0, 0]
+        T_B_C:
+          cols: 4
+          rows: 4
+          data: [1.0, 0.0, 0.0, 0.02878,
+                 0.0, 1.0, 0.0, 0.0074,
+                 0.0, 0.0, 1.0, 0.01602,
+                 0.0, 0.0, 0.0, 1.0]
+
+  # - id: aabb23479caf7592b35518478a2f408f
+  #   sensor_type: ODOMETRY_6DOF
+  #   description: "OPENVINSLI in Odometry mode"
+  #   topic: /maplab_odom_T_M_I
+
+extrinsics:
+  - sensor_id: c63aecb41bfdfd6b7e1fac37c7cb47bf
+    base_sensor_id: c63aecb41bfdfd6b7e1fac37c7cb47bf
+    T_B_S:
+      rows: 4
+      cols: 4
+      data:
+        - [1,0,0,0]
+        - [0,1,0,0]
+        - [0,0,1,0]
+        - [0,0,0,1]
+
+  - sensor_id: 412eab8e4058621f7036b5e765df4812
+    base_sensor_id: c63aecb41bfdfd6b7e1fac37c7cb47bf
+    T_B_S:
+      rows: 4
+      cols: 4
+      data:
+        - [1,0,0,0]
+        - [0,1,0,0]
+        - [0,0,1,0]
+        - [0,0,0,1]
+
+  # - sensor_id: aabb23479caf7592b35518478a2f408f
+  #   base_sensor_id: c63aecb41bfdfd6b7e1fac37c7cb47bf
+  #   T_B_S:
+  #     rows: 4
+  #     cols: 4
+  #     data:
+  #       - [1,0,0,0]
+  #       - [0,1,0,0]
+  #       - [0,0,1,0]
+  #       - [0,0,0,1]

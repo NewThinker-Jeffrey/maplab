@@ -33,6 +33,10 @@ class ImuCameraSynchronizerFlow {
         kSubscriberNodeName, message_flow::DeliveryOptions(),
         [this](const vio::ImageMeasurement::Ptr& image) {
           CHECK(image);
+          if (image->camera_index < 0) {
+            // we use negative camera_index for depth images.
+            return;
+          }
           this->synchronizing_pipeline_.addCameraImage(
               image->camera_index, image->image, image->timestamp);
         });

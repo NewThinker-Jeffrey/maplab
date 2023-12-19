@@ -53,10 +53,6 @@ OpenvinsliNode::OpenvinsliNode(
   LOG_IF(INFO, maplab_wheel_odometry_sensor == nullptr)
       << "No Wheel odometry Odometry sensor found in the sensor manager.";
 
-  vio_common::RosTopicSettings topic_settings(sensor_manager);
-  datasource_flow_.reset(new DataSourceFlow(topic_settings));
-  datasource_flow_->attachToMessageFlow(flow);
-
   if (maplab_wheel_odometry_sensor != nullptr) {
     const aslam::Transformation& T_B_S =
         sensor_manager.getSensor_T_B_S(maplab_wheel_odometry_sensor->getId());
@@ -68,6 +64,11 @@ OpenvinsliNode::OpenvinsliNode(
         *camera_system, openvins_imu_sigmas, aslam::Transformation()));
     openvins_flow_->attachToMessageFlow(flow);
   }
+
+  auto openvins_params = openvins_flow_->openvinsInterface()->get_params();
+  vio_common::RosTopicSettings topic_settings(sensor_manager);
+  datasource_flow_.reset(new DataSourceFlow(topic_settings, openvins_params.use_rgbd));
+  datasource_flow_->attachToMessageFlow(flow);
 
   const bool localization_enabled = localization_map != nullptr;
   if (FLAGS_openvinsli_run_map_builder || localization_enabled) {

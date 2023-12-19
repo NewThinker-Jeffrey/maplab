@@ -9,7 +9,11 @@ use_imuavg: true # if using discrete integration, if we should average sequentia
 use_rk4int: true # if rk4 integration should be used (overrides imu averaging)
 
 use_stereo: true # if we have more than 1 camera, if we should try to track stereo constraints between pairs
-max_cameras: 2 # how many cameras we have 1 = mono, 2 = stereo, >2 = binocular (all mono tracking)
+max_cameras: 1 # how many cameras we have 1 = mono, 2 = stereo, >2 = binocular (all mono tracking)
+
+use_rgbd: true
+virtual_baseline_for_rgbd: 0.095
+depth_unit_for_rgbd: 0.001
 
 calib_cam_extrinsics: true # if the transform between camera and IMU should be optimized R_ItoC, p_CinI
 calib_cam_intrinsics: true # if camera intrinsics should be optimized (focal, center, distortion)
@@ -112,14 +116,12 @@ downsize_aruco: true
 # ==================================================================
 
 # camera noises and chi-squared threshold multipliers
-# up_msckf_sigma_px: 1
-up_msckf_sigma_px: 2
+up_msckf_sigma_px: 1
 up_msckf_chi2_multipler: 1
 up_msckf_absolute_residual_thr: -1.0
 # up_msckf_absolute_residual_thr: 3.0
 
-# up_slam_sigma_px: 1
-up_slam_sigma_px: 2
+up_slam_sigma_px: 1
 up_slam_chi2_multipler: 1
 up_slam_absolute_residual_thr: -1.0
 # up_slam_absolute_residual_thr: 3.0
@@ -134,9 +136,8 @@ use_mask: false
 
 # imu and camera spacial-temporal
 # imu config should also have the correct noise values
-relative_config_imu: "openvins_default_kalibr_imu_chain.yaml"
-# relative_config_imucam: "openvins_default_kalibr_imucam_chain_640width.yaml"
-relative_config_imucam: "openvins_default_kalibr_imucam_chain_848width.yaml"
+relative_config_imu: "openvins_rgbd_kalibr_imu_chain.yaml"
+relative_config_imucam: "openvins_rgbd_kalibr_imucam_chain_848width.yaml"
 
 
 #### testing parameters

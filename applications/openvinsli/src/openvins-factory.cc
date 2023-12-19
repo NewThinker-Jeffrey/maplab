@@ -34,7 +34,7 @@
 DEFINE_string(
     openvins_config_path, "",
     "Path to estimator_config.yaml for ov_msckf. "
-    "By default we use ${OPENVINS_CONFIG_DIR}/openvins_default_estimator_config.yaml");
+    "By default we use ${OPENVINS_CONFIG_DIR}/openvins_stereo_estimator_config.yaml");
 
 namespace openvinsli {
 namespace {
@@ -43,14 +43,14 @@ ov_msckf::VioManagerOptions loadOpenvinsConfig() {  // Load the config
   std::string config_path = FLAGS_openvins_config_path;
   if (config_path.empty()) {
     PRINT_WARNING(YELLOW "You haven't specify --openvins_config_path, and we'll use "
-                  "'${OPENVINS_CONFIG_DIR}/openvins_default_estimator_config.yaml' "
+                  "'${OPENVINS_CONFIG_DIR}/openvins_stereo_estimator_config.yaml' "
                   "by default.\n" RESET);
     const char* openvins_config_template_path = getenv("OPENVINS_CONFIG_DIR");
     CHECK_NE(openvins_config_template_path, static_cast<char*>(NULL))
         << "OPENVINS_CONFIG_DIR environment variable is not set.\n"
         << "Source the Maplab environment from your workspace:\n"
         << "source devel/setup.bash";
-    config_path = std::string(openvins_config_template_path) + "/openvins_default_estimator_config.yaml";
+    config_path = std::string(openvins_config_template_path) + "/openvins_stereo_estimator_config.yaml";
   }
   PRINT_INFO("Openvins:config_path='%s'\n", config_path.c_str());
   auto parser = std::make_shared<ov_core::YamlParser>(config_path);

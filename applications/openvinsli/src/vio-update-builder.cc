@@ -71,11 +71,21 @@ void VioUpdateBuilder::findMatchAndPublish() {
     const vio::SynchronizedNFrameImu::ConstPtr& front_frame =
         synced_nframe_imu_queue_.front();
     const int64_t tmp_timestamp_nframe_ns = front_frame->nframe->getMinTimestampNanoseconds();
+    // std::cout << "DEBUG findMatchAndPublish(),  timestamp_estimate_ns = " << timestamp_estimate_ns << ",  timestamp_estimate_ns - tmp_timestamp_nframe_ns = " << timestamp_estimate_ns - tmp_timestamp_nframe_ns << std::endl;
     if (tmp_timestamp_nframe_ns < timestamp_estimate_ns) {
       synced_nframe_imu_queue_.pop();
+      LOG(WARNING) << "findMatchAndPublish: abandon synced_nframe_imu at " << tmp_timestamp_nframe_ns
+                   << ",  delay (relative to oldest_unmatched_estimate): "
+                   << timestamp_estimate_ns - tmp_timestamp_nframe_ns
+                   << ".  (For openvinsli, this might only happen in the beginning!)";
     } else {
       break;
     }
+  }
+
+  if (synced_nframe_imu_queue_.empty()) {
+    // Nothing to do.
+    return;
   }
 
   const vio::SynchronizedNFrameImu::ConstPtr& oldest_unmatched_synced_nframe =
@@ -109,23 +119,40 @@ void VioUpdateBuilder::findMatchAndPublish() {
         (*it_openvins_estimate_before_nframe)->timestamp_ns + MAX_PRECISION_NS <=
             timestamp_nframe_ns &&
         (*it_openvins_estimate_after_nframe)->timestamp_ns > timestamp_nframe_ns) {
+
+      // When both openvins_flow and feature_tracking_flow retrieve image data
+      // from the same topic (SYNCED_NFRAMES_AND_IMU), all the matches should be
+      // exact.
+      //
+      // // Found matching vi nodes.
+      // LOG(WARNING) << "findMatchAndPublish: Found matching vi nodes. "
+      //              << "But for openvinsli, all matches are expected to be exact! "
+      //              << "Whether are there some bugs? time_gaps = "
+      //              << timestamp_nframe_ns - (*it_openvins_estimate_before_nframe)->timestamp_ns
+      //              << ", "
+      //              << (*it_openvins_estimate_after_nframe)->timestamp_ns - timestamp_nframe_ns;
+      // CHECK(found_exact_match) << "For openvinsli, the matches should always be exact!"
+      //                         << "Otherwise there might be some bugs in the code." ;
+
+
+      // If openvins_flow gets its image data directly from IMAGE_MEASUREMENTS, then
+      // only the first several matches might be interpolated (which will be discarded later).
+      //
       // Found matching vi nodes.
       LOG(WARNING) << "findMatchAndPublish: Found matching vi nodes. "
-                   << "But for openvinsli, all matches are expected to be exact! "
-                   << "Whether are there some bugs? time_gaps = "
+                   << "For openvinsli, this might only happen in the beginning! "
+                   << "Otherwise there might be somes bugs? We'll discard non-exact matches. "
+                   << "time_gaps = "
                    << timestamp_nframe_ns - (*it_openvins_estimate_before_nframe)->timestamp_ns
                    << ", "
                    << (*it_openvins_estimate_after_nframe)->timestamp_ns - timestamp_nframe_ns;
-
       found_matches_to_interpolate = true;
       break;
     }
   }
 
-  CHECK(found_exact_match) << "For openvinsli, the matches should always be exact!"
-                           << "Otherwise there might be some bugs in the code." ;
-
-  if (!found_exact_match && !found_matches_to_interpolate) {
+  // if (!found_exact_match && !found_matches_to_interpolate) {
+  if (!found_exact_match) {  // only accecpt exact matches for openvinsli.
     LOG(WARNING) << "findMatchAndPublish: Find no match. "
                  << "queue_size: sync_frame=" << synced_nframe_imu_queue_.size()
                  << "  estimate=" << openvins_estimate_queue_.size() << std::endl;

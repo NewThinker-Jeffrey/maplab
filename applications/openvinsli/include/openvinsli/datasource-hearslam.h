@@ -36,7 +36,7 @@ namespace openvinsli {
 class DataSourceHearslam : public DataSource {
  public:
   DataSourceHearslam(
-      const std::string& dataset_path);
+      const std::string& dataset_path, bool rgbd = false);
   virtual ~DataSourceHearslam();
 
   virtual void startStreaming();
@@ -56,7 +56,10 @@ class DataSourceHearslam : public DataSource {
   std::shared_ptr<hear_slam::ViRecorder> recorder_;
 
   int64_t last_imu_timestamp_ns_;
+  int64_t last_depth_timestamp_ns_;
   std::vector<int64_t> last_image_timestamp_ns_;
+
+  bool rgbd_;
 };
 
 }  // namespace openvinsli

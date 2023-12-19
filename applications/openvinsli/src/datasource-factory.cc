@@ -33,21 +33,23 @@ DataSourceType stringToDataSource(const std::string& str) {
 }
 
 DataSource* createAndConfigureDataSourcefromGFlags(
-    const vio_common::RosTopicSettings& topic_settings) {
+    const vio_common::RosTopicSettings& topic_settings, bool rgbd) {
   const DataSourceType source_type = stringToDataSource(FLAGS_datasource_type);
   switch (source_type) {
     case DataSourceType::kRosBag:
+      CHECK(!rgbd) << "The current datasource doesn't support rgbd!!";
       CHECK(!FLAGS_datasource_rosbag.empty());
       CHECK(common::fileExists(FLAGS_datasource_rosbag));
       return new DataSourceRosbag(FLAGS_datasource_rosbag, topic_settings);
       break;
     case DataSourceType::kRosTopic:
+      CHECK(!rgbd) << "The current datasource doesn't support rgbd!!";
       return new DataSourceRostopic(topic_settings);
       break;
     case DataSourceType::kHearSlam:
       // CHECK(!FLAGS_datasource_hearslam.empty());  // use rs_capture?
       // CHECK(common::fileExists(FLAGS_datasource_hearslam));
-      return new DataSourceHearslam(FLAGS_datasource_hearslam);
+      return new DataSourceHearslam(FLAGS_datasource_hearslam, rgbd);
       break;
     default:
       LOG(FATAL);

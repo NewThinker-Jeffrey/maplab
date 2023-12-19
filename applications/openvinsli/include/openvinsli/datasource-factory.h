@@ -17,6 +17,6 @@ DataSourceType stringToDataSource(const std::string& str);
 // Camera topics are read from the camera calibration file. Caller takes
 // ownership!
 DataSource* createAndConfigureDataSourcefromGFlags(
-    const vio_common::RosTopicSettings& topic_settings);
+    const vio_common::RosTopicSettings& topic_settings, bool rgbd = false);
 }  // namespace openvinsli
 #endif  // OPENVINSLI_DATASOURCE_FACTORY_H_
