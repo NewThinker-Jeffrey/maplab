@@ -46,8 +46,8 @@ DEFINE_int32(
     "The downsample rate for image data. Our realsense works at 30 FPS, "
     "and usually we need 10 FPS.");
 DEFINE_int32(
-    hearslam_data_rgbd_sampling_fps, 5,
-    "FPS for rgbd.");
+    hearslam_data_rgbd_align_interval, 15,
+    "How often (in frames) to align depth and color images (only used in rgbd mode)");
 DEFINE_string(hearslam_data_rs_serial_num, "", "realsense serial num for hearslam datasource");
 DEFINE_string(hearslam_data_rs_name_hint, "", "realsense name_hint for hearslam datasource");
 DEFINE_string(hearslam_data_rs_port_hint, "", "realsense port hint for hearslam datasource");
@@ -84,6 +84,8 @@ DataSourceHearslam::DataSourceHearslam(
     static constexpr int imu_rate = 200;
 
     hear_slam::RsCapture::BasicSettings bs;
+    bs.image_buffer_size = -1;  // buffer all
+    bs.infra_framerate = 30;
     bs.infra_width = image_width;
     bs.infra_height = image_height;
     LOGW(YELLOW "Sensor settings for realsense: image size_wh(%d, %d), imu_rate(%d)\n" RESET, bs.infra_width, bs.infra_height, bs.gyro_framerate);
@@ -94,13 +96,15 @@ DataSourceHearslam::DataSourceHearslam(
     dp.port_hint = FLAGS_hearslam_data_rs_port_hint;
 
     if (rgbd_) {
-      assert(num_cameras == 1);
-      bs.depth_framerate = FLAGS_hearslam_data_rgbd_sampling_fps;
-      bs.color_framerate = FLAGS_hearslam_data_rgbd_sampling_fps;
+      CHECK(num_cameras == 1);
+      CHECK(FLAGS_hearslam_data_rgbd_align_interval % FLAGS_hearslam_data_image_downsample_rate == 0);
+      bs.depth_framerate = 30;
+      bs.color_framerate = 30;
       bs.depth_width = image_width;
       bs.depth_height = image_height;
       bs.color_width = image_width;
       bs.color_height = image_height;
+      bs.rgbd_align_interval = FLAGS_hearslam_data_rgbd_align_interval;
       source_ = std::make_shared<hear_slam::RsCapture>(
           hear_slam::ViDatasource::VisualSensorType::RGBD,
           true, image_cb, imu_cb, bs, dp);

@@ -18,7 +18,6 @@ rosrun openvinsli openvinsli \
   --openvins_config_path="$OPENVINS_CONFIG_DIR/openvins_rgbd_estimator_config.yaml" \
   --publish_debug_markers  \
   --datasource_type="hearslam" \
-  --hearslam_data_image_downsample_rate=1 \
   --optimize_map_to_localization_map=false \
   --vio_localization_map_folder=$LOCALIZATION_MAP_INPUT \
   --save_map_folder=$LOCALIZATION_MAP_OUTPUT \
