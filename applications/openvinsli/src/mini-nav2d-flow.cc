@@ -449,7 +449,7 @@ std::vector<Eigen::Vector3d>  Nav2dFlow::findPoint2PointTraj(size_t start_traj_p
   std::vector<Eigen::Vector3d> path;
   path.reserve(max_n);
 
-  for (size_t pidx = start_traj_point_idx; pidx != end_traj_point_idx; pidx += idx_delta) {
+  for (size_t pidx = start_traj_point_idx; pidx != end_traj_point_idx + idx_delta; pidx += idx_delta) {
     Eigen::Vector3d curp = traj_2d_[pidx];
     if (path.size() < 2) {
       path.push_back(curp);

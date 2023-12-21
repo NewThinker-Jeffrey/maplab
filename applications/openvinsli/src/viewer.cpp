@@ -30,6 +30,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/opencv.hpp>
 #include <Eigen/Geometry>
+#include <glog/logging.h>
 
 #include "slam_viz/pangolin_helper.h"
 #include "state/Propagator.h"
@@ -319,6 +320,7 @@ void OpenvinsliViewer::classifyPoints(std::shared_ptr<VioManager::Output> output
   _old_points.clear();
   _active_points.clear();
 
+  CHECK_EQ(output->visualization.feature_ids_SLAM.size(), output->visualization.features_SLAM.size());
   for (size_t i=0; i<output->visualization.feature_ids_SLAM.size(); i++) {
     auto id = output->visualization.feature_ids_SLAM[i];
     const auto& p = output->visualization.features_SLAM[i];
@@ -326,6 +328,7 @@ void OpenvinsliViewer::classifyPoints(std::shared_ptr<VioManager::Output> output
     _slam_points.push_back(&p);
     new_ids.insert(id);
   }
+  CHECK_EQ(output->visualization.good_feature_ids_MSCKF.size(), output->visualization.good_features_MSCKF.size());
   for (size_t i=0; i<output->visualization.good_feature_ids_MSCKF.size(); i++) {
     auto id = output->visualization.good_feature_ids_MSCKF[i];
     const auto& p = output->visualization.good_features_MSCKF[i];
