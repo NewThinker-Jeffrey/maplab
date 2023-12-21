@@ -15,6 +15,13 @@ use_rgbd: true
 virtual_baseline_for_rgbd: 0.095
 depth_unit_for_rgbd: 0.001
 
+# rgbd_mapping: true
+rgbd_mapping: false
+rgbd_mapping_pixel_downsample: 3
+rgbd_mapping_pixel_start_row: 160
+rgbd_mapping_resolution: 0.01
+rgbd_mapping_max_voxels: 500000
+
 calib_cam_extrinsics: false # if the transform between camera and IMU should be optimized R_ItoC, p_CinI
 calib_cam_intrinsics: true # if camera intrinsics should be optimized (focal, center, distortion)
 calib_cam_timeoffset: true # if timeoffset between camera and IMU should be optimized
