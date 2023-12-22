@@ -19,6 +19,7 @@ rgbd_mapping: true
 rgbd_mapping_pixel_downsample: 3
 rgbd_mapping_pixel_start_row: 0  # 160
 rgbd_mapping_resolution: 0.01
+rgbd_mapping_max_depth: 5.0
 rgbd_mapping_max_voxels: 2000000
 rgbd_mapping_max_dispaly_voxels: 500000
 
