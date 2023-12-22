@@ -60,6 +60,7 @@ private:
   void classifyPoints(std::shared_ptr<ov_msckf::VioManager::Output> task);
 
   void drawRobotAndMap(std::shared_ptr<ov_msckf::VioManager::Output> task,
+                       bool draw_rgbd=false,
                        std::shared_ptr<Nav2dFlow::NavInfoForDisplay> nav_info=nullptr);
 
   /// Core application of the filter system
