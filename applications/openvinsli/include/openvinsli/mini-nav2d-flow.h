@@ -54,6 +54,12 @@ class Nav2dFlow {
 
   void attachToMessageFlow(message_flow::MessageFlow* flow);
 
+  // Save the nav_cmds to a file
+  void beginSaveNavCmds(const std::string& filename);
+
+  // For offline play mode
+  void beginPlayNavCmds(const std::string& filename);
+
   //bool loadNavConfig(const std::string& nav_config_file); // deserialize
   
   bool startPathRecording();
@@ -105,6 +111,8 @@ class Nav2dFlow {
   // find p2p traj:
   std::vector<Eigen::Vector3d>  findPoint2PointTraj(size_t start_traj_point_idx, size_t target_point_idx);
 
+  void saveNavCmd(const Nav2dCmd& cmd);
+
  private:
 
   //// Do we need an occupancy mapping thread?
@@ -140,6 +148,19 @@ class Nav2dFlow {
 
   // std::deque<Eigen::Vector3d> traj_2d_recroding_;  // used for recording
 
+
+ private:
+  // saving online nav cmds
+  std::shared_ptr<std::ofstream> nav_cmd_file_;
+
+  int32_t new_nav_cmds_since_last_flush_ = 0;
+
+  // For offline play
+  std::vector<Nav2dCmd> nav_cmds_to_play_;
+
+  Nav2dCmd::Ptr last_played_nav_cmd_;
+
+  int32_t nav_cmd_play_idx_ = 0;
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
  private:

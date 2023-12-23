@@ -316,6 +316,34 @@ void Nav2dFlow::nav_worker() {
 void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
   // Deal with vio_estimate.
   std::unique_lock<std::mutex> lock(mutex_nav_);
+
+  if (!nav_cmds_to_play_.empty()) {
+    // If we're in offline mode, we just play back the recorded nav_cmds.
+
+    while (nav_cmd_play_idx_ < nav_cmds_to_play_.size()) {
+      const auto& cur_nav_cmd = nav_cmds_to_play_[nav_cmd_play_idx_];
+      const int64_t time_ns_precision = 10;
+      if (cur_nav_cmd.timestamp_ns <= vio_estimate->timestamp_ns + time_ns_precision) {
+        Nav2dCmd::Ptr nav_cmd = aligned_shared<Nav2dCmd>(cur_nav_cmd);
+        state_ = NavState::NAVIGATING;
+
+#ifdef EANBLE_ROS_NAV_INTERFACE
+        convertAndPublishNavCmd(*nav_cmd);
+#endif
+        publish_nav_(nav_cmd);
+        nav_cmd_play_idx_ ++;
+        last_played_nav_cmd_ = nav_cmd;
+      } else {
+        break;
+      }
+    }
+  
+    // If we've lost nav cmds for 300ms in offline play mode, set the state to IDLE.
+    if (vio_estimate->timestamp_ns - last_played_nav_cmd_->timestamp_ns > 300000000) {
+      state_ = NavState::IDLE;
+    }
+    return;
+  }
   
   if (!vio_estimate->has_T_G_M) {
     if (state_ != NavState::IDLE) {
@@ -381,6 +409,7 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
     convertAndPublishNavCmd(*nav_cmd);
 #endif
     publish_nav_(nav_cmd);
+    saveNavCmd(*nav_cmd);
   } else if (NavState::PATH_PLANNING == state_) {
     // find the nearest traj point
     size_t nearest_traj_point_idx = findNearstTrajPoint(current_pose_2d_);
@@ -504,6 +533,39 @@ Nav2dFlow::getCurNavInfoForDisplay() {
   return info_ptr;
 }
 
+void Nav2dFlow::beginSaveNavCmds(const std::string& filename) {
+  // std::shared_ptr<std::ofstream>;
+  nav_cmd_file_ = std::make_shared<std::ofstream>(filename);
+}
+
+void Nav2dFlow::beginPlayNavCmds(const std::string& filename) {
+  std::vector<Nav2dCmd> nav_cmds_to_play;
+  std::ifstream nav_cmd_file(filename);
+  if (!nav_cmd_file.is_open()) {
+    LOG(ERROR) << "Could not open nav command file " << filename.c_str();
+    return;
+  }
+  std::string line;
+  while (std::getline(nav_cmd_file, line)) {
+    Nav2dCmd cmd = Nav2dCmd::fromStr(line);
+    nav_cmds_to_play.push_back(cmd);
+  }
+  nav_cmd_file.close();
+
+  std::swap(nav_cmds_to_play, nav_cmds_to_play_);
+  nav_cmd_play_idx_ = 0;
+}
+
+void Nav2dFlow::saveNavCmd(const Nav2dCmd& cmd) {
+  if (nav_cmd_file_ && nav_cmd_file_->is_open()) {
+    *nav_cmd_file_ << cmd.toStr() << std::endl;
+    new_nav_cmds_since_last_flush_ ++;
+    if (new_nav_cmds_since_last_flush_ > 20) {
+      nav_cmd_file_->flush();
+      new_nav_cmds_since_last_flush_ = 0;
+    }
+  }
+}
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
 

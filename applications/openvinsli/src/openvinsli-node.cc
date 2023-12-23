@@ -28,6 +28,9 @@ DEFINE_bool(
 
 DEFINE_string(openvinsli_nav_config, "", "nav_config: traj and target points for navigation");
 
+DEFINE_string(openvinsli_nav_cmd_to_play, "", "the file storing the nav cmds to play (for offline play mode)");
+
+DEFINE_string(openvinsli_nav_cmd_savefile, "", "the file to store the online nav cmds");
 
 DEFINE_double(openvinsli_gl_viz_rate, 40.0, "gl visualization rate");
 
@@ -142,6 +145,13 @@ OpenvinsliNode::OpenvinsliNode(
 
   if (FLAGS_openvinsli_run_nav) {
     nav2d_flow_.reset(new Nav2dFlow());
+    if (!FLAGS_openvinsli_nav_cmd_to_play.empty()) {
+      LOG(WARNING) << "nav2d_flow_: We're running in offline play mode!";
+      nav2d_flow_->beginPlayNavCmds(FLAGS_openvinsli_nav_cmd_to_play);
+    } else if (!FLAGS_openvinsli_nav_cmd_savefile.empty()) {
+      nav2d_flow_->beginSaveNavCmds(FLAGS_openvinsli_nav_cmd_savefile);
+    }
+
     nav2d_flow_->attachToMessageFlow(flow);
 
     if (!FLAGS_openvinsli_nav_config.empty()) {
@@ -152,7 +162,6 @@ OpenvinsliNode::OpenvinsliNode(
                      << FLAGS_openvinsli_nav_config << ") doesn't exist!";
       }
     }
-
 
     gl_viewer_->setNav(nav2d_flow_.get());
     message_flow::DeliveryOptions subscriber_options;
