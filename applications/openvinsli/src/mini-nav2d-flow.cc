@@ -318,10 +318,12 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
   std::unique_lock<std::mutex> lock(mutex_nav_);
   
   if (!vio_estimate->has_T_G_M) {
-    LOG(WARNING) << "Nav2dFlow:  The robot has not been localized yet "
-                    "or the localization has been lost! Change state from "
-                  << stateStr(state_) << " to IDLE";
-    state_ = NavState::IDLE;
+    if (state_ != NavState::IDLE) {
+      LOG(WARNING) << "Nav2dFlow:  The robot has not been localized yet "
+                      "or the localization has been lost! Change state from "
+                    << stateStr(state_) << " to IDLE";
+      state_ = NavState::IDLE;
+    }
     return;
   }
 

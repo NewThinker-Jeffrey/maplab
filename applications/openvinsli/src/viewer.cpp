@@ -478,7 +478,25 @@ void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> outpu
 
   glPopMatrix();
 
-
+  // draw last reloc
+  if (output->status.localized) {
+    Eigen::Matrix4f last_accepted_reloc_TItoG = output->status.last_accepted_reloc_TItoG.cast<float>();
+    multMatrixfAndDraw(last_accepted_reloc_TItoG.matrix(), [&](){
+      drawVehicle(
+          0.4, Eigen::Vector3f(0, 0, 1), Eigen::Vector3f(0, -1, 0),
+          // Color(0,0,255,80), 4.0f);
+          Color(255,255,0,255), 4.0f);
+      // drawMultiTextLines(
+      //     {TextLine("last_reloc", true, getChineseFont())},
+      //     Eigen::Vector3f(-1.0, 0.0, -1.0),
+      //     Eigen::AngleAxisf(0.5*M_PI, Eigen::Vector3f::UnitX()).toRotationMatrix(),
+      //     // 1.0 / 36.0);
+      //     1.0 / 54.0);
+      //     // 1.0 / 72.0);
+    });
+  }
+  
+  // draw NAV
   if (nav_info) {
     // // draw whole traj
     // drawPointTrajectory(nav_info->traj, Color(255, 255, 0, 90), 1.0);
