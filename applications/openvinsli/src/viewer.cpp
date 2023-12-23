@@ -86,13 +86,20 @@ void OpenvinsliViewer::init() {
       vi_player_->resume();
     }
   });
+  pangolin::Var<std::function<void()>> clear_traj_var("menu.ClearTraj", [this](){
+    _traj.clear();
+  });
+  pangolin::Var<std::function<void()>> clear_points_var("menu.ClearPoints", [this](){
+    _map_points.clear();
+  });
 
+  show_nav_var_ = std::make_shared<pangolin::Var<bool>>("menu.ShowNav", true, true);
   pangolin::Var<std::function<void()>> start_path_record_var("menu.StartPathRecrod", [this](){
     if (nav_) {
       nav_->startPathRecording();
     }
   });
-  target_point_name_var_ = std::make_shared<pangolin::Var<std::string>>("menu.TargetName", "");  
+  target_point_name_var_ = std::make_shared<pangolin::Var<std::string>>("menu.TargetName", "");
   pangolin::Var<std::function<void()>> add_nav_target_var("menu.AddNavTarget", [this](){
     if (nav_) {
       nav_->addTargetPoint(*target_point_name_var_);
@@ -115,6 +122,23 @@ void OpenvinsliViewer::init() {
       nav_->stopNav();
     }
   });
+  show_rgbd_map_var_ = std::make_shared<pangolin::Var<bool>>("menu.ShowRgbdMap", true, true);
+  pangolin::Var<std::function<void()>> begin_rgbd_mapping_var("menu.BeginRgbdMapping", [this](){
+    if (_interal_app) {
+      _interal_app->begin_rgbd_mapping();
+    }
+  });
+  pangolin::Var<std::function<void()>> stop_rgbd_mapping_var("menu.StopRgbdMapping", [this](){
+    if (_interal_app) {
+      _interal_app->stop_rgbd_mapping();
+    }
+  });
+  pangolin::Var<std::function<void()>> clear_rgbd_map_var("menu.ClearRgbdMap", [this](){
+    if (_interal_app) {
+      _interal_app->clear_rgbd_map();
+    }
+  });
+  show_reloc_var_ = std::make_shared<pangolin::Var<bool>>("menu.ShowReloc", false, true);
 
 #endif
 
@@ -219,7 +243,7 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
   Eigen::Vector3f transformed_new_pos = R_MtoG * new_pos + t_MinG;
 
   std::shared_ptr<Nav2dFlow::NavInfoForDisplay> nav_info(nullptr);
-  if (nav_) {
+  if (*show_nav_var_ && nav_) {
     nav_info = nav_->getCurNavInfoForDisplay();
   }
 
@@ -232,7 +256,7 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
     // s_cam1->SetModelViewMatrix(pangolin::ModelViewLookAt(transformed_new_pos(0), transformed_new_pos(1), viewpoint_height, transformed_new_pos(0), transformed_new_pos(1), 0, pangolin::AxisY));
     s_cam1->Follow(Twa);
     pangolin::Display("cam1").Activate(*s_cam1);
-    drawRobotAndMap(output, true, nav_info);    
+    drawRobotAndMap(output, *show_rgbd_map_var_, nav_info);    
   }
 
   {
@@ -243,7 +267,7 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
     pangolin::OpenGlMatrix Twa = makeGlMatrix(fT_MtoG * view_anchor_pose.matrix());
     s_cam2->Follow(Twa);
     pangolin::Display("cam2").Activate(*s_cam2);
-    drawRobotAndMap(output, true, nav_info);
+    drawRobotAndMap(output, *show_rgbd_map_var_, nav_info);
   }
 
   pangolin::Display("cam1").Activate();
@@ -479,7 +503,7 @@ void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> outpu
   glPopMatrix();
 
   // draw last reloc
-  if (output->status.localized) {
+  if (*show_reloc_var_ && output->status.localized) {
     Eigen::Matrix4f last_accepted_reloc_TItoG = output->status.last_accepted_reloc_TItoG.cast<float>();
     multMatrixfAndDraw(last_accepted_reloc_TItoG.matrix(), [&](){
       drawVehicle(
