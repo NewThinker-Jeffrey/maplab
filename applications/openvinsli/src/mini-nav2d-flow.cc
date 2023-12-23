@@ -332,6 +332,7 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
   } else if (NavState::NAVIGATING == state_) {
 
     Nav2dCmd::Ptr nav_cmd = aligned_shared<Nav2dCmd>();
+    nav_cmd->timestamp_ns = vio_estimate->timestamp_ns;
     nav_cmd->cur_pose2d = current_pose_2d_;
 
     // Check whether we have reached the target and if not, check whether we need to change current_pathpoint_idx_
@@ -504,6 +505,18 @@ Nav2dFlow::getCurNavInfoForDisplay() {
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
 
+namespace {
+inline ros::Time createRosTimestamp(int64_t timestamp_nanoseconds) {
+  static constexpr uint32_t kNanosecondsPerSecond = 1e9;
+  const uint64_t timestamp_u64 = static_cast<uint64_t>(timestamp_nanoseconds);
+  const uint32_t ros_timestamp_sec = timestamp_u64 / kNanosecondsPerSecond;
+  const uint32_t ros_timestamp_nsec =
+      timestamp_u64 - (ros_timestamp_sec * kNanosecondsPerSecond);
+  return ros::Time(ros_timestamp_sec, ros_timestamp_nsec);
+}
+}
+
+
 void Nav2dFlow::initRosInterface() {
   // std::function<bool(RosNavRequest::Request&, RosNavRequest::Response&)>
   //     srv_callback =
@@ -543,8 +556,7 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
 
   RosNav2dCmd roscmd;
   roscmd.header.seq = ros_nav_cmd_seq_++;
-  roscmd.header.stamp.sec = 0;
-  roscmd.header.stamp.nsec = 0;
+  roscmd.header.stamp = createRosTimestamp(cmd.timestamp_ns);  
   roscmd.header.frame_id = "NAV";
   roscmd.cur_pose2d.x = cmd.cur_pose2d.x();
   roscmd.cur_pose2d.y = cmd.cur_pose2d.y();

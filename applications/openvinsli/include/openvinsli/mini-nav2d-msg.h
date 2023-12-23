@@ -12,6 +12,8 @@ struct Nav2dCmd {
   MAPLAB_POINTER_TYPEDEFS(Nav2dCmd);
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
+  int64_t timestamp_ns;
+
   Eigen::Vector3d cur_pose2d;
 
   std::vector<Eigen::Vector3d> next_pathpoints;

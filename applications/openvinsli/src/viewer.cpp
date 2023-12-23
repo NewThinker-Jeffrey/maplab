@@ -480,8 +480,8 @@ void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> outpu
 
 
   if (nav_info) {
-    // draw whole traj
-    drawPointTrajectory(nav_info->traj, Color(255, 255, 0, 90), 1.0);
+    // // draw whole traj
+    // drawPointTrajectory(nav_info->traj, Color(255, 255, 0, 90), 1.0);
 
     // draw target points
     for (size_t i=0; i<nav_info->nav_targets.size(); i++) {
