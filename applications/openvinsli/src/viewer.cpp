@@ -44,7 +44,9 @@ using namespace ov_msckf;
 namespace openvinsli {
 
 
-const double viewpoint_height = 5.0;
+const double viewpoint_distance = 5.0;
+const double viewpoint_angle = 30.0 / 180.0 * M_PI;
+
 
 OpenvinsliViewer::OpenvinsliViewer(VioManager* interal_app) : _interal_app(interal_app) {
 
@@ -157,14 +159,14 @@ void OpenvinsliViewer::init() {
 
 std::cout << "OpenvinsliViewer::init(): Before pangolin::OpenGlRenderState" << std::endl;
 
-  // auto modelview1 = pangolin::ModelViewLookAt(0, -viewpoint_height, viewpoint_height * 0.85, 0, 0, 0, pangolin::AxisY);
-  auto modelview1 = pangolin::ModelViewLookAt(0, 0, 1.5 * viewpoint_height, 0, 0, 0, pangolin::AxisY);
+  // auto modelview1 = pangolin::ModelViewLookAt(0, -viewpoint_distance*sin(viewpoint_angle), viewpoint_distance * cos(viewpoint_angle), 0, 0, 0, pangolin::AxisY);
+  auto modelview1 = pangolin::ModelViewLookAt(0, 0, viewpoint_distance, 0, 0, 0, pangolin::AxisY);
 
-std::cout << "OpenvinsliViewer::init(): modelview1 created." << std::endl;
+std::cout << "Viewer::init(): modelview1 created." << std::endl;
 
 
-  auto modelview2 = pangolin::ModelViewLookAt(0, -viewpoint_height * 0.85, -viewpoint_height, 0, 0, 0, pangolin::AxisZ);
-  // auto modelview2 = pangolin::ModelViewLookAt(0, -viewpoint_height * 0.85, viewpoint_height, 0, 0, 0,   0, 0, -1);
+  auto modelview2 = pangolin::ModelViewLookAt(0, -viewpoint_distance * sin(viewpoint_angle), -viewpoint_distance * cos(viewpoint_angle), 0, 0, 0, pangolin::AxisZ);
+  // auto modelview2 = pangolin::ModelViewLookAt(0, -viewpoint_distance * sin(viewpoint_angle), -viewpoint_distance * cos(viewpoint_angle), 0, 0, 0,      0, 0, 1);
 
 std::cout << "OpenvinsliViewer::init(): modelview2 created." << std::endl;
 
@@ -253,7 +255,7 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
     view_anchor_pose.translation() = Eigen::Vector3f(transformed_new_pos(0), transformed_new_pos(1), 0);
     pangolin::OpenGlMatrix Twa = makeGlMatrix(view_anchor_pose.matrix());
 
-    // s_cam1->SetModelViewMatrix(pangolin::ModelViewLookAt(transformed_new_pos(0), transformed_new_pos(1), viewpoint_height, transformed_new_pos(0), transformed_new_pos(1), 0, pangolin::AxisY));
+    // s_cam1->SetModelViewMatrix(pangolin::ModelViewLookAt(transformed_new_pos(0), transformed_new_pos(1), viewpoint_distance, transformed_new_pos(0), transformed_new_pos(1), 0, pangolin::AxisY));
     s_cam1->Follow(Twa);
     pangolin::Display("cam1").Activate(*s_cam1);
     drawRobotAndMap(output, *show_rgbd_map_var_, nav_info);    

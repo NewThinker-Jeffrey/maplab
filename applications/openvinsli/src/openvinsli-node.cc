@@ -70,7 +70,7 @@ OpenvinsliNode::OpenvinsliNode(
 
   auto openvins_params = openvins_flow_->openvinsInterface()->get_params();
   vio_common::RosTopicSettings topic_settings(sensor_manager);
-  datasource_flow_.reset(new DataSourceFlow(topic_settings, openvins_params.use_rgbd));
+  datasource_flow_.reset(new DataSourceFlow(topic_settings, openvins_params.state_options.use_rgbd));
   datasource_flow_->attachToMessageFlow(flow);
 
   const bool localization_enabled = localization_map != nullptr;

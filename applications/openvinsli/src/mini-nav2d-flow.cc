@@ -339,7 +339,7 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
     }
   
     // If we've lost nav cmds for 300ms in offline play mode, set the state to IDLE.
-    if (vio_estimate->timestamp_ns - last_played_nav_cmd_->timestamp_ns > 300000000) {
+    if (last_played_nav_cmd_ && vio_estimate->timestamp_ns - last_played_nav_cmd_->timestamp_ns > 300000000) {
       state_ = NavState::IDLE;
     }
     return;

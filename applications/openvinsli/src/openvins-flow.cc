@@ -153,7 +153,7 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
       [this](const vio::ImageMeasurement::ConstPtr& image) {
         size_t openvins_cam_id = 0;
         auto openvins_params = openvins_interface_->get_params();
-        if (image->camera_index < 0 && openvins_params.use_rgbd) {
+        if (image->camera_index < 0 && openvins_params.state_options.use_rgbd) {
           // we use negative camera_index for depth images.
           openvins_cam_id = 1;  // we fix the depth cam id to be 1.
         } else {
@@ -177,7 +177,7 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
 
         // try synchronizing
         const int64_t MAX_PRECISION_NS = 10;  // Maybe 1 is enough.
-        if (openvins_params.state_options.num_cameras == 2 || openvins_params.use_rgbd) {
+        if (openvins_params.state_options.num_cameras == 2 || openvins_params.state_options.use_rgbd) {
           while (!cam_id_to_image_queue_[0].empty() && !cam_id_to_image_queue_[1].empty()) {
             vio::ImageMeasurement::ConstPtr image0 = cam_id_to_image_queue_[0].front();
             vio::ImageMeasurement::ConstPtr image1 = cam_id_to_image_queue_[1].front();
