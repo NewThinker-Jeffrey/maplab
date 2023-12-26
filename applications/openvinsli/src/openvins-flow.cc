@@ -286,6 +286,9 @@ void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::O
   //   return;
   // }
 
+  if (fabs(Eigen::Quaterniond(output.state_clone->_imu->Rot().inverse()).squaredNorm() - 1.0) > 0.001) {
+    std::cout << "Bad quaternion: output.state_clone->_imu->Rot():" << std::endl << output.state_clone->_imu->Rot() << std::endl;
+  }
   aslam::Transformation T_M_I(
       output.state_clone->_imu->pos(),
       Eigen::Quaterniond(output.state_clone->_imu->Rot().inverse()));
@@ -337,6 +340,11 @@ void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::O
     CHECK_NOTNULL(maplab_cam_idx);
 
     // todo(jeffrey): retrieve the updated extrisincs from output.state_clone.
+    if (fabs(Eigen::Quaterniond(openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,3>(0,0)).squaredNorm() - 1.0) > 0.001) {
+      std::cout << "Bad quaternion: openvins_cam_idx=" << openvins_cam_idx
+                << ", openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,3>(0,0):" << std::endl
+                << openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,3>(0,0) << std::endl;
+    }
     aslam::Transformation T_B_C(
         openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,1>(0,3),
         Eigen::Quaterniond(openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,3>(0,0)));
