@@ -61,6 +61,23 @@ DataPublisherFlow::DataPublisherFlow()
   plotter_.reset(new visualization::ViwlsGraphRvizPlotter);
 }
 
+DataPublisherFlow::~DataPublisherFlow() {
+  if (pub_raw_image0_) {
+    LOG(INFO) << "Before destroying the publisher";
+    pub_raw_image0_.reset();
+    LOG(INFO) << "After destroying the publisher";
+  }
+  if (it_) {
+    // Note: Destroying the image transport will causes crash! Don't know how to fix for now.
+    // Error info:
+    //     terminate called after throwing an instance of 'class_loader::LibraryUnloadException'
+    //     what():  Attempt to unload library that class_loader is unaware of.
+    LOG(INFO) << "Before destroying the image transport";
+    it_.reset();
+    LOG(INFO) << "After destroying the image transport";
+  }
+}
+
 void DataPublisherFlow::registerPublishers() {
   pub_pose_T_M_I_ =
       node_handle_.advertise<geometry_msgs::PoseStamped>(kTopicPoseMission, 1);
@@ -86,7 +103,7 @@ void DataPublisherFlow::registerPublishers() {
       node_handle_.advertise<nav_msgs::Odometry>(kTopicOdomMsg, 1);
   if (!FLAGS_share_raw_image0_topic.empty()) {
     it_.reset(new image_transport::ImageTransport(node_handle_));
-    pub_raw_image0_ = it_->advertise(FLAGS_share_raw_image0_topic, 1);
+    pub_raw_image0_.reset(new image_transport::Publisher(it_->advertise(FLAGS_share_raw_image0_topic, 1)));
   }
 }
 
@@ -121,7 +138,7 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
       [this](const vio::ImageMeasurement::Ptr& image) {
         CHECK(image);
         if (!FLAGS_share_raw_image0_topic.empty() &&
-            pub_raw_image0_.getNumSubscribers() > 0 &&
+            pub_raw_image0_->getNumSubscribers() > 0 &&
             image->camera_index == 0) {
 
           sensor_msgs::Image img_msg;
@@ -131,7 +148,7 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
           cv_img.encoding = "mono8";  // "mono16"  "bgr8"  "rgb8"  "bgra8"  "rgba8"
           cv_img.image = image->image;
           sensor_msgs::ImagePtr msg = cv_img.toImageMsg();
-          pub_raw_image0_.publish(msg);
+          pub_raw_image0_->publish(msg);
         }
       });
 

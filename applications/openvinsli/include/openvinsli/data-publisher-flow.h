@@ -38,6 +38,8 @@ class DataPublisherFlow {
   const std::string kTopicOdomMsg = "odom_T_M_I";
 
   DataPublisherFlow();
+  ~DataPublisherFlow();
+
 
   void attachToMessageFlow(message_flow::MessageFlow* flow);
   void visualizeMap(const vi_map::VIMap& vi_map) const;
@@ -69,7 +71,7 @@ class DataPublisherFlow {
 
   // Publish images from cam0
   std::unique_ptr<image_transport::ImageTransport> it_;
-  image_transport::Publisher pub_raw_image0_;
+  std::unique_ptr<image_transport::Publisher> pub_raw_image0_;
 
   common::TimeoutCounter map_publisher_timeout_;
 
