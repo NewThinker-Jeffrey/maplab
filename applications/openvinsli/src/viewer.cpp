@@ -220,7 +220,7 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
   _traj.push_back(new_pos);
 
   double imu_time;
-  {
+  if (output->status.initialized) {
     Eigen::Matrix<double, 13, 1> state_plus;
     Eigen::Matrix<double, 12, 12> covariance;
     bool propagate_ok = _interal_app->get_propagator()->fast_state_propagate(
