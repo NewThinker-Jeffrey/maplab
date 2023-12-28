@@ -115,6 +115,7 @@ OpenvinsliNode::OpenvinsliNode(
   stop_viz_request_ = false;
   vis_thread_.reset(new std::thread([this] {
     pthread_setname_np(pthread_self(), "ov_visualize");
+    std::cout << "ov_visualize thread id: " << std::this_thread::get_id() << std::endl;
     if (gl_viewer_) {
       gl_viewer_->init();
     }

@@ -126,16 +126,19 @@ void OpenvinsliViewer::init() {
   });
   show_rgbd_map_var_ = std::make_shared<pangolin::Var<bool>>("menu.ShowRgbdMap", true, true);
   pangolin::Var<std::function<void()>> begin_rgbd_mapping_var("menu.BeginRgbdMapping", [this](){
+    std::cout << "widget thread id (menu.BeginRgbdMapping): " << std::this_thread::get_id() << std::endl;
     if (_interal_app) {
       _interal_app->begin_rgbd_mapping();
     }
   });
   pangolin::Var<std::function<void()>> stop_rgbd_mapping_var("menu.StopRgbdMapping", [this](){
+    std::cout << "widget thread id (menu.StopRgbdMapping): " << std::this_thread::get_id() << std::endl;
     if (_interal_app) {
       _interal_app->stop_rgbd_mapping();
     }
   });
   pangolin::Var<std::function<void()>> clear_rgbd_map_var("menu.ClearRgbdMap", [this](){
+    std::cout << "widget thread id (menu.ClearRgbdMap): " << std::this_thread::get_id() << std::endl;
     if (_interal_app) {
       _interal_app->clear_rgbd_map();
     }
