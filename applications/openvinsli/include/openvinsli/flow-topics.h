@@ -23,8 +23,16 @@ MESSAGE_FLOW_TOPIC(SYNCED_NFRAMES_AND_IMU, vio::SynchronizedNFrameImu::Ptr);
 MESSAGE_FLOW_TOPIC(
     TRACKED_NFRAMES_AND_IMU, vio::SynchronizedNFrameImu::ConstPtr);
 
+namespace openvinsli {
+struct DenseMapWrapper {
+  std::shared_ptr<const ov_msckf::dense_mapping::SimpleDenseMap> map_data;
+  int64_t timestamp_ns;
+  using ConstPtr = std::shared_ptr<const DenseMapWrapper>;
+};
+}  // namespace openvinsli
+
 MESSAGE_FLOW_TOPIC(
-    RGBD_LOCAL_MAP, std::shared_ptr<const ov_msckf::dense_mapping::SimpleDenseMap>);    
+    RGBD_LOCAL_MAP, openvinsli::DenseMapWrapper::ConstPtr);
 
 // Output of the localizer.
 MESSAGE_FLOW_TOPIC(LOCALIZATION_RESULT, vio::LocalizationResult::ConstPtr);

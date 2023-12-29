@@ -290,12 +290,11 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
   // publish rgbd local map
   flow->registerSubscriber<message_flow_topics::RGBD_LOCAL_MAP>(
       kSubscriberNodeName, message_flow::DeliveryOptions(),
-      [this](std::shared_ptr<const ov_msckf::dense_mapping::SimpleDenseMap> rgbd_dense_map) {
+      [this](DenseMapWrapper::ConstPtr map_wrapper) {
         sensor_msgs::PointCloud2 point_cloud;
-        rgbdLocalMapToPointCloud(rgbd_dense_map, &point_cloud);
+        rgbdLocalMapToPointCloud(map_wrapper->map_data, &point_cloud);
         point_cloud.header.frame_id = "mission";
-        // point_cloud2.header.stamp = ros::Time::now();
-        point_cloud.header.stamp = createRosTimestamp(aslam::time::secondsToNanoSeconds(rgbd_dense_map->time));
+        point_cloud.header.stamp = createRosTimestamp(map_wrapper->timestamp_ns);
         visualization::RVizVisualizationSink::publish<sensor_msgs::PointCloud2>("/rgbd_local_map", point_cloud);
       });
 }

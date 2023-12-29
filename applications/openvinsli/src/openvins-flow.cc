@@ -48,11 +48,18 @@ DEFINE_bool(
     openvinsli_enable_health_checking, false,
     "Perform health checking on the estimator output and reset if necessary.");
 
+DEFINE_bool(
+    use_zeroed_openvins_time, false,
+    "OPENVINS uses seconds (double) and maplab nanoseconds (int64_t) as "
+    "timestamps. To reduce precision loss the timestamps can be zeroed using the "
+    "first timestamp of maplab before conversion.");
+
 namespace openvinsli {
 OpenvinsFlow::OpenvinsFlow(
     const aslam::NCamera& camera_calibration,
     const vi_map::ImuSigmas& imu_sigmas,
-    const aslam::Transformation& odom_calibration) {
+    const aslam::Transformation& odom_calibration) :
+    time_translation_(FLAGS_use_zeroed_openvins_time) {
   const size_t num_cameras = camera_calibration.getNumCameras();
   LOG_IF(WARNING, num_cameras > 2u)
       << "OPENVINS supports only 1 or 2 (for stereo) cameras. "
@@ -276,7 +283,11 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
   auto publish_rgbd_local_map =
       flow->registerPublisher<message_flow_topics::RGBD_LOCAL_MAP>();
   openvins_interface_->set_rgbd_map_update_callback([=](std::shared_ptr<const ov_msckf::dense_mapping::SimpleDenseMap> rgbd_dense_map) {
-      publish_rgbd_local_map(rgbd_dense_map);
+    DenseMapWrapper map_wrapper;
+    map_wrapper.map_data = rgbd_dense_map;
+    map_wrapper.timestamp_ns = time_translation_.convertOpenvinsToMaplabTimestamp(rgbd_dense_map->time);
+    auto map_wrapper_ptr = std::make_shared<const DenseMapWrapper>(map_wrapper);
+    publish_rgbd_local_map(map_wrapper_ptr);
   });
 }
 

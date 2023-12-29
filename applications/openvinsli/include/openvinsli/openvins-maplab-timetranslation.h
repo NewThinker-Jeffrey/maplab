@@ -13,14 +13,19 @@ namespace openvinsli {
 // first timestamp of maplab before conversion.
 class OpenvinsMaplabTimeTranslation {
  public:
-  OpenvinsMaplabTimeTranslation()
-      : first_maplab_time_nanoseconds_(aslam::time::getInvalidTime()) {}
+  OpenvinsMaplabTimeTranslation(bool use_zeroed_openvins_time = false)
+      : use_zeroed_openvins_time_(use_zeroed_openvins_time),
+        first_maplab_time_nanoseconds_(aslam::time::getInvalidTime()) {}
 
   double convertMaplabToOpenvinsTimestamp(int64_t maplab_time_nanoseconds) const {
     if (!aslam::time::isValidTime(first_maplab_time_nanoseconds_)) {
       CHECK_GE(maplab_time_nanoseconds, 0.0);
-      first_maplab_time_nanoseconds_ =
-          maplab_time_nanoseconds - kStartOffsetNanoseconds;
+      if (use_zeroed_openvins_time_) {
+        first_maplab_time_nanoseconds_ =
+            maplab_time_nanoseconds - kStartOffsetNanoseconds;
+      } else {
+        first_maplab_time_nanoseconds_ = 0.0;  // let openvins use time.
+      }
     }
     double openvins_time_seconds = aslam::time::nanoSecondsToSeconds(
         maplab_time_nanoseconds - first_maplab_time_nanoseconds_);
@@ -44,6 +49,7 @@ class OpenvinsMaplabTimeTranslation {
   // to multi-threading).
   static constexpr int64_t kStartOffsetNanoseconds = aslam::time::seconds(1);
   mutable int64_t first_maplab_time_nanoseconds_;
+  bool use_zeroed_openvins_time_ = false;
 };
 }  // namespace openvinsli
 #endif  // OPENVINSLI_OPENVINS_MAPLAB_TIMETRANSLATION_H_
