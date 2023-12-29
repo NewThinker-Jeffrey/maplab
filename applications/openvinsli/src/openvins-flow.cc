@@ -27,6 +27,7 @@
 #include "openvinsli/mini-nav2d-flow.h"
 
 
+#include "core/SimpleDenseMapping.h"      // ov_msckf
 #include "core/VioManager.h"         // ov_msckf
 #include "core/VioManagerOptions.h"  // ov_msckf
 #include "state/Propagator.h"        // ov_msckf
@@ -271,6 +272,12 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
   CHECK(openvins_interface_);
   openvins_interface_->setUpdateCallback(std::bind(
       &OpenvinsFlow::processAndPublishOpenvinsUpdate, this, std::placeholders::_1));
+
+  auto publish_rgbd_local_map =
+      flow->registerPublisher<message_flow_topics::RGBD_LOCAL_MAP>();
+  openvins_interface_->set_rgbd_map_update_callback([=](std::shared_ptr<const ov_msckf::dense_mapping::SimpleDenseMap> rgbd_dense_map) {
+      publish_rgbd_local_map(rgbd_dense_map);
+  });
 }
 
 void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::Output& output) {
@@ -286,12 +293,14 @@ void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::O
   //   return;
   // }
 
+std::cout << "processAndPublishOpenvinsUpdate: DEBUG 1" << ", output.state_clone->_timestamp=" << output.state_clone->_timestamp << ", output.state_clone->_imu->quat(): " << output.state_clone->_imu->quat().transpose() << std::endl;
   if (fabs(Eigen::Quaterniond(output.state_clone->_imu->Rot().inverse()).squaredNorm() - 1.0) > 0.001) {
     std::cout << "Bad quaternion: output.state_clone->_imu->Rot():" << std::endl << output.state_clone->_imu->Rot() << std::endl;
-  }
+  }  
   aslam::Transformation T_M_I(
       output.state_clone->_imu->pos(),
       Eigen::Quaterniond(output.state_clone->_imu->Rot().inverse()));
+std::cout << "processAndPublishOpenvinsUpdate: DEBUG 2" << std::endl;
   common::ensurePositiveQuaternion(&T_M_I.getRotation());
   const Eigen::Vector3d v_M = output.state_clone->_imu->vel();
   OpenvinsEstimate::Ptr openvins_estimate(new OpenvinsEstimate);
@@ -340,6 +349,7 @@ void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::O
     CHECK_NOTNULL(maplab_cam_idx);
 
     // todo(jeffrey): retrieve the updated extrisincs from output.state_clone.
+std::cout << "processAndPublishOpenvinsUpdate: DEBUG 3" << ", openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,3>(0,0): " << Eigen::Matrix3d(openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,3>(0,0)) << std::endl;
     if (fabs(Eigen::Quaterniond(openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,3>(0,0)).squaredNorm() - 1.0) > 0.001) {
       std::cout << "Bad quaternion: openvins_cam_idx=" << openvins_cam_idx
                 << ", openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,3>(0,0):" << std::endl
@@ -348,6 +358,7 @@ void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::O
     aslam::Transformation T_B_C(
         openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,1>(0,3),
         Eigen::Quaterniond(openvins_params.T_CtoIs.at(openvins_cam_idx)->block<3,3>(0,0)));
+std::cout << "processAndPublishOpenvinsUpdate: DEBUG 4" << std::endl;
     // aslam::Transformation T_B_C(
     //     openvins_params.T_CtoIs.at(openvins_cam_idx).block<3,3>(0,0),
     //     openvins_params.T_CtoIs.at(openvins_cam_idx).block<3,1>(0,3));
@@ -358,8 +369,10 @@ void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::O
   }
 
   // Optional localizations.
+std::cout << "processAndPublishOpenvinsUpdate: DEBUG 5" << std::endl;
   openvins_estimate->has_T_G_M =
       extractLocalizationFromOpenvinsState(output, &openvins_estimate->T_G_M);
+std::cout << "processAndPublishOpenvinsUpdate: DEBUG 6" << std::endl;
   localization_handler_->T_M_I_buffer_mutable()->bufferOdometryEstimate(
       openvins_estimate->vinode);
   if (openvins_estimate->has_T_G_M) {

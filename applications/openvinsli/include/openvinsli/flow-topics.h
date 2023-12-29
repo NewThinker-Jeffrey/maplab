@@ -8,6 +8,7 @@
 #include "openvinsli/mini-nav2d-msg.h"
 #include "openvinsli/openvins-estimate.h"
 #include "openvinsli/vi-map-with-mutex.h"
+#include "core/SimpleDenseMapping.h"
 
 // TODO(schneith): All message should be ConstPtr.
 
@@ -21,6 +22,9 @@ MESSAGE_FLOW_TOPIC(SYNCED_NFRAMES_AND_IMU, vio::SynchronizedNFrameImu::Ptr);
 
 MESSAGE_FLOW_TOPIC(
     TRACKED_NFRAMES_AND_IMU, vio::SynchronizedNFrameImu::ConstPtr);
+
+MESSAGE_FLOW_TOPIC(
+    RGBD_LOCAL_MAP, std::shared_ptr<const ov_msckf::dense_mapping::SimpleDenseMap>);    
 
 // Output of the localizer.
 MESSAGE_FLOW_TOPIC(LOCALIZATION_RESULT, vio::LocalizationResult::ConstPtr);

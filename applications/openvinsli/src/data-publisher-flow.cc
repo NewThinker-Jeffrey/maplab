@@ -12,6 +12,7 @@
 #include <cv_bridge/cv_bridge.h>
 
 #include "openvinsli/ros-helpers.h"
+#include "core/SimpleDenseMapping.h"      // ov_msckf
 
 DEFINE_double(
     map_publish_interval_s, 2.0,
@@ -51,6 +52,75 @@ inline ros::Time createRosTimestamp(int64_t timestamp_nanoseconds) {
   const uint32_t ros_timestamp_nsec =
       timestamp_u64 - (ros_timestamp_sec * kNanosecondsPerSecond);
   return ros::Time(ros_timestamp_sec, ros_timestamp_nsec);
+}
+
+void rgbdLocalMapToPointCloud(
+    std::shared_ptr<const ov_msckf::dense_mapping::SimpleDenseMap> rgbd_dense_map,
+    sensor_msgs::PointCloud2* point_cloud) {
+  CHECK_NOTNULL(point_cloud);
+  CHECK_NOTNULL(rgbd_dense_map);
+
+  using Voxel = ov_msckf::dense_mapping::Voxel;
+  const std::vector<Voxel>& voxels = rgbd_dense_map->voxels;
+  // for (const Voxel& v : voxels) {
+  //   glColor4ub(v.c[0], v.c[1], v.c[2], 255);
+  //   Eigen::Vector3f p(v.p.x(), v.p.y(), v.p.z());
+  //   p *= rgbd_dense_map->resolution;
+  //   glVertex3f(p.x(), p.y(), p.z());
+  // }
+
+  const size_t num_points = voxels.size();
+
+  point_cloud->height = 3;
+  point_cloud->width = num_points;
+  point_cloud->fields.resize(4);
+
+  point_cloud->fields[0].name = "x";
+  point_cloud->fields[0].offset = 0;
+  point_cloud->fields[0].count = 1;
+  point_cloud->fields[0].datatype = sensor_msgs::PointField::FLOAT32;
+
+  point_cloud->fields[1].name = "y";
+  point_cloud->fields[1].offset = 4;
+  point_cloud->fields[1].count = 1;
+  point_cloud->fields[1].datatype = sensor_msgs::PointField::FLOAT32;
+
+  point_cloud->fields[2].name = "z";
+  point_cloud->fields[2].offset = 8;
+  point_cloud->fields[2].count = 1;
+  point_cloud->fields[2].datatype = sensor_msgs::PointField::FLOAT32;
+
+  point_cloud->fields[3].name = "rgb";
+  point_cloud->fields[3].offset = 12;
+  point_cloud->fields[3].count = 1;
+  point_cloud->fields[3].datatype = sensor_msgs::PointField::UINT32;
+
+  point_cloud->point_step = 16;
+  point_cloud->row_step = point_cloud->point_step * point_cloud->width;
+  point_cloud->data.resize(point_cloud->row_step * point_cloud->height);
+
+  // https://pointclouds.org/documentation/singletonpcl_1_1_point_cloud.html#a3ca88d8ebf6f4f35acbc31cdfb38aa94
+  // True if no points are invalid (e.g., have NaN or Inf values).
+  point_cloud->is_dense = true;
+                                    
+
+  int offset = 0;
+  for (size_t point_idx = 0u; point_idx < num_points; ++point_idx) {
+    const auto& v = voxels.at(point_idx);
+    Eigen::Vector3f point(v.p.x(), v.p.y(), v.p.z());
+    point *= rgbd_dense_map->resolution;
+    memcpy(&point_cloud->data[offset + 0], &point.x(), sizeof(point.x()));
+    memcpy(
+        &point_cloud->data[offset + sizeof(point.x())], &point.y(),
+        sizeof(point.y()));
+    memcpy(
+        &point_cloud->data[offset + sizeof(point.x()) + sizeof(point.y())],
+        &point.z(), sizeof(point.z()));
+
+    const uint32_t rgb = (v.c[0] << 16) | (v.c[1] << 8) | v.c[2];
+    memcpy(&point_cloud->data[offset + 12], &rgb, sizeof(uint32_t));
+    offset += point_cloud->point_step;
+  }
 }
 }  // namespace
 
@@ -216,6 +286,18 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
               T_M_I.getPosition(), T_M_I.getEigenQuaternion());
         });
   }
+
+  // publish rgbd local map
+  flow->registerSubscriber<message_flow_topics::RGBD_LOCAL_MAP>(
+      kSubscriberNodeName, message_flow::DeliveryOptions(),
+      [this](std::shared_ptr<const ov_msckf::dense_mapping::SimpleDenseMap> rgbd_dense_map) {
+        sensor_msgs::PointCloud2 point_cloud;
+        rgbdLocalMapToPointCloud(rgbd_dense_map, &point_cloud);
+        point_cloud.header.frame_id = "mission";
+        // point_cloud2.header.stamp = ros::Time::now();
+        point_cloud.header.stamp = createRosTimestamp(aslam::time::secondsToNanoSeconds(rgbd_dense_map->time));
+        visualization::RVizVisualizationSink::publish<sensor_msgs::PointCloud2>("/rgbd_local_map", point_cloud);
+      });
 }
 
 void DataPublisherFlow::visualizeMap(const vi_map::VIMap& vi_map) const {

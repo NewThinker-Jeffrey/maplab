@@ -34,7 +34,7 @@
 
 #include "slam_viz/pangolin_helper.h"
 #include "state/Propagator.h"
-#include "core/SimpleRgbdMap.h"
+#include "core/SimpleDenseMapping.h"
 
 
 using namespace ov_core;
@@ -386,7 +386,7 @@ void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> outpu
                                        bool draw_rgbd,
                                        std::shared_ptr<Nav2dFlow::NavInfoForDisplay> nav_info) {
   using namespace slam_viz::pangolin_helper;
-  bool need_draw_rgbd = draw_rgbd && output->visualization.rgbd_map;
+  bool need_draw_rgbd = draw_rgbd && output->visualization.rgbd_dense_map_builder;
 
   Eigen::Vector3f new_pos = _imu_pose.translation();
 
@@ -442,18 +442,18 @@ void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> outpu
   }
 
   // draw rgbd map
-  using Voxel = SimpleRgbdMap::Voxel;
+  using Voxel = dense_mapping::Voxel;
   if (need_draw_rgbd) {
-    // auto voxels_ptr = output->visualization.rgbd_map->get_occupied_voxels();
-    auto voxels_ptr = output->visualization.rgbd_map->get_display_voxels();
-    if (voxels_ptr) {
-      const std::vector<Voxel>& voxels = *voxels_ptr;
+    // auto map_ptr = output->visualization.rgbd_dense_map_builder->get_output_map();
+    auto map_ptr = output->visualization.rgbd_dense_map_builder->get_display_map();
+    if (map_ptr) {
+      const std::vector<Voxel>& voxels = map_ptr->voxels;
       glPointSize(2.0);
       glBegin(GL_POINTS);
       for (const Voxel& v : voxels) {
         glColor4ub(v.c[0], v.c[1], v.c[2], 255);
         Eigen::Vector3f p(v.p.x(), v.p.y(), v.p.z());
-        p *= output->visualization.rgbd_map->resolution();
+        p *= map_ptr->resolution;
         glVertex3f(p.x(), p.y(), p.z());
       }
       glEnd();
