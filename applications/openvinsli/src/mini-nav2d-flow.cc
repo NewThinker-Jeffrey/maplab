@@ -488,15 +488,32 @@ std::vector<Eigen::Vector3d>  Nav2dFlow::findPoint2PointTraj(size_t start_traj_p
       continue;
     }
 
-    // check loop (begin from j=1 so that the first path point is ensured not to be removed)
-    for (size_t j=1; j<path.size(); j++) {
+    // check loop:
+    //   - begin from j=1 so that the first path point is ensured not to be removed).
+    //   - 'j+3 < path.size()' prevents loops between neibour points.
+    for (size_t j=1; j+3<path.size(); j++) {
       Eigen::Vector3d diff0 = curp - path[j];
-      Eigen::Vector3d diff1 = curp - path[j-1];
       diff0.z() = 0;
-      diff1.z() = 0;
-      if (diff0.norm() < 0.25 && diff1.norm() < 0.6) {
+
+      // Eigen::Vector3d diff1 = curp - path[j-1];
+      // diff1.z() = 0;
+      // if (diff0.norm() < 0.25 && diff1.norm() < 0.6) {
+      //   // loop found.
+      //   path.erase(path.begin() + j, path.end());
+      //   break;
+      // }
+
+      double diff0_norm = diff0.norm();
+      if (diff0_norm < 0.6) {
         // loop found.
-        path.erase(path.begin() + j, path.end());
+        Eigen::Vector3d diff1 = curp - path[j-1];
+        diff1.z() = 0;
+        double diff1_norm = diff1.norm();
+        if (diff0_norm < 0.3 && diff1_norm < 0.7) {
+          path.erase(path.begin() + j, path.end());
+        } else {
+          path.erase(path.begin() + j + 1, path.end());
+        }
         break;
       }
     }
