@@ -369,7 +369,8 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
       // Check whether we need to change current_pathpoint_idx_.
 
       const double fastforward_dist_thr = 0.75;
-      const int max_fastforward_step = 10;
+      // const int max_fastforward_step = 10;
+      const int max_fastforward_step = current_path_.size();  // fastforward as many steps as possible.
       int fastforward_step = 0;  // default to zero
       for (size_t step = 1; step < max_fastforward_step && current_pathpoint_idx_+step < current_path_.size(); step++) {
         Eigen::Vector3d next_pathp = current_path_[current_pathpoint_idx_+step];
