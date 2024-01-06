@@ -34,6 +34,7 @@
 
 #include "slam_viz/pangolin_helper.h"
 #include "state/Propagator.h"
+#include "state/StateHelper.h"
 #include "core/SimpleDenseMapping.h"
 
 
@@ -318,6 +319,17 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
   sprintf(tmp_buf, "%.3f", output->status.distance);
   std::string distance_str(tmp_buf);
 
+
+  Eigen::MatrixXd cov =
+  StateHelper::get_marginal_covariance(output->state_clone, {output->state_clone->_imu->pose()});
+  Eigen::MatrixXd q_cov = cov.block(0,0,3,3);
+  Eigen::MatrixXd p_cov = cov.block(3,3,3,3);
+  double std_q = std::sqrt(q_cov.trace());
+  double std_p = std::sqrt(p_cov.trace());
+  sprintf(tmp_buf, "%.3f[m], %.3f[rad]", std_p, std_q);
+  std::string std_pq_str(tmp_buf);
+
+
   drawMultiTextLinesInViewCoord(
       { TextLine("IMU time:   " + imu_time_str)
        ,TextLine("Image time: " + image_time_str)
@@ -326,6 +338,7 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
        ,TextLine("Reloc cnt: " + std::to_string(output->status.accepted_localization_cnt))
        ,TextLine("Stable points:  " + std::to_string(_slam_points.size()))
        ,TextLine("Short-term points: " + std::to_string(_msckf_points.size()))
+       ,TextLine("std_pq: " + std_pq_str)
        ,TextLine("slam_pos:     " + slam_pos_str)
        ,TextLine("predict_pos: " + predict_pos_str)
        ,TextLine("Traveled distance: " + distance_str)       
