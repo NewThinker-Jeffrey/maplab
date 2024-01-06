@@ -365,23 +365,43 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
     nav_cmd->timestamp_ns = vio_estimate->timestamp_ns;
     nav_cmd->cur_pose2d = current_pose_2d_;
 
-    // Check whether we have reached the target and if not, check whether we need to change current_pathpoint_idx_
-    Eigen::Vector3d cur_pathp = current_path_[current_pathpoint_idx_];
-    Eigen::Vector3d diff = cur_pathp - current_pose_2d_;
-    diff.z() = 0;
-    double dist = diff.norm();
     if (current_pathpoint_idx_ + 1 < current_path_.size()) {
-      if (dist < 0.25) {
-        current_pathpoint_idx_ += 1;
+      // Check whether we need to change current_pathpoint_idx_.
+
+      const double fastforward_dist_thr = 0.75;
+      const int max_fastforward_step = 10;
+      int fastforward_step = 0;  // default to zero
+      for (size_t step = 1; step < max_fastforward_step && current_pathpoint_idx_+step < current_path_.size(); step++) {
+        Eigen::Vector3d next_pathp = current_path_[current_pathpoint_idx_+step];
+        Eigen::Vector3d diff = next_pathp - current_pose_2d_;
+        diff.z() = 0;
+        double dist = diff.norm();
+        if (dist < fastforward_dist_thr) {
+          fastforward_step = step;
+        }
+      }
+
+      if (fastforward_step > 0) {
+        current_pathpoint_idx_ += fastforward_step;
+      } else {
+        Eigen::Vector3d cur_pathp = current_path_[current_pathpoint_idx_];
+        Eigen::Vector3d diff = cur_pathp - current_pose_2d_;
+        diff.z() = 0;
+        double dist = diff.norm();
+
+        if (dist < 0.25) {
+          current_pathpoint_idx_ += 1;
+        }
       }
       
       // nav_cmd->cur_pathpoint = current_path_[current_pathpoint_idx_];
       for (size_t i=0; i < 10 && current_pathpoint_idx_+i < current_path_.size(); i++) {
         nav_cmd->next_pathpoints.push_back(current_path_[current_pathpoint_idx_+i]);
-      }      
+      }
       nav_cmd->is_last_pathpoint = !(current_pathpoint_idx_ + 1 < current_path_.size());
     } else {
       // For the last point, also check the orientation
+      Eigen::Vector3d cur_pathp = current_path_[current_pathpoint_idx_];
       double theta_diff = cur_pathp.z() - current_pose_2d_.z();
       if (theta_diff > M_PI) {
         theta_diff -= 2.0 * M_PI;
