@@ -4,8 +4,8 @@ sensors:
     description: "VI-Sensor IMU (Rs-D455.IMU)"
     sensor_type: IMU
     sigmas:
-      acc_noise_density: 0.00207649074 # 4e-3
-      # acc_noise_density: 0.207649074  # considering drastic vibration
+      # acc_noise_density: 0.00207649074 # 4e-3
+      acc_noise_density: 0.207649074  # considering drastic vibration
       acc_bias_random_walk_noise_density: 0.00041327852 # 4e-3
       gyro_noise_density: 0.00020544166  # 1e-4
       gyro_bias_random_walk_noise_density: 0.00001110622 # 1e-4
