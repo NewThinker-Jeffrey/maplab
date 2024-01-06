@@ -31,9 +31,21 @@ DEFINE_uint64(
 DEFINE_double(
     openvinsli_baseframe_init_position_covariance_msq, 20.0,
     "Position covariance of the baseframe initialization [m^2].");
+
+DEFINE_double(
+    openvinsli_reloc_position_uncertainty,
+    // 0.3,
+    // 0.5,
+    0.8,
+    "Position uncertainty of relocalizations [m].");
+DEFINE_double(
+    openvinsli_reloc_orientation_uncertainty, 0.04,  // about 2°
+    "Orientation covariance of relocalizations [rad].");
+
 DEFINE_double(
     openvinsli_baseframe_init_rotation_covariance_radsq, 90.0 * kDegToRad,
     "Rotation covariance of the baseframe initialization [rad^2].");
+
 
 DEFINE_double(
     openvinsli_max_mean_localization_reprojection_error_px, 100.0,
@@ -202,12 +214,8 @@ ov_core::LocalizationData OpenvinsLocalizationHandler::makeOpenvinsLocalizationD
   // raw_loc.qp_cov = localization_result->T_G_B_covariance;
   raw_loc.qp_cov = Eigen::Matrix<double, 6, 6>::Identity();
 
-  const double loc_orientation_uncertainty = 0.04;  // about 2°
-  // const double loc_position_uncertainty = 0.3;  // 
-  // const double loc_position_uncertainty = 0.5;  // 
-  const double loc_position_uncertainty = 0.8;  // 
-  double loc_orientation_var = loc_orientation_uncertainty * loc_orientation_uncertainty;
-  double loc_position_var = loc_position_uncertainty * loc_position_uncertainty;
+  double loc_orientation_var = FLAGS_openvinsli_reloc_orientation_uncertainty * FLAGS_openvinsli_reloc_orientation_uncertainty;
+  double loc_position_var = FLAGS_openvinsli_reloc_position_uncertainty * FLAGS_openvinsli_reloc_position_uncertainty;
   raw_loc.qp_cov.block<3,3>(0,0) = loc_orientation_var * Eigen::Matrix3d::Identity();
   raw_loc.qp_cov.block<3,3>(3,3) = loc_position_var * Eigen::Matrix3d::Identity();
 
