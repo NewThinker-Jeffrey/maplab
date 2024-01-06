@@ -215,8 +215,12 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
           cv_bridge::CvImage cv_img;
           cv_img.header.frame_id = "";
           cv_img.header.stamp = createRosTimestamp(image->timestamp);
-          cv_img.encoding = "mono8";  // "mono16"  "bgr8"  "rgb8"  "bgra8"  "rgba8"
           cv_img.image = image->image;
+          if (image->image.channels() == 1) {
+            cv_img.encoding = "mono8";  // "mono16"  "bgr8"  "rgb8"  "bgra8"  "rgba8"
+          } else {
+            cv_img.encoding = "rgb8";  // "mono16"  "bgr8"  "rgb8"  "bgra8"  "rgba8"
+          }
           sensor_msgs::ImagePtr msg = cv_img.toImageMsg();
           pub_raw_image0_->publish(msg);
         }
