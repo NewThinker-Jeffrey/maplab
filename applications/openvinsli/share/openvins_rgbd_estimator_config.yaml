@@ -52,10 +52,10 @@ feat_rep_aruco: "ANCHORED_MSCKF_INVERSE_DEPTH"
 # zero velocity update parameters we can use
 # we support either IMU-based or disparity detection.
 try_zupt: true
-zupt_chi2_multipler: 0 # set to 0 for only disp-based
+zupt_chi2_multipler: 1.0 # set to 0 for only disp-based
 zupt_max_velocity: 0.1
 zupt_noise_multiplier: 10
-zupt_max_disparity: 0.5 # set to 0 for only imu-based
+zupt_max_disparity: 0 # set to 0 for only imu-based
 zupt_only_at_beginning: false
 
 # ==================================================================
@@ -141,7 +141,7 @@ up_slam_chi2_multipler: 1
 up_slam_absolute_residual_thr: -1.0
 # up_slam_absolute_residual_thr: 3.0
 
-up_aruco_sigma_px: 1
+up_aruco_sigma_px: 2
 up_aruco_chi2_multipler: 1
 up_aruco_absolute_residual_thr: -1.0
 # up_aruco_absolute_residual_thr: 3.0
