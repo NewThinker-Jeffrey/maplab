@@ -5,7 +5,8 @@
 namespace visualization {
 
 RVizVisualizationSink::RVizVisualizationSink()
-    : is_initialized_(false), queue_size_(200u), latch_(true) {
+    // : is_initialized_(false), queue_size_(200u), latch_(true) {
+    : is_initialized_(false), queue_size_(1u), latch_(true) {
   initImpl();
 }
 
