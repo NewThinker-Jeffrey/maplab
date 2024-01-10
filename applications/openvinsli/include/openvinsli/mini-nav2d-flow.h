@@ -106,10 +106,18 @@ class Nav2dFlow {
   void tryAddingTrajPoint(const Eigen::Vector3d& traj_point);
 
   // find neareast
-  size_t findNearstTrajPoint(const Eigen::Vector3d& current_pose_2d);
+  int findNearstTrajPoint(const Eigen::Vector3d& current_pose_2d, double* best_distance);
 
   // find p2p traj:
-  std::vector<Eigen::Vector3d>  findPoint2PointTraj(size_t start_traj_point_idx, size_t target_point_idx);
+  std::vector<Eigen::Vector3d>  findPoint2PointTraj(const Eigen::Vector3d& current_pose_2d, size_t target_point_idx);
+
+  static double getPathLength(const Eigen::Vector3d& current_pose_2d, const std::vector<Eigen::Vector3d>& path);
+
+  static std::vector<Eigen::Vector3d> filterPath(const std::vector<Eigen::Vector3d>& path);
+
+  bool checkArrival() const;
+
+  Nav2dCmd::Ptr runNav(int64_t timestamp_ns=-1);
 
   void saveNavCmd(const Nav2dCmd& cmd);
 
@@ -147,7 +155,7 @@ class Nav2dFlow {
   size_t current_target_idx_;
 
   // std::deque<Eigen::Vector3d> traj_2d_recroding_;  // used for recording
-
+  std::string path_record_file_;
 
  private:
   // saving online nav cmds

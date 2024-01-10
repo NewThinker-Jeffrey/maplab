@@ -4,6 +4,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include <Eigen/Core>
 #include <aslam/cameras/ncamera.h>
@@ -34,9 +35,37 @@
 
 #include "hear_slam/common/yaml_helper.h"
 
-DEFINE_string(
-    openvinsli_nav_savefile, "nav.yaml",
-    "Path to save the recorded traj and target points. (nav.yaml)");
+DEFINE_double(
+    nav_record_path_point_dist, 0.5,
+    "The average distance between two path points when recording path. (0.5)");
+
+DEFINE_double(
+    nav_plan_pathloop_thr, 0.6,
+    "");
+
+DEFINE_double(
+    nav_safe_dist_to_path, -1.0,
+    "If the current position is too far from the path, it might not be safe "
+    "to start a navigation. This flag specifies the safe distance (from the current "
+    "position to the nearest pathpoint). Negative value means an infinite safe distance.");
+
+DEFINE_double(
+    nav_swith_to_next_point_dist_thr, 0.25,
+    "");
+
+DEFINE_double(
+    nav_fastforward_dist_thr, 0.75,
+    "");
+
+
+DEFINE_double(
+    nav_arrival_dist_thr, 0.15,  // metre
+    "");
+
+DEFINE_double(
+    nav_arrival_angle_thr, 0.05,  // rad
+    "");
+
 
 namespace openvinsli {
 
@@ -93,7 +122,7 @@ Eigen::Isometry3d transformPoseFrom2dTo3d(const Eigen::Vector3d& pose_2d) {
 }  // namespace
 
 
-Nav2dFlow::Nav2dFlow() : state_(NavState::IDLE) {
+Nav2dFlow::Nav2dFlow() : state_(NavState::IDLE), path_record_file_("nav.yaml") {
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
   initRosInterface();
@@ -164,7 +193,7 @@ bool Nav2dFlow::startPathRecording() {
 bool Nav2dFlow::finishPathRecording(const std::string& tmp_savefile) {
   std::string savefile = tmp_savefile;
   if (savefile.empty()) {
-    savefile = FLAGS_openvinsli_nav_savefile;
+    savefile = path_record_file_;
   }
   std::unique_lock<std::mutex> lock(mutex_nav_);
   if (state_ == NavState::PATH_RECORDING) {
@@ -360,71 +389,15 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
   if (NavState::PATH_RECORDING == state_) {
     tryAddingTrajPoint(current_pose_2d_);
   } else if (NavState::NAVIGATING == state_) {
+    // For now we skip the following check since it will be done by the downstream controller.
+    // // Check whether the robot has reached the target point.
+    // if (checkArrival()) {
+    //   LOG(WARNING) << "Nav2dFlow:  Finished navigation.";
+    //   state_ = NavState::IDLE;
+    //   return;
+    // }
 
-    Nav2dCmd::Ptr nav_cmd = aligned_shared<Nav2dCmd>();
-    nav_cmd->timestamp_ns = vio_estimate->timestamp_ns;
-    nav_cmd->cur_pose2d = current_pose_2d_;
-
-    if (current_pathpoint_idx_ + 1 < current_path_.size()) {
-      // Check whether we need to change current_pathpoint_idx_.
-
-      const double fastforward_dist_thr = 0.75;
-      // const int max_fastforward_step = 10;
-      const int max_fastforward_step = current_path_.size();  // fastforward as many steps as possible.
-      int fastforward_step = 0;  // default to zero
-      for (size_t step = 1; step < max_fastforward_step && current_pathpoint_idx_+step < current_path_.size(); step++) {
-        Eigen::Vector3d next_pathp = current_path_[current_pathpoint_idx_+step];
-        Eigen::Vector3d diff = next_pathp - current_pose_2d_;
-        diff.z() = 0;
-        double dist = diff.norm();
-        if (dist < fastforward_dist_thr) {
-          fastforward_step = step;
-        }
-      }
-
-      if (fastforward_step > 0) {
-        current_pathpoint_idx_ += fastforward_step;
-      } else {
-        Eigen::Vector3d cur_pathp = current_path_[current_pathpoint_idx_];
-        Eigen::Vector3d diff = cur_pathp - current_pose_2d_;
-        diff.z() = 0;
-        double dist = diff.norm();
-
-        if (dist < 0.25) {
-          current_pathpoint_idx_ += 1;
-        }
-      }
-      
-      // nav_cmd->cur_pathpoint = current_path_[current_pathpoint_idx_];
-      for (size_t i=0; i < 10 && current_pathpoint_idx_+i < current_path_.size(); i++) {
-        nav_cmd->next_pathpoints.push_back(current_path_[current_pathpoint_idx_+i]);
-      }
-      nav_cmd->is_last_pathpoint = !(current_pathpoint_idx_ + 1 < current_path_.size());
-    } else {
-      // For the last point, also check the orientation
-      Eigen::Vector3d cur_pathp = current_path_[current_pathpoint_idx_];
-      double theta_diff = cur_pathp.z() - current_pose_2d_.z();
-      if (theta_diff > M_PI) {
-        theta_diff -= 2.0 * M_PI;
-      } else if (theta_diff < -M_PI) {
-        theta_diff += 2.0 * M_PI;
-      }
-
-      // For now we skip the following check since it will be done by the downstream controller.
-
-      // // Check whether the robot has reached the target point.
-      // if (dist < 0.15 && theta_diff < 0.05) {
-      //   LOG(WARNING) << "Nav2dFlow:  Finished navigation.";
-      //   state_ = NavState::IDLE;
-      //   return;
-      // }
-
-
-      // nav_cmd->cur_pathpoint = current_path_[current_pathpoint_idx_];
-      nav_cmd->next_pathpoints.push_back(current_path_[current_pathpoint_idx_]);
-      // nav_cmd->is_last_pathpoint = !(current_pathpoint_idx_ + 1 < current_path_.size());
-      nav_cmd->is_last_pathpoint = true;
-    }
+    Nav2dCmd::Ptr nav_cmd = runNav(vio_estimate->timestamp_ns);
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
     convertAndPublishNavCmd(*nav_cmd);
@@ -432,10 +405,8 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
     publish_nav_(nav_cmd);
     saveNavCmd(*nav_cmd);
   } else if (NavState::PATH_PLANNING == state_) {
-    // find the nearest traj point
-    size_t nearest_traj_point_idx = findNearstTrajPoint(current_pose_2d_);
-    // then find the path
-    current_path_ = findPoint2PointTraj(nearest_traj_point_idx, current_target_idx_);
+    // find the path
+    current_path_ = findPoint2PointTraj(current_pose_2d_, current_target_idx_);
     current_pathpoint_idx_ = 0;
     state_ = NavState::NAVIGATING;
   } else if (NavState::IDLE == state_) {
@@ -465,7 +436,7 @@ void Nav2dFlow::tryAddingTrajPoint(const Eigen::Vector3d& traj_point) {
   Eigen::Vector3d diff_latest = traj_2d_[n-1] - traj_2d_[n-2];
   diff_latest.z() = 0;
   double dist_latest = diff_latest.norm();
-  if (dist_latest < 0.5) {
+  if (dist_latest < FLAGS_nav_record_path_point_dist) {
     // replace the last with our new traj_point
     traj_2d_[n-1] = traj_point;
   } else {
@@ -473,14 +444,67 @@ void Nav2dFlow::tryAddingTrajPoint(const Eigen::Vector3d& traj_point) {
   }
 }
 
-size_t Nav2dFlow::findNearstTrajPoint(const Eigen::Vector3d& current_pose_2d) {
-  size_t best_i = 0;
-  double best_distance = -1;
+std::vector<Eigen::Vector3d> Nav2dFlow::filterPath(const std::vector<Eigen::Vector3d>& path) {
+  std::vector<Eigen::Vector3d> filtered_path;
+  if (path.size() < 3) {
+    return filtered_path;
+  }
+  filtered_path.reserve(path.size());
+  filtered_path.push_back(path[0]);
+
+  for (int i = 1; i < path.size() - 1; i++) {
+    const Eigen::Vector3d& cur_point = path[i];
+
+    // Check whether there is a path loop.
+    // Note:
+    //   - the first path point is ensured not to be removed.
+    //   - 'j+1 < filtered_path.size()' prevents nonsense loops between neibour points.
+    for (int j=0; j+1<filtered_path.size(); j++) {
+      const Eigen::Vector3d& old_point = filtered_path[j];
+      Eigen::Vector3d diff = cur_point - old_point;
+      diff.z() = 0.0;
+      double dist = diff.norm();
+      if (dist < FLAGS_nav_plan_pathloop_thr) {
+        filtered_path.erase(filtered_path.begin() + j + 1, filtered_path.end());
+        break;
+      }
+    }
+    filtered_path.push_back(cur_point);
+  }
+
+  // Always keep the last point.
+  filtered_path.push_back(path.back());
+
+  CHECK_EQ(filtered_path.front(), path.front());
+  CHECK_EQ(filtered_path.back(), path.back());
+
+  return filtered_path;
+}
+
+double Nav2dFlow::getPathLength(const Eigen::Vector3d& current_pose_2d, const std::vector<Eigen::Vector3d>& path) {
+  double length = 0.0;
+  for (size_t i=0; i<path.size(); i++) {
+    Eigen::Vector3d diff;
+    if (i == 0) {
+      diff = path[i] - current_pose_2d;
+    } else {
+      diff = path[i] - path[i-1];
+    }
+    diff.z() = 0.0;
+    length += diff.norm();
+  }
+  return length;
+}
+
+int Nav2dFlow::findNearstTrajPoint(const Eigen::Vector3d& current_pose_2d, double* pbest_distance) {
+  int best_i = 0;
+  double& best_distance = *pbest_distance;
+  best_distance = std::numeric_limits<double>::max();
   for (size_t i=0; i<traj_2d_.size(); i++) {
     Eigen::Vector3d diff = traj_2d_[i] - current_pose_2d;
     diff.z() = 0;
     double distance = diff.norm();
-    if (best_distance < -0.001 || distance < best_distance) {
+    if (distance < best_distance) {
       best_distance = distance;
       best_i = i;
     }
@@ -488,63 +512,146 @@ size_t Nav2dFlow::findNearstTrajPoint(const Eigen::Vector3d& current_pose_2d) {
   return best_i;
 }
 
-std::vector<Eigen::Vector3d>  Nav2dFlow::findPoint2PointTraj(size_t start_traj_point_idx, size_t target_point_idx) {
-  size_t end_traj_point_idx = target_points_[target_point_idx];
-  int idx_delta = 1;
-  size_t max_n = 0;
-  if (end_traj_point_idx < start_traj_point_idx) {
-    idx_delta = -1;
-    max_n = start_traj_point_idx - end_traj_point_idx;
-  } else {
-    idx_delta = 1;
-    max_n = end_traj_point_idx - start_traj_point_idx;
-  }
+std::vector<Eigen::Vector3d>  Nav2dFlow::findPoint2PointTraj(
+    const Eigen::Vector3d& current_pose_2d, size_t target_point_idx) {
   std::vector<Eigen::Vector3d> path;
-  path.reserve(max_n);
 
-  for (size_t pidx = start_traj_point_idx; pidx != end_traj_point_idx + idx_delta; pidx += idx_delta) {
-    Eigen::Vector3d curp = traj_2d_[pidx];
-    if (path.size() < 2) {
-      path.push_back(curp);
-      continue;
+  double nearest_distance = std::numeric_limits<double>::max();
+  int nearest_traj_point_idx = findNearstTrajPoint(current_pose_2d, &nearest_distance);
+  if (FLAGS_nav_safe_dist_to_path > 0 && nearest_distance > FLAGS_nav_safe_dist_to_path) {
+    // Return empty path if the current position is too far from the path.
+    return path;
+  }
+
+  double dist_thr = std::max(FLAGS_nav_fastforward_dist_thr, nearest_distance + 0.1);
+  int end_traj_point_idx = target_points_[target_point_idx];
+  std::vector<Eigen::Vector3d> left_path;
+  std::vector<Eigen::Vector3d> right_path;
+
+  // left path
+  int left_start_traj_point_idx = -1;
+  for (int left_i=end_traj_point_idx; left_i>=0; left_i--) {
+    Eigen::Vector3d diff = current_pose_2d - traj_2d_[left_i];
+    diff.z() = 0;
+    double dist = diff.norm();
+    if (dist < dist_thr) {
+      left_start_traj_point_idx = left_i;
+      break;
     }
+  }
+  if (left_start_traj_point_idx >= 0) {
+    left_path = std::vector<Eigen::Vector3d>(
+        traj_2d_.begin() + left_start_traj_point_idx,
+        traj_2d_.begin() + end_traj_point_idx + 1);
+    left_path = filterPath(left_path);
+  }
+  
+  // right path
+  int right_start_traj_point_idx = -1;
+  for (int right_i=end_traj_point_idx; right_i<traj_2d_.size(); right_i++) {
+    Eigen::Vector3d diff = current_pose_2d - traj_2d_[right_i];
+    diff.z() = 0;
+    double dist = diff.norm();
+    if (dist < dist_thr) {
+      right_start_traj_point_idx = right_i;
+      break;
+    }
+  }
+  if (right_start_traj_point_idx >= 0) {
+    right_path = std::vector<Eigen::Vector3d>(
+        traj_2d_.begin() + end_traj_point_idx,
+        traj_2d_.begin() + right_start_traj_point_idx + 1);
+    std::reverse(right_path.begin(), right_path.end());
+    right_path = filterPath(right_path);
+  }
 
-    // check loop:
-    //   - begin from j=1 so that the first path point is ensured not to be removed).
-    //   - 'j+3 < path.size()' prevents loops between neibour points.
-    for (size_t j=1; j+3<path.size(); j++) {
-      Eigen::Vector3d diff0 = curp - path[j];
-      diff0.z() = 0;
+  // return path
+  if (left_path.empty()) {
+    return right_path;
+  } else if (right_path.empty()) {
+    return left_path;
+  }
 
-      // Eigen::Vector3d diff1 = curp - path[j-1];
-      // diff1.z() = 0;
-      // if (diff0.norm() < 0.25 && diff1.norm() < 0.6) {
-      //   // loop found.
-      //   path.erase(path.begin() + j, path.end());
-      //   break;
-      // }
+  if (getPathLength(current_pose_2d, left_path) <
+      getPathLength(current_pose_2d, right_path)) {
+    return left_path;
+  } else {
+    return right_path;
+  }
+}
 
-      double diff0_norm = diff0.norm();
-      if (diff0_norm < 0.6) {
-        // loop found.
-        Eigen::Vector3d diff1 = curp - path[j-1];
-        diff1.z() = 0;
-        double diff1_norm = diff1.norm();
-        if (diff0_norm < 0.3 && diff1_norm < 0.7) {
-          path.erase(path.begin() + j, path.end());
-        } else {
-          path.erase(path.begin() + j + 1, path.end());
-        }
-        break;
+bool Nav2dFlow::checkArrival() const {
+  if (current_pathpoint_idx_ + 1 < current_path_.size()) {
+    return false;
+  }
+
+  CHECK_EQ(current_pathpoint_idx_, current_path_.size() - 1);
+  Eigen::Vector3d target_pose_2d = current_path_[current_pathpoint_idx_];
+  Eigen::Vector3d diff = current_pose_2d_ - target_pose_2d;
+
+  double theta_diff = diff.z();
+  if (theta_diff > M_PI) {
+    theta_diff -= 2.0 * M_PI;
+  } else if (theta_diff < -M_PI) {
+    theta_diff += 2.0 * M_PI;
+  }
+  theta_diff = std::abs(theta_diff);
+
+  diff.z() = 0;
+  double dist = diff.norm();
+
+  if (dist <= FLAGS_nav_arrival_dist_thr && theta_diff <= FLAGS_nav_arrival_angle_thr) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+Nav2dCmd::Ptr Nav2dFlow::runNav(int64_t timestamp_ns) {
+  Nav2dCmd::Ptr nav_cmd = aligned_shared<Nav2dCmd>();
+  nav_cmd->timestamp_ns = timestamp_ns;
+  nav_cmd->cur_pose2d = current_pose_2d_;
+
+  if (current_pathpoint_idx_ + 1 < current_path_.size()) {
+    // Check whether we need to change current_pathpoint_idx_.
+    int fastforward_step = 0;  // default to zero
+
+    // fastforward as many steps as possible.
+    for (size_t step = 1; current_pathpoint_idx_+step < current_path_.size(); step++) {
+      Eigen::Vector3d next_pathp = current_path_[current_pathpoint_idx_+step];
+      Eigen::Vector3d diff = next_pathp - current_pose_2d_;
+      diff.z() = 0;
+      double dist = diff.norm();
+      if (dist < FLAGS_nav_fastforward_dist_thr) {
+        fastforward_step = step;
       }
     }
 
-    // add new traj_point
-    path.push_back(curp);
-  }
-  return path;
-}
+    if (fastforward_step > 0) {
+      current_pathpoint_idx_ += fastforward_step;
+    } else {
+      Eigen::Vector3d cur_pathp = current_path_[current_pathpoint_idx_];
+      Eigen::Vector3d diff = cur_pathp - current_pose_2d_;
+      diff.z() = 0;
+      double dist = diff.norm();
 
+      if (dist < FLAGS_nav_swith_to_next_point_dist_thr) {
+        current_pathpoint_idx_ += 1;
+      }
+    }
+    
+    for (size_t i=0; i < 10 && current_pathpoint_idx_+i < current_path_.size(); i++) {
+      nav_cmd->next_pathpoints.push_back(current_path_[current_pathpoint_idx_+i]);
+    }
+    nav_cmd->is_last_pathpoint = !(current_pathpoint_idx_ + 1 < current_path_.size());
+  } else {
+    nav_cmd->next_pathpoints.push_back(current_path_[current_pathpoint_idx_]);
+    // nav_cmd->is_last_pathpoint = !(current_pathpoint_idx_ + 1 < current_path_.size());
+    nav_cmd->is_last_pathpoint = true;
+  }
+
+  return nav_cmd;
+}
 
 std::shared_ptr<Nav2dFlow::NavInfoForDisplay>
 Nav2dFlow::getCurNavInfoForDisplay() {

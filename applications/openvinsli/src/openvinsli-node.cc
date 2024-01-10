@@ -26,11 +26,15 @@ DEFINE_bool(
     openvinsli_run_nav, true,
     "Run nav");
 
-DEFINE_string(openvinsli_nav_config, "", "nav_config: traj and target points for navigation");
+DEFINE_string(
+    nav_savefile, "nav.yaml",
+    "Path to save the recorded traj and target points. (nav.yaml)");
 
-DEFINE_string(openvinsli_nav_cmd_to_play, "", "the file storing the nav cmds to play (for offline play mode)");
+DEFINE_string(nav_config, "", "nav_config: traj and target points for navigation");
 
-DEFINE_string(openvinsli_nav_cmd_savefile, "", "the file to store the online nav cmds");
+DEFINE_string(nav_cmd_to_play, "", "the file storing the nav cmds to play (for offline play mode)");
+
+DEFINE_string(nav_cmd_savefile, "", "the file to store the online nav cmds");
 
 DEFINE_double(openvinsli_gl_viz_rate, 40.0, "gl visualization rate");
 
@@ -146,21 +150,21 @@ OpenvinsliNode::OpenvinsliNode(
 
   if (FLAGS_openvinsli_run_nav) {
     nav2d_flow_.reset(new Nav2dFlow());
-    if (!FLAGS_openvinsli_nav_cmd_to_play.empty()) {
+    if (!FLAGS_nav_cmd_to_play.empty()) {
       LOG(WARNING) << "nav2d_flow_: We're running in offline play mode!";
-      nav2d_flow_->beginPlayNavCmds(FLAGS_openvinsli_nav_cmd_to_play);
-    } else if (!FLAGS_openvinsli_nav_cmd_savefile.empty()) {
-      nav2d_flow_->beginSaveNavCmds(FLAGS_openvinsli_nav_cmd_savefile);
+      nav2d_flow_->beginPlayNavCmds(FLAGS_nav_cmd_to_play);
+    } else if (!FLAGS_nav_cmd_savefile.empty()) {
+      nav2d_flow_->beginSaveNavCmds(FLAGS_nav_cmd_savefile);
     }
 
     nav2d_flow_->attachToMessageFlow(flow);
 
-    if (!FLAGS_openvinsli_nav_config.empty()) {
-      if (common::fileExists(FLAGS_openvinsli_nav_config)) {
-        nav2d_flow_->deserialize(FLAGS_openvinsli_nav_config);
+    if (!FLAGS_nav_config.empty()) {
+      if (common::fileExists(FLAGS_nav_config)) {
+        nav2d_flow_->deserialize(FLAGS_nav_config);
       } else {
-        LOG(WARNING) << "BadNavConfig: the nav config file specified by --openvinsli_nav_config ("
-                     << FLAGS_openvinsli_nav_config << ") doesn't exist!";
+        LOG(WARNING) << "BadNavConfig: the nav config file specified by --nav_config ("
+                     << FLAGS_nav_config << ") doesn't exist!";
       }
     }
 
