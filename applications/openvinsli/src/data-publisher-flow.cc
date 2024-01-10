@@ -18,6 +18,10 @@ DEFINE_double(
     map_publish_interval_s, 2.0,
     "Interval of publishing the visual-inertial map to ROS [seconds].");
 
+DEFINE_double(
+    rgbd_map_publish_interval_s, 1.0,
+    "Interval of publishing the rgbd dense local map to ROS [seconds].");
+
 DEFINE_bool(
     publish_only_on_keyframes, false,
     "Publish frames only on keyframes instead of the IMU measurements. This "
@@ -295,6 +299,12 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
   flow->registerSubscriber<message_flow_topics::RGBD_LOCAL_MAP>(
       kSubscriberNodeName, message_flow::DeliveryOptions(),
       [this](DenseMapWrapper::ConstPtr map_wrapper) {
+        int64_t time_tolerance_ns = 1e8;  // 100 ms
+        if (map_wrapper->timestamp_ns - last_published_rgbd_map_timestamp_ns_ <= FLAGS_rgbd_map_publish_interval_s * 1e9 - time_tolerance_ns) {
+          return;
+        }
+
+        last_published_rgbd_map_timestamp_ns_ = map_wrapper->timestamp_ns;
         sensor_msgs::PointCloud2 point_cloud;
         rgbdLocalMapToPointCloud(map_wrapper->map_data, &point_cloud);
         point_cloud.header.frame_id = "mission";

@@ -80,6 +80,7 @@ class DataPublisherFlow {
   visualization::SphereVector T_G_I_loc_spheres_;
 
   aslam::Transformation latest_T_G_M_;
+  int64_t last_published_rgbd_map_timestamp_ns_ = -1;
 };
 
 }  //  namespace openvinsli
