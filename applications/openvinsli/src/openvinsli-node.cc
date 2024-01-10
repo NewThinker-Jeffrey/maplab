@@ -150,6 +150,7 @@ OpenvinsliNode::OpenvinsliNode(
 
   if (FLAGS_openvinsli_run_nav) {
     nav2d_flow_.reset(new Nav2dFlow());
+    nav2d_flow_->setPathRecordFile(FLAGS_nav_savefile);
     if (!FLAGS_nav_cmd_to_play.empty()) {
       LOG(WARNING) << "nav2d_flow_: We're running in offline play mode!";
       nav2d_flow_->beginPlayNavCmds(FLAGS_nav_cmd_to_play);

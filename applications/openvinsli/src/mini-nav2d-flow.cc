@@ -190,6 +190,10 @@ bool Nav2dFlow::startPathRecording() {
   return false;
 }
 
+void Nav2dFlow::setPathRecordFile(const std::string& filename) {
+  path_record_file_ = filename;
+}
+
 bool Nav2dFlow::finishPathRecording(const std::string& tmp_savefile) {
   std::string savefile = tmp_savefile;
   if (savefile.empty()) {

@@ -64,6 +64,8 @@ class Nav2dFlow {
   
   bool startPathRecording();
 
+  void setPathRecordFile(const std::string& filename);
+
   bool finishPathRecording(const std::string& savefile="");
 
   bool addTargetPoint(const std::string& target_name="");
