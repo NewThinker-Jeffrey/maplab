@@ -7,9 +7,11 @@ catkin_simple(ALL_DEPS_REQUIRED)
 add_definitions(-Wno-unknown-pragmas)
 
 cs_add_library(${PROJECT_NAME} src/vi-mapping-test-app.cc)
-if(APPLE)
+# "-lgtest" is also needed when we compile with clang instead of gcc,
+# otherwise we get "undefined reference to 'testing::xxx ...".
+# if(APPLE)
   target_link_libraries(${PROJECT_NAME} -lgtest)
-endif()
+# endif()
 
 cs_install()
 cs_export()
