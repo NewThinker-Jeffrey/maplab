@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
   ros::AsyncSpinner ros_spinner(common::getNumHardwareThreads());
   std::unique_ptr<message_flow::MessageFlow> flow(
       message_flow::MessageFlow::create<message_flow::MessageDispatcherFifo>(
-          common::getNumHardwareThreads()));
+          common::getNumHardwareThreads(), "maplab_msg_flow"));
 
   if (FLAGS_map_builder_save_image_as_resources &&
       FLAGS_save_map_folder.empty()) {
