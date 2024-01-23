@@ -5,8 +5,9 @@
 namespace aslam {
 
 // The constructor just launches some amount of workers.
-ThreadPool::ThreadPool(const size_t threads)
+ThreadPool::ThreadPool(const size_t threads, const std::string& thread_name)
     : active_threads_(0),
+      thread_name_(thread_name),
       stop_(false) {
   for (size_t i = 0; i < threads; ++i)
     workers_.emplace_back(std::bind(&ThreadPool::run, this));
@@ -25,6 +26,10 @@ ThreadPool::~ThreadPool() {
 }
 
 void ThreadPool::run() {
+  if (!thread_name_.empty()) {
+    pthread_setname_np(pthread_self(), thread_name_.substr(0, 15).c_str());
+  }
+
   while (true) {
     std::unique_lock<std::mutex> lock(this->tasks_mutex_);
 

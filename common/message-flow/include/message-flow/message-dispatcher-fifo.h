@@ -13,8 +13,8 @@ namespace message_flow {
 // A thread pool delivers the published messages in incoming order.
 class MessageDispatcherFifo : public MessageDispatcher {
  public:
-  explicit MessageDispatcherFifo(size_t num_threads)
-      : thread_pool_(num_threads) {}
+  explicit MessageDispatcherFifo(size_t num_threads, const std::string& thread_name="maplab_msg_flow")
+      : thread_pool_(num_threads, thread_name) {}
 
   virtual ~MessageDispatcherFifo() {
     shutdown();

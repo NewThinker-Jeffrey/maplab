@@ -35,6 +35,7 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include <string>
 
 #include <glog/logging.h>
 
@@ -45,7 +46,7 @@ class ThreadPool {
   /// \brief Create a thread pool.
   ///
   /// \param[in] numThreads The number of threads in the pool.
-  ThreadPool(const size_t numThreads);
+  ThreadPool(const size_t numThreads, const std::string& thread_name="");
   ~ThreadPool();
 
   /// \brief Enqueue work for the thread pool
@@ -90,6 +91,8 @@ class ThreadPool {
   void run();
   /// Need to keep track of threads so we can join them.
   std::vector<std::thread> workers_;
+
+  std::string thread_name_;
 
   // The group id is a size_t where the number kGroupdIdNonExclusiveTask
   // represents a non-exclusive task that needs no guarantees on its execution
