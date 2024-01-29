@@ -72,6 +72,8 @@ class DataPublisherFlow {
   // Publish images from cam0
   std::unique_ptr<image_transport::ImageTransport> it_;
   std::unique_ptr<image_transport::Publisher> pub_raw_image0_;
+  std::unique_ptr<image_transport::Publisher> pub_local_heightmap_;
+
 
   common::TimeoutCounter map_publisher_timeout_;
 
@@ -81,6 +83,9 @@ class DataPublisherFlow {
 
   aslam::Transformation latest_T_G_M_;
   int64_t last_published_rgbd_map_timestamp_ns_ = -1;
+
+  std::mutex mtx_latest_dense_map_ptr_;
+  DenseMapWrapper::ConstPtr latest_dense_map_ptr_;
 };
 
 }  //  namespace openvinsli

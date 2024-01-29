@@ -45,6 +45,26 @@ DEFINE_string(
     share_raw_image0_topic, "/raw_image0",
     "Publish raw image [0] in this topic if it's set to non-empty");
 
+DEFINE_double(
+    height_map_resolution, 0.01, "height_map_resolution");
+
+DEFINE_double(
+    height_map_min_h, -1.5, "height_map_min_h");
+
+DEFINE_double(
+    height_map_max_h, 0.0, "height_map_max_h");
+
+DEFINE_double(
+    height_map_color_min_h, -1.5, "height_map_color_min_h");
+
+DEFINE_double(
+    height_map_color_max_h, 0.0, "height_map_color_max_h");
+
+DEFINE_double(
+    height_map_discrepancy_thr, 0.1, "height_discrepancy_thr");
+
+
+
 DECLARE_bool(openvinsli_run_map_builder);
 
 namespace openvinsli {
@@ -126,6 +146,102 @@ void rgbdLocalMapToPointCloud(
     offset += point_cloud->point_step;
   }
 }
+
+void heightMapToPointCloud(
+    const cv::Mat& height_map,
+    sensor_msgs::PointCloud2* point_cloud,
+    double hmap_resolution) {
+  CHECK_NOTNULL(point_cloud);
+  CHECK_EQ(height_map.type(), CV_16UC1);
+
+  size_t num_points = 0;
+  using Vector3i = Eigen::Matrix<int32_t, 3, 1>;
+  std::vector<Vector3i> ipoints;
+  ipoints.reserve(height_map.rows * height_map.cols);
+
+  for (size_t i = 0; i < height_map.rows; ++i) {
+    for (size_t j = 0; j < height_map.cols; ++j) {
+      const uint16_t& v = height_map.at<uint16_t>(i, j);
+      if (v != 0) {
+        ++num_points;
+        int32_t z = v-32768;
+        ipoints.emplace_back(j-height_map.cols/2, i-height_map.rows/2, z);
+        // if (min_z == 0 || z < min_z) {
+        //   min_z = z;
+        // }
+        // if (z > max_z) {
+        //   max_z = z;
+        // }
+      }
+    }
+  }
+
+
+  int32_t min_z = FLAGS_height_map_color_min_h / hmap_resolution;
+  int32_t max_z = FLAGS_height_map_color_max_h / hmap_resolution;
+  int32_t z_range = max_z - min_z;
+
+  auto z_to_color = [&](const int32_t& z) {
+    int32_t v = (z - min_z) * 255 / z_range;
+    v = std::min(std::max(v, 0), 255);    
+    uint8_t r = v;
+    uint8_t g = 0;
+    uint8_t b = 255 - v;
+    uint32_t rgb = (r << 16) | (g << 8) | b;
+    return rgb;
+  };
+
+  point_cloud->height = 3;
+  point_cloud->width = num_points;
+  point_cloud->fields.resize(4);
+
+  point_cloud->fields[0].name = "x";
+  point_cloud->fields[0].offset = 0;
+  point_cloud->fields[0].count = 1;
+  point_cloud->fields[0].datatype = sensor_msgs::PointField::FLOAT32;
+
+  point_cloud->fields[1].name = "y";
+  point_cloud->fields[1].offset = 4;
+  point_cloud->fields[1].count = 1;
+  point_cloud->fields[1].datatype = sensor_msgs::PointField::FLOAT32;
+
+  point_cloud->fields[2].name = "z";
+  point_cloud->fields[2].offset = 8;
+  point_cloud->fields[2].count = 1;
+  point_cloud->fields[2].datatype = sensor_msgs::PointField::FLOAT32;
+
+  point_cloud->fields[3].name = "rgb";
+  point_cloud->fields[3].offset = 12;
+  point_cloud->fields[3].count = 1;
+  point_cloud->fields[3].datatype = sensor_msgs::PointField::UINT32;
+
+  point_cloud->point_step = 16;
+  point_cloud->row_step = point_cloud->point_step * point_cloud->width;
+  point_cloud->data.resize(point_cloud->row_step * point_cloud->height);
+
+  // https://pointclouds.org/documentation/singletonpcl_1_1_point_cloud.html#a3ca88d8ebf6f4f35acbc31cdfb38aa94
+  // True if no points are invalid (e.g., have NaN or Inf values).
+  point_cloud->is_dense = true;
+
+  int offset = 0;
+  for (size_t point_idx = 0u; point_idx < num_points; ++point_idx) {
+    const auto& v = ipoints.at(point_idx);
+    Eigen::Vector3f point(v.x(), v.y(), v.z());
+    point *= hmap_resolution;
+    memcpy(&point_cloud->data[offset + 0], &point.x(), sizeof(point.x()));
+    memcpy(
+        &point_cloud->data[offset + sizeof(point.x())], &point.y(),
+        sizeof(point.y()));
+    memcpy(
+        &point_cloud->data[offset + sizeof(point.x()) + sizeof(point.y())],
+        &point.z(), sizeof(point.z()));
+
+    const uint32_t rgb = z_to_color(v.z());
+    memcpy(&point_cloud->data[offset + 12], &rgb, sizeof(uint32_t));
+    offset += point_cloud->point_step;
+  }
+}
+
 }  // namespace
 
 DataPublisherFlow::DataPublisherFlow()
@@ -137,9 +253,14 @@ DataPublisherFlow::DataPublisherFlow()
 
 DataPublisherFlow::~DataPublisherFlow() {
   if (pub_raw_image0_) {
-    LOG(INFO) << "Before destroying the publisher";
+    LOG(INFO) << "Before destroying the publisher pub_raw_image0_";
     pub_raw_image0_.reset();
-    LOG(INFO) << "After destroying the publisher";
+    LOG(INFO) << "After destroying the publisher pub_raw_image0_";
+  }
+  if (pub_local_heightmap_) {
+    LOG(INFO) << "Before destroying the publisher pub_local_heightmap_";
+    pub_local_heightmap_.reset();
+    LOG(INFO) << "After destroying the publisher pub_local_heightmap_";
   }
   if (it_) {
     // Note: Destroying the image transport will causes crash! Don't know how to fix for now.
@@ -179,6 +300,7 @@ void DataPublisherFlow::registerPublishers() {
     it_.reset(new image_transport::ImageTransport(node_handle_));
     pub_raw_image0_.reset(new image_transport::Publisher(it_->advertise(FLAGS_share_raw_image0_topic, 1)));
   }
+  pub_local_heightmap_.reset(new image_transport::Publisher(it_->advertise("/local_height_map", 1)));
 }
 
 void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
@@ -215,7 +337,6 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
             pub_raw_image0_->getNumSubscribers() > 0 &&
             image->camera_index == 0) {
 
-          sensor_msgs::Image img_msg;
           cv_bridge::CvImage cv_img;
           cv_img.header.frame_id = "";
           cv_img.header.stamp = createRosTimestamp(image->timestamp);
@@ -299,6 +420,11 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
   flow->registerSubscriber<message_flow_topics::RGBD_LOCAL_MAP>(
       kSubscriberNodeName, message_flow::DeliveryOptions(),
       [this](DenseMapWrapper::ConstPtr map_wrapper) {
+        {
+          std::unique_lock<std::mutex> lock(mtx_latest_dense_map_ptr_);
+          latest_dense_map_ptr_ = map_wrapper;
+        }
+
         int64_t time_tolerance_ns = 1e8;  // 100 ms
         if (map_wrapper->timestamp_ns - last_published_rgbd_map_timestamp_ns_ <= FLAGS_rgbd_map_publish_interval_s * 1e9 - time_tolerance_ns) {
           return;
@@ -307,7 +433,7 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         last_published_rgbd_map_timestamp_ns_ = map_wrapper->timestamp_ns;
         sensor_msgs::PointCloud2 point_cloud;
         rgbdLocalMapToPointCloud(map_wrapper->map_data, &point_cloud);
-        point_cloud.header.frame_id = "mission";
+        point_cloud.header.frame_id = FLAGS_tf_mission_frame;
         point_cloud.header.stamp = createRosTimestamp(map_wrapper->timestamp_ns);
         visualization::RVizVisualizationSink::publish<sensor_msgs::PointCloud2>("/rgbd_local_map", point_cloud);
       });
@@ -346,6 +472,53 @@ void DataPublisherFlow::publishVinsState(
   maplab_msgs::OdometryWithImuBiases maplab_odom_T_M_I;
   nav_msgs::Odometry odom_T_M_I;
   const aslam::Transformation& T_M_I = vinode.get_T_M_I();
+
+  aslam::Transformation gravity_aligned_T_M_I;
+  {
+    Eigen::Isometry3d pose_M_I(T_M_I.getRotation().toImplementation());
+    pose_M_I.translation() = T_M_I.getPosition();
+    auto Zc = pose_M_I.rotation().col(2);
+    float yaw = atan2(Zc.y(), Zc.x());
+    pose_M_I.linear() = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix();
+    // pose_M_I.translation().z() = 0.0;  // Fix z = 0?
+
+    gravity_aligned_T_M_I = aslam::Transformation(pose_M_I.translation(), Eigen::Quaterniond(pose_M_I.rotation()));
+  }
+  visualization::publishTF(
+      gravity_aligned_T_M_I, FLAGS_tf_mission_frame, "imu_with_gravity_aligned", timestamp_ros);
+
+  // Publish height map if available.
+  if (pub_local_heightmap_->getNumSubscribers() > 0) {
+    Eigen::Isometry3d pose(T_M_I.getRotation().toImplementation());
+    pose.translation() = T_M_I.getPosition();
+    Eigen::Isometry3f pose_f = pose.cast<float>();
+
+    DenseMapWrapper::ConstPtr map_wrapper;
+    {
+      std::unique_lock<std::mutex> lock(mtx_latest_dense_map_ptr_);
+      map_wrapper = latest_dense_map_ptr_;
+    }
+
+    if (map_wrapper) {
+      cv::Mat hmap_img = map_wrapper->map_data->getHeightMap(pose_f, FLAGS_height_map_min_h, FLAGS_height_map_max_h, FLAGS_height_map_resolution, FLAGS_height_map_discrepancy_thr);
+      cv_bridge::CvImage cv_img;
+      cv_img.header.frame_id = "";
+      cv_img.header.stamp = timestamp_ros;
+      cv_img.image = hmap_img;
+      cv_img.encoding = "mono16";
+      sensor_msgs::ImagePtr msg = cv_img.toImageMsg();
+      pub_local_heightmap_->publish(msg);
+
+      // Publish the height map as a point cloud.
+      sensor_msgs::PointCloud2 height_pc;
+      const double hmap_resolution = 0.01;
+      heightMapToPointCloud(hmap_img, &height_pc, hmap_resolution);
+      height_pc.header.frame_id = "imu_with_gravity_aligned";
+      height_pc.header.stamp = timestamp_ros;
+      visualization::RVizVisualizationSink::publish<sensor_msgs::PointCloud2>("/local_height_map_pc", height_pc);
+    }
+  }
+
   if (pose_T_M_I_should_publish || maplab_odom_should_publish ||
       odom_should_publish) {
     geometry_msgs::PoseStamped T_M_I_message;
