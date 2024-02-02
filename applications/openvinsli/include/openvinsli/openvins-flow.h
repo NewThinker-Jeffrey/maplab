@@ -38,7 +38,8 @@ class OpenvinsFlow {
 
  private:
   std::unique_ptr<ov_msckf::VioManager> openvins_interface_;
-
+  OpenvinsEstimate::Ptr openvins_estimate_;
+  
   int openvins_num_cameras_;
   std::function<void(const OpenvinsEstimate::ConstPtr&)> publish_openvins_estimates_;
 

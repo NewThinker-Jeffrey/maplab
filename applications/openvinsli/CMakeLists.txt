@@ -9,6 +9,9 @@ set(CMAKE_CXX_STANDARD 17)  # some openvins header filess are using new features
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Enable compile optimizations
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fsee -fomit-frame-pointer -fno-signed-zeros -fno-math-errno -funroll-loops")
+
 # openvins headers need some macros for conditional compiling
 add_definitions(-DROS_AVAILABLE=1)
 option(ENABLE_PANGOLIN "Enable or disable Pangolin viewer" ON)

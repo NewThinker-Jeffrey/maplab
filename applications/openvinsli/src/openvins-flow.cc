@@ -282,10 +282,10 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
 
   auto publish_rgbd_local_map =
       flow->registerPublisher<message_flow_topics::RGBD_LOCAL_MAP>();
-  openvins_interface_->set_rgbd_map_update_callback([=](std::shared_ptr<const ov_msckf::dense_mapping::SimpleDenseMap> rgbd_dense_map) {
+  openvins_interface_->set_rgbd_map_update_callback([=](std::shared_ptr<ov_msckf::dense_mapping::SimpleDenseMapOutput> rgbd_dense_map_output) {
     DenseMapWrapper map_wrapper;
-    map_wrapper.map_data = rgbd_dense_map;
-    map_wrapper.timestamp_ns = time_translation_.convertOpenvinsToMaplabTimestamp(rgbd_dense_map->time);
+    map_wrapper.map_data = rgbd_dense_map_output->ro_map;
+    map_wrapper.timestamp_ns = time_translation_.convertOpenvinsToMaplabTimestamp(map_wrapper.map_data->time);
     auto map_wrapper_ptr = std::make_shared<const DenseMapWrapper>(map_wrapper);
     publish_rgbd_local_map(map_wrapper_ptr);
   });
@@ -391,6 +391,7 @@ std::cout << "processAndPublishOpenvinsUpdate: DEBUG 6" << std::endl;
   }
   localization_handler_->dealWithBufferedLocalizations();
 
-  publish_openvins_estimates_(openvins_estimate);
+  std::swap(openvins_estimate, openvins_estimate_);
+  publish_openvins_estimates_(openvins_estimate_);
 }
 }  // namespace openvinsli

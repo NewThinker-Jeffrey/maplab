@@ -85,15 +85,25 @@ void rgbdLocalMapToPointCloud(
   CHECK_NOTNULL(rgbd_dense_map);
 
   using Voxel = ov_msckf::dense_mapping::Voxel;
-  const std::vector<Voxel>& voxels = rgbd_dense_map->voxels;
-  // for (const Voxel& v : voxels) {
-  //   glColor4ub(v.c[0], v.c[1], v.c[2], 255);
-  //   Eigen::Vector3f p(v.p.x(), v.p.y(), v.p.z());
-  //   p *= rgbd_dense_map->resolution;
-  //   glVertex3f(p.x(), p.y(), p.z());
-  // }
+  using VoxColor = ov_msckf::dense_mapping::VoxColor;
+  using VoxPosition = ov_msckf::dense_mapping::VoxPosition;
 
-  const size_t num_points = voxels.size();
+  size_t num_points = 0;
+  std::vector<VoxPosition> ipoints;
+  std::vector<VoxColor> colors;
+  size_t n_reserved = rgbd_dense_map->reservedVoxelSize();
+  ipoints.reserve(n_reserved);
+  colors.reserve(n_reserved);
+
+  const auto* voxels = rgbd_dense_map->voxels();
+  for (size_t i = 0; i < n_reserved; ++i) {
+    const auto& v = voxels[i];
+    if (v.valid) {
+      ++num_points;
+      ipoints.emplace_back(v.p);
+      colors.emplace_back(v.c);
+    }
+  }
 
   point_cloud->height = 3;
   point_cloud->width = num_points;
@@ -130,8 +140,9 @@ void rgbdLocalMapToPointCloud(
 
   int offset = 0;
   for (size_t point_idx = 0u; point_idx < num_points; ++point_idx) {
-    const auto& v = voxels.at(point_idx);
-    Eigen::Vector3f point(v.p.x(), v.p.y(), v.p.z());
+    const auto& p = ipoints[point_idx];
+    const auto& c = colors[point_idx];
+    Eigen::Vector3f point(p.x(), p.y(), p.z());
     point *= rgbd_dense_map->resolution;
     memcpy(&point_cloud->data[offset + 0], &point.x(), sizeof(point.x()));
     memcpy(
@@ -141,7 +152,7 @@ void rgbdLocalMapToPointCloud(
         &point_cloud->data[offset + sizeof(point.x()) + sizeof(point.y())],
         &point.z(), sizeof(point.z()));
 
-    const uint32_t rgb = (v.c[0] << 16) | (v.c[1] << 8) | v.c[2];
+    const uint32_t rgb = (c[0] << 16) | (c[1] << 8) | c[2];
     memcpy(&point_cloud->data[offset + 12], &rgb, sizeof(uint32_t));
     offset += point_cloud->point_step;
   }
@@ -368,7 +379,8 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
   } else {
     flow->registerSubscriber<message_flow_topics::OPENVINS_ESTIMATES>(
         kSubscriberNodeName, message_flow::DeliveryOptions(),
-        [this](const OpenvinsEstimate::ConstPtr& state) {
+        [this](const OpenvinsEstimate::ConstPtr& _state) {
+          const OpenvinsEstimate::ConstPtr state = _state;
           CHECK(state != nullptr);
           publishVinsState(
               state->timestamp_ns, state->vinode, state->has_T_G_M,
@@ -471,7 +483,8 @@ void DataPublisherFlow::publishVinsState(
   // Publish pose in mission frame.
   maplab_msgs::OdometryWithImuBiases maplab_odom_T_M_I;
   nav_msgs::Odometry odom_T_M_I;
-  const aslam::Transformation& T_M_I = vinode.get_T_M_I();
+  // const aslam::Transformation& T_M_I = vinode.get_T_M_I();
+  const aslam::Transformation T_M_I = vinode.get_T_M_I();
 
   aslam::Transformation gravity_aligned_T_M_I;
   {
@@ -491,6 +504,7 @@ void DataPublisherFlow::publishVinsState(
   if (pub_local_heightmap_->getNumSubscribers() > 0) {
     Eigen::Isometry3d pose(T_M_I.getRotation().toImplementation());
     pose.translation() = T_M_I.getPosition();
+    
     Eigen::Isometry3f pose_f = pose.cast<float>();
 
     DenseMapWrapper::ConstPtr map_wrapper;

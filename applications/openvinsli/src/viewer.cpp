@@ -460,15 +460,22 @@ void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> outpu
     // auto map_ptr = output->visualization.rgbd_dense_map_builder->get_output_map();
     auto map_ptr = output->visualization.rgbd_dense_map_builder->get_display_map(_interal_app->get_params().rgbd_mapping_max_dispaly_voxels);
     if (map_ptr) {
-      const std::vector<Voxel>& voxels = map_ptr->voxels;
+      const auto* voxels = map_ptr->voxels();
+      size_t n_reserved = map_ptr->reservedVoxelSize();
       glPointSize(2.0);
       glBegin(GL_POINTS);
-      for (const Voxel& v : voxels) {
-        glColor4ub(v.c[0], v.c[1], v.c[2], 255);
-        Eigen::Vector3f p(v.p.x(), v.p.y(), v.p.z());
-        p *= map_ptr->resolution;
-        glVertex3f(p.x(), p.y(), p.z());
+      size_t n_valid = 0;
+      for (size_t i=0; i<n_reserved; ++i) {
+        const Voxel& v = voxels[i];
+        if (v.valid) {
+          n_valid ++;
+          glColor4ub(v.c[0], v.c[1], v.c[2], 255);
+          Eigen::Vector3f p(v.p.x(), v.p.y(), v.p.z());
+          p *= map_ptr->resolution;
+          glVertex3f(p.x(), p.y(), p.z());
+        }
       }
+      std::cout << "DEBUG_RGBD_MAP: map_ptr is not null, n_reserved is " << n_reserved << ", n_valid is " << n_valid << ", resolution is " << map_ptr->resolution << std::endl;
       glEnd();
     }
   } else {
