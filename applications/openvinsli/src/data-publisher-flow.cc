@@ -95,15 +95,11 @@ void rgbdLocalMapToPointCloud(
   ipoints.reserve(n_reserved);
   colors.reserve(n_reserved);
 
-  const auto* voxels = rgbd_dense_map->voxels();
-  for (size_t i = 0; i < n_reserved; ++i) {
-    const auto& v = voxels[i];
-    if (v.valid) {
-      ++num_points;
-      ipoints.emplace_back(v.p);
-      colors.emplace_back(v.c);
-    }
-  }
+  rgbd_dense_map->foreachVoxel([&](const VoxPosition& p, const VoxColor& c){
+    ++num_points;
+    ipoints.emplace_back(p);
+    colors.emplace_back(c);
+  });
 
   point_cloud->height = 3;
   point_cloud->width = num_points;
