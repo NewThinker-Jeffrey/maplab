@@ -89,6 +89,8 @@ void OpenvinsliViewer::init() {
       vi_player_->resume();
     }
   });
+  keep_old_map_points_var_ = std::make_shared<pangolin::Var<bool>>("menu.KeepOldMapPoints", false, true);
+  infinite_traj_length_var_ = std::make_shared<pangolin::Var<bool>>("menu.InfiniteTrajLength", false, true);
   pangolin::Var<std::function<void()>> clear_traj_var("menu.ClearTraj", [this](){
     _traj.clear();
   });
@@ -125,7 +127,7 @@ void OpenvinsliViewer::init() {
       nav_->stopNav();
     }
   });
-  show_rgbd_map_var_ = std::make_shared<pangolin::Var<bool>>("menu.ShowRgbdMap", true, true);
+  show_rgbd_map_var_ = std::make_shared<pangolin::Var<bool>>("menu.ShowRgbdMap", false, true);
   pangolin::Var<std::function<void()>> begin_rgbd_mapping_var("menu.BeginRgbdMapping", [this](){
     std::cout << "widget thread id (menu.BeginRgbdMapping): " << std::this_thread::get_id() << std::endl;
     if (_interal_app) {
@@ -222,6 +224,12 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
   _imu_pose = Eigen::Isometry3f(output->state_clone->_imu->Rot().inverse().cast<float>());
   _imu_pose.translation() = new_pos;
   _traj.push_back(new_pos);
+
+  if (! *infinite_traj_length_var_) {
+    while (_traj.size() > 100) {
+      _traj.pop_front();
+    }
+  }
 
   double imu_time;
   if (output->status.initialized) {
@@ -367,7 +375,9 @@ void OpenvinsliViewer::classifyPoints(std::shared_ptr<VioManager::Output> output
   for (size_t i=0; i<output->visualization.feature_ids_SLAM.size(); i++) {
     auto id = output->visualization.feature_ids_SLAM[i];
     const auto& p = output->visualization.features_SLAM[i];
-    _map_points[id] = p;
+    if (*keep_old_map_points_var_) {
+      _map_points[id] = p;
+    }
     _slam_points.push_back(&p);
     new_ids.insert(id);
   }
@@ -375,16 +385,22 @@ void OpenvinsliViewer::classifyPoints(std::shared_ptr<VioManager::Output> output
   for (size_t i=0; i<output->visualization.good_feature_ids_MSCKF.size(); i++) {
     auto id = output->visualization.good_feature_ids_MSCKF[i];
     const auto& p = output->visualization.good_features_MSCKF[i];
-    _map_points[id] = p;
+    if (*keep_old_map_points_var_) {
+      _map_points[id] = p;
+    }
     _msckf_points.push_back(&p);
     new_ids.insert(id);
   }
 
-  for (const auto& item : _map_points) {
-    if (new_ids.count(item.first) == 0) {
-      const Eigen::Vector3d& p = item.second;
-      _old_points.push_back(&p);
+  if (*keep_old_map_points_var_) {
+    for (const auto& item : _map_points) {
+      if (new_ids.count(item.first) == 0) {
+        const Eigen::Vector3d& p = item.second;
+        _old_points.push_back(&p);
+      }
     }
+  } else {
+    _map_points.clear();
   }
 
   for (const auto& item : output->visualization.active_tracks_posinG) {

@@ -83,6 +83,8 @@ private:
   std::shared_ptr<pangolin::Var<bool>> show_nav_var_;
   std::shared_ptr<pangolin::Var<bool>> show_rgbd_map_var_;
   std::shared_ptr<pangolin::Var<bool>> show_reloc_var_;
+  std::shared_ptr<pangolin::Var<bool>> keep_old_map_points_var_;
+  std::shared_ptr<pangolin::Var<bool>> infinite_traj_length_var_;
 };
 
 
