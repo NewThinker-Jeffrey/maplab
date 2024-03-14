@@ -36,7 +36,7 @@ vio_manager_high_frequency_log: false
 choose_new_landmark_by_disparity: true
 enable_early_landmark: true
 
-max_clones: 11 # how many clones in the sliding window
+max_clones: 16 # how many clones in the sliding window
 max_slam: 50 # number of features in our state vector
 max_slam_in_update: 25 # update can be split into sequential updates of batches, how many in a batch
 max_msckf_in_update: 40 # how many MSCKF features to use in the update
@@ -108,7 +108,7 @@ grid_x: 5 # extraction sub-grid count for horizontal direction (uniform tracking
 grid_y: 5 # extraction sub-grid count for vertical direction (uniform tracking)
 min_px_dist: 10 # distance between features (features near each other provide less information)
 knn_ratio: 0.70 # descriptor knn threshold for the top two descriptor matches
-track_frequency: 11.0 # frequency we will perform feature tracking at (in frames per second / hertz)
+track_frequency: 16.0 # frequency we will perform feature tracking at (in frames per second / hertz)
 downsample_cameras: false # will downsample image in half if true
 num_opencv_threads: 4 # -1: auto, 0-1: serial, >1: number of threads
 histogram_method: "HISTOGRAM" # NONE, HISTOGRAM, CLAHE
@@ -162,5 +162,4 @@ imu_acc_filter_param: 0.0   # no filter used
 
 early_landmark_disparity_thr: 0.02
 # imu_acc_filter_param: 20.0  # acc filter window: 20 (only used by propagator)
-
 
