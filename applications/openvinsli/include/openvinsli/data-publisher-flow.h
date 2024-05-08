@@ -21,6 +21,7 @@
 #pragma GCC diagnostic pop
 
 #include "openvinsli/flow-topics.h"
+#include "hear_slam/basic/work_queue.h"
 
 namespace openvinsli {
 
@@ -86,6 +87,8 @@ class DataPublisherFlow {
 
   std::mutex mtx_latest_dense_map_ptr_;
   DenseMapWrapper::ConstPtr latest_dense_map_ptr_;
+
+  std::unique_ptr<hear_slam::VoidWorkQueue> height_map_work_queue_;
 };
 
 }  //  namespace openvinsli

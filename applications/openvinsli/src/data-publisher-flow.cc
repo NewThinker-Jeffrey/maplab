@@ -256,6 +256,7 @@ DataPublisherFlow::DataPublisherFlow()
           FLAGS_map_publish_interval_s * kSecondsToNanoSeconds)) {
   visualization::RVizVisualizationSink::init();
   plotter_.reset(new visualization::ViwlsGraphRvizPlotter);
+  height_map_work_queue_.reset(new hear_slam::VoidWorkQueue(1, "height_map_q", 1, true));
 }
 
 DataPublisherFlow::~DataPublisherFlow() {
@@ -503,30 +504,34 @@ void DataPublisherFlow::publishVinsState(
     
     Eigen::Isometry3f pose_f = pose.cast<float>();
 
-    DenseMapWrapper::ConstPtr map_wrapper;
-    {
-      std::unique_lock<std::mutex> lock(mtx_latest_dense_map_ptr_);
-      map_wrapper = latest_dense_map_ptr_;
-    }
+    // TODO(jeffrey): Publish height map in another thread? Or parallelize getHeightMap().
+    auto get_and_publish_height_map = [this, pose_f, timestamp_ros]() {
+      DenseMapWrapper::ConstPtr map_wrapper;
+      {
+        std::unique_lock<std::mutex> lock(mtx_latest_dense_map_ptr_);
+        map_wrapper = latest_dense_map_ptr_;
+      }
+      if (map_wrapper) {
+        cv::Mat hmap_img = map_wrapper->map_data->getHeightMap(pose_f, FLAGS_height_map_min_h, FLAGS_height_map_max_h, FLAGS_height_map_resolution, FLAGS_height_map_discrepancy_thr);
+        cv_bridge::CvImage cv_img;
+        cv_img.header.frame_id = "";
+        cv_img.header.stamp = timestamp_ros;
+        cv_img.image = hmap_img;
+        cv_img.encoding = "mono16";
+        sensor_msgs::ImagePtr msg = cv_img.toImageMsg();
+        pub_local_heightmap_->publish(msg);
 
-    if (map_wrapper) {
-      cv::Mat hmap_img = map_wrapper->map_data->getHeightMap(pose_f, FLAGS_height_map_min_h, FLAGS_height_map_max_h, FLAGS_height_map_resolution, FLAGS_height_map_discrepancy_thr);
-      cv_bridge::CvImage cv_img;
-      cv_img.header.frame_id = "";
-      cv_img.header.stamp = timestamp_ros;
-      cv_img.image = hmap_img;
-      cv_img.encoding = "mono16";
-      sensor_msgs::ImagePtr msg = cv_img.toImageMsg();
-      pub_local_heightmap_->publish(msg);
+        // Publish the height map as a point cloud.
+        sensor_msgs::PointCloud2 height_pc;
+        const double hmap_resolution = 0.01;
+        heightMapToPointCloud(hmap_img, &height_pc, hmap_resolution);
+        height_pc.header.frame_id = "imu_with_gravity_aligned";
+        height_pc.header.stamp = timestamp_ros;
+        visualization::RVizVisualizationSink::publish<sensor_msgs::PointCloud2>("/local_height_map_pc", height_pc);
+      }
+    };
 
-      // Publish the height map as a point cloud.
-      sensor_msgs::PointCloud2 height_pc;
-      const double hmap_resolution = 0.01;
-      heightMapToPointCloud(hmap_img, &height_pc, hmap_resolution);
-      height_pc.header.frame_id = "imu_with_gravity_aligned";
-      height_pc.header.stamp = timestamp_ros;
-      visualization::RVizVisualizationSink::publish<sensor_msgs::PointCloud2>("/local_height_map_pc", height_pc);
-    }
+    height_map_work_queue_->enqueue(get_and_publish_height_map, true);
   }
 
   if (pose_T_M_I_should_publish || maplab_odom_should_publish ||
