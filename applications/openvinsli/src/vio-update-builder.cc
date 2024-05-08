@@ -203,14 +203,9 @@ void VioUpdateBuilder::findMatchAndPublish() {
 
   // Clean up queues.
 
-  // For openvinsli, we need different clean up logic from that in rovioli.
-  // We should ensure every estimate corresponds to at most one nframe, so that
-  // the number of nframes added to vimap will be almost 1:1 to the number of
-  // frames used in vio.
-  // 
-  // Thus, we should erase all before it_openvins_estimate_before_nframe (including it self).
+  // Erase all before it_openvins_estimate_before_nframe (NOT including itself).
   openvins_estimate_queue_.erase(
-      openvins_estimate_queue_.begin(), it_openvins_estimate_before_nframe + 1);
+      openvins_estimate_queue_.begin(), it_openvins_estimate_before_nframe);
 
   /// Original code from rovioli:
   // if (it_rovio_estimate_before_nframe != rovio_estimate_queue_.begin()) {
