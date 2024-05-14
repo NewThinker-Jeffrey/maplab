@@ -63,6 +63,21 @@ DEFINE_double(
 DEFINE_double(
     height_map_discrepancy_thr, 0.1, "height_discrepancy_thr");
 
+DEFINE_double(
+    height_map_upperbound_param_theta_a, 50.0,
+    "param (theta_a in degrees) used for filtering overhanging obstacles");
+
+DEFINE_double(
+    height_map_upperbound_param_b, 0.1,
+    "param (b in metres) used for filtering overhanging obstacles");
+
+DEFINE_double(
+    height_map_upperbound_param_c, -0.5,
+    "param (c in metres) used for filtering overhanging obstacles");
+
+DEFINE_double(
+    height_map_upperbound_param_d, 0.0,
+    "param (d in metres) used for filtering overhanging obstacles");
 
 
 DECLARE_bool(openvinsli_run_map_builder);
@@ -279,6 +294,8 @@ DataPublisherFlow::~DataPublisherFlow() {
     it_.reset();
     LOG(INFO) << "After destroying the image transport";
   }
+
+  height_map_work_queue_.reset();
 }
 
 void DataPublisherFlow::registerPublishers() {
@@ -512,7 +529,13 @@ void DataPublisherFlow::publishVinsState(
         map_wrapper = latest_dense_map_ptr_;
       }
       if (map_wrapper) {
-        cv::Mat hmap_img = map_wrapper->map_data->getHeightMap(pose_f, FLAGS_height_map_min_h, FLAGS_height_map_max_h, FLAGS_height_map_resolution, FLAGS_height_map_discrepancy_thr);
+        cv::Mat hmap_img = map_wrapper->map_data->getHeightMap(
+            pose_f, FLAGS_height_map_min_h, FLAGS_height_map_max_h, FLAGS_height_map_resolution, FLAGS_height_map_discrepancy_thr,
+            FLAGS_height_map_upperbound_param_theta_a,
+            FLAGS_height_map_upperbound_param_b,
+            FLAGS_height_map_upperbound_param_c,
+            FLAGS_height_map_upperbound_param_d
+            );
         cv_bridge::CvImage cv_img;
         cv_img.header.frame_id = "";
         cv_img.header.stamp = timestamp_ros;
