@@ -49,10 +49,10 @@ DEFINE_double(
     height_map_resolution, 0.01, "height_map_resolution");
 
 DEFINE_double(
-    height_map_min_h, -1.5, "height_map_min_h");
+    height_map_min_h, -5.0, "height_map_min_h");
 
 DEFINE_double(
-    height_map_max_h, 0.0, "height_map_max_h");
+    height_map_max_h, 5.0, "height_map_max_h");
 
 DEFINE_double(
     height_map_color_min_h, -1.5, "height_map_color_min_h");
