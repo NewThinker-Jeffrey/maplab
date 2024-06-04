@@ -13,6 +13,12 @@ max_cameras: 1 # how many cameras we have 1 = mono, 2 = stereo, >2 = binocular (
 
 propagate_with_stereo_feature: true
 grivaty_update_after_propagate_with_stereo_feature: true
+propagation_feature_n_select: 5
+propagation_feature_n_con_thr: 2
+propagation_feature_con_trans_diff_thr: 0.02  # metre
+propagation_feature_bearing_sigma: 0.0025  # rad
+propagation_feature_force_psuedo_stationary: false
+propagation_feature_psuedo_stationary_sigma: 0.7  # metre
 
 use_rgbd: true
 virtual_baseline_for_rgbd: 0.095
