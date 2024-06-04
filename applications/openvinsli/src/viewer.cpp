@@ -213,7 +213,7 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
 
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  cv::Mat img_history = _interal_app->get_historical_viz_image(output);
+  cv::Mat img_history = _interal_app->get_historical_viz_image(*output);
   drawCvImageOnView(
       img_history,
       pangolin::Display("feature_tracking"),
@@ -264,7 +264,8 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
 
   {
     Eigen::Isometry3f view_anchor_pose = Eigen::Isometry3f::Identity();  
-    view_anchor_pose.translation() = Eigen::Vector3f(transformed_new_pos(0), transformed_new_pos(1), 0);
+    // view_anchor_pose.translation() = Eigen::Vector3f(transformed_new_pos(0), transformed_new_pos(1), 0);
+    view_anchor_pose.translation() = Eigen::Vector3f(transformed_new_pos(0), transformed_new_pos(1), transformed_new_pos(2));
     pangolin::OpenGlMatrix Twa = makeGlMatrix(view_anchor_pose.matrix());
 
     // s_cam1->SetModelViewMatrix(pangolin::ModelViewLookAt(transformed_new_pos(0), transformed_new_pos(1), viewpoint_distance, transformed_new_pos(0), transformed_new_pos(1), 0, pangolin::AxisY));

@@ -4,6 +4,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 #include <Eigen/Core>
 #include <aslam/cameras/ncamera.h>
@@ -54,6 +55,14 @@ DEFINE_bool(
     "timestamps. To reduce precision loss the timestamps can be zeroed using the "
     "first timestamp of maplab before conversion.");
 
+DEFINE_bool(
+    openvinsli_save_feature_images, false,
+    "Whether to save feature tracking images.");
+
+DEFINE_string(
+    openvinsli_feature_images_dir, "tmp_feature_images",
+    "dir to save feature tracking images.");
+
 namespace openvinsli {
 OpenvinsFlow::OpenvinsFlow(
     const aslam::NCamera& camera_calibration,
@@ -98,6 +107,15 @@ OpenvinsFlow::OpenvinsFlow(
 
   // Store external OPENVINS odometry calibration
   odom_calibration_ = odom_calibration;
+
+  if (FLAGS_openvinsli_save_feature_images) {
+    std::filesystem::path dir_path(FLAGS_openvinsli_feature_images_dir);
+    if (std::filesystem::create_directory(dir_path)) {
+        std::cout << "feature_images_dir created successfully." << std::endl;
+    } else {
+        std::cout << "feature_images_dir '" <<  FLAGS_openvinsli_feature_images_dir << "' already exists or cannot be created!!" << std::endl;
+    }
+  }
 }
 
 OpenvinsFlow::~OpenvinsFlow() {
@@ -292,6 +310,22 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
 }
 
 void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::Output& output) {
+
+  if (FLAGS_openvinsli_save_feature_images) {
+    // Get our image of history tracks
+    cv::Mat feature_image = openvins_interface_->get_historical_viz_image(output);
+
+    // RGB to BGR
+    cv::cvtColor(feature_image, feature_image, cv::COLOR_RGB2BGR);
+
+    if (!feature_image.empty()) {
+      // the timestamp of the visulized image is actually 'prev_timestamp'.
+      int64_t ts = int64_t(output.status.prev_timestamp * 1e9);
+      std::string img_file = FLAGS_openvinsli_feature_images_dir + "/" + std::to_string(ts) + ".jpg";
+      cv::imwrite(img_file, feature_image);
+    }
+  }
+
   if (!output.status.initialized) {
     LOG(WARNING) << "OPENVINS not yet initialized. Discarding state update.";
     return;
