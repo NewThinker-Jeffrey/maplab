@@ -536,6 +536,10 @@ void DataPublisherFlow::publishVinsState(
             FLAGS_height_map_upperbound_param_c,
             FLAGS_height_map_upperbound_param_d
             );
+
+        // cv::medianBlur(src, dst, 5);
+        cv::medianBlur(hmap_img, hmap_img, 5);
+
         cv_bridge::CvImage cv_img;
         cv_img.header.frame_id = "";
         cv_img.header.stamp = timestamp_ros;
