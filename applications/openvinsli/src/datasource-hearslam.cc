@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 #include <aslam/common/time.h>
 #include <boost/bind.hpp>
@@ -25,6 +26,7 @@
 
 #include "openvinsli/ros-helpers.h"
 #include "hear_slam/basic/logging.h"
+#include "hear_slam/basic/thread_pool.h"
 
 DEFINE_double(
     hearslam_data_start_s, 0.0, "Start of the hearslam_data in seconds.");
@@ -53,6 +55,64 @@ DEFINE_string(hearslam_data_rs_name_hint, "", "realsense name_hint for hearslam 
 DEFINE_string(hearslam_data_rs_port_hint, "", "realsense port hint for hearslam datasource");
 DEFINE_int32(hearslam_data_infra_exposure_time_us, -1, "-1 for auto exposure");
 DEFINE_int32(hearslam_data_color_exposure_time_us, -1, "-1 for auto exposure");
+DEFINE_bool(
+    hearslam_data_visualize_depth, false,
+    "Whether to visualize depth images.");
+DEFINE_bool(
+    hearslam_data_save_visualized_depth, false,
+    "Whether to save visualized_depth images.");
+DEFINE_string(
+    hearslam_data_visualized_depth_images_dir, "tmp_visualized_depth_images",
+    "dir to save visualized_depth images.");
+
+namespace {
+
+uint8_t* log_depth_table = nullptr;
+
+cv::Mat visualizeDepthImage(const cv::Mat& depth_img) {
+  ASSERT(depth_img.type() == CV_16U);
+
+  if (!log_depth_table) {
+    // build log_depth_table
+    log_depth_table = new uint8_t[65536];
+    const double inv_log2__x__16 = 16.0 / std::log(2.0);
+    auto log_value = [](int depth_i) {
+      double depth = 0.001 * depth_i;  // in meters
+      static const double base_depth = 0.3;
+      double delta_depth = (depth - base_depth);
+      delta_depth = std::max(delta_depth, 0.0);
+      // return log(static_cast<double>(1000.0 * delta_depth + 1.0));
+      return log(double(delta_depth/5.0 + 1.0));
+      // return log(double(depth+1.0));
+    };
+    double min_value = log_value(0);
+    // double max_value = log_value(65535);
+    double max_value = log_value(5000);
+    double ratio = 255.0 / (max_value - min_value);
+    for (int i = 0; i < 65536; i++) {
+      int v = (log_value(i) - min_value) * ratio;
+      v = std::min(v, 255);
+      v = std::max(v, 0);
+      log_depth_table[i] = 255 - v;
+    }
+
+    // 0 for unavailable.
+    log_depth_table[0] = 0;
+  }
+
+  cv::Mat log_depth_img(depth_img.size(), CV_8UC3);
+  auto* ptr_log = log_depth_img.ptr<uint8_t>();
+  const auto* ptr = depth_img.ptr<uint16_t>();
+  for (size_t i = 0; i < depth_img.rows * depth_img.cols; i++) {
+    ptr_log[i*3] = log_depth_table[ptr[i]];
+    ptr_log[i*3 + 1] = 0;
+    ptr_log[i*3 + 2] = (ptr_log[i*3] != 0) * (255 - ptr_log[i*3]);
+  }
+
+  return log_depth_img;
+}
+
+}
 
 namespace openvinsli {
 
@@ -76,6 +136,15 @@ DataSourceHearslam::DataSourceHearslam(
     // std::cout << "play imu: " << imu_idx << std::endl;
     hearslamImuCallback(imu_idx, msg);
   };
+
+  if (FLAGS_hearslam_data_save_visualized_depth) {
+    std::filesystem::path dir_path(FLAGS_hearslam_data_visualized_depth_images_dir);
+    if (std::filesystem::create_directory(dir_path)) {
+        std::cout << "visualized_depth_images_dir created successfully." << std::endl;
+    } else {
+        std::cout << "visualized_depth_images_dir '" <<  FLAGS_hearslam_data_visualized_depth_images_dir << "' already exists or cannot be created!!" << std::endl;
+    }
+  }
 
   if (dataset_path_.empty()) {
     LOG(WARNING) << "The dataset_path is not set, so we get live data from realsense.";
@@ -253,6 +322,27 @@ void DataSourceHearslam::hearslamImageCallback(int image_idx, hear_slam::CameraD
           last_depth_timestamp_ns_ = image_measurement->timestamp;
           VLOG(3) << "Publish Depth Image measurement...";
           invokeImageCallbacks(image_measurement);
+
+          if (FLAGS_hearslam_data_save_visualized_depth || FLAGS_hearslam_data_visualize_depth) {
+            // Get our image of history tracks
+            hear_slam::ThreadPool::getNamed("depth_viz")->schedule([image_measurement](){
+              cv::Mat visualized_depth_image = visualizeDepthImage(image_measurement->image);
+              // // RGB to BGR
+              // cv::cvtColor(visualized_depth_image, visualized_depth_image, cv::COLOR_RGB2BGR);
+
+              if (!visualized_depth_image.empty()) {
+                int64_t ts = image_measurement->timestamp;
+                std::string img_file = FLAGS_hearslam_data_visualized_depth_images_dir + "/" + std::to_string(ts) + ".jpg";
+                if (FLAGS_hearslam_data_save_visualized_depth) {
+                  cv::imwrite(img_file, visualized_depth_image);
+                }
+                if (FLAGS_hearslam_data_visualize_depth) {
+                  cv::imshow("depth", visualized_depth_image);
+                  cv::waitKey(1);
+                }
+              }
+            });
+          }          
         }
       } else {
         CHECK_LT(camera_idx, last_image_timestamp_ns_.size());
