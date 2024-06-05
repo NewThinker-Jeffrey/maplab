@@ -53,8 +53,8 @@ DEFINE_int32(
 DEFINE_string(hearslam_data_rs_serial_num, "", "realsense serial num for hearslam datasource");
 DEFINE_string(hearslam_data_rs_name_hint, "", "realsense name_hint for hearslam datasource");
 DEFINE_string(hearslam_data_rs_port_hint, "", "realsense port hint for hearslam datasource");
-DEFINE_int32(hearslam_data_infra_exposure_time_us, -1, "-1 for auto exposure");
-DEFINE_int32(hearslam_data_color_exposure_time_us, -1, "-1 for auto exposure");
+DEFINE_double(hearslam_data_infra_exposure_time_us, -1.0, "<0 for auto exposure");
+DEFINE_double(hearslam_data_color_exposure_time_us, -1.0, "<0 for auto exposure");
 DEFINE_bool(
     hearslam_data_visualize_depth, false,
     "Whether to visualize depth images.");
