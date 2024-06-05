@@ -51,7 +51,8 @@ DEFINE_int32(
 DEFINE_string(hearslam_data_rs_serial_num, "", "realsense serial num for hearslam datasource");
 DEFINE_string(hearslam_data_rs_name_hint, "", "realsense name_hint for hearslam datasource");
 DEFINE_string(hearslam_data_rs_port_hint, "", "realsense port hint for hearslam datasource");
-DEFINE_int32(hearslam_data_exposure_time_us, -1, "-1 for auto exposure");
+DEFINE_int32(hearslam_data_infra_exposure_time_us, -1, "-1 for auto exposure");
+DEFINE_int32(hearslam_data_color_exposure_time_us, -1, "-1 for auto exposure");
 
 namespace openvinsli {
 
@@ -89,7 +90,8 @@ DataSourceHearslam::DataSourceHearslam(
     bs.infra_framerate = 30;
     bs.infra_width = image_width;
     bs.infra_height = image_height;
-    bs.exposure_time_us = FLAGS_hearslam_data_exposure_time_us;
+    bs.infra_exposure_time_us = FLAGS_hearslam_data_infra_exposure_time_us;
+    bs.color_exposure_time_us = FLAGS_hearslam_data_color_exposure_time_us;
 
     LOGW(YELLOW "Sensor settings for realsense: image size_wh(%d, %d), imu_rate(%d)\n" RESET, bs.infra_width, bs.infra_height, bs.gyro_framerate);
 
