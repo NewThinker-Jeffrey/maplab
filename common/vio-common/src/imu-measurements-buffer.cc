@@ -139,7 +139,7 @@ ImuMeasurementBuffer::getImuDataInterpolatedBordersImpl(
 ImuMeasurementBuffer::QueryResult
 ImuMeasurementBuffer::getImuDataInterpolatedBordersBlocking(
     int64_t timestamp_ns_from, int64_t timestamp_ns_to,
-    int64_t wait_timeout_nanoseconds,
+    int64_t wait_timeout_nanoseconds,  // negative value means waitting forever (until shutdown)
     Eigen::Matrix<int64_t, 1, Eigen::Dynamic>* imu_timestamps,
     Eigen::Matrix<double, 6, Eigen::Dynamic>* imu_measurements) const {
   CHECK_NOTNULL(imu_timestamps);
@@ -154,8 +154,12 @@ ImuMeasurementBuffer::getImuDataInterpolatedBordersBlocking(
   while ((query_result =
               isDataAvailableUpToImpl(timestamp_ns_from, timestamp_ns_to)) !=
          QueryResult::kDataAvailable) {
-    cv_new_measurement_.wait_for(
-        lock, std::chrono::nanoseconds(wait_timeout_nanoseconds));
+    if (wait_timeout_nanoseconds > 0) {
+      cv_new_measurement_.wait_for(
+          lock, std::chrono::nanoseconds(wait_timeout_nanoseconds));
+    } else {
+      cv_new_measurement_.wait(lock);
+    }
 
     if (shutdown_) {
       imu_timestamps->resize(Eigen::NoChange, 0);
@@ -166,7 +170,7 @@ ImuMeasurementBuffer::getImuDataInterpolatedBordersBlocking(
     // Check if we hit the max. time allowed to wait for the required data.
     int64_t total_elapsed_time_nanoseconds =
         aslam::time::nanoSecondsSinceEpoch() - time_start;
-    if (total_elapsed_time_nanoseconds >= wait_timeout_nanoseconds) {
+    if (wait_timeout_nanoseconds > 0 && total_elapsed_time_nanoseconds >= wait_timeout_nanoseconds) {
       imu_timestamps->resize(Eigen::NoChange, 0);
       imu_measurements->resize(Eigen::NoChange, 0);
       LOG(WARNING) << "Timeout reached while trying to get the requested "

@@ -19,6 +19,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <gflags/gflags.h>
+DEFINE_bool(
+    data_player_paused, false,
+    "Whether the date player paused.");
+
+
 
 #if ENABLE_PANGOLIN
 
@@ -31,6 +37,7 @@
 #include <opencv2/opencv.hpp>
 #include <Eigen/Geometry>
 #include <glog/logging.h>
+
 
 #include "slam_viz/pangolin_helper.h"
 #include "state/Propagator.h"
@@ -76,17 +83,19 @@ void OpenvinsliViewer::init() {
   pangolin::Var<std::function<void()>> pause_var("menu.PauseData", [this](){
     if (vi_player_) {
       vi_player_->pause();
+      FLAGS_data_player_paused = true;
     }
   });
-  //// Currently FrameByFrame mode can't work well with the imu-camera-synchronizer in maplab.
-  // pangolin::Var<std::function<void()>> frame_by_frame_var("menu.FrameByFrame", [this](){
-  //   if (vi_player_) {
-  //     vi_player_->pauseAtEveryImage();
-  //   }
-  // });
+  pangolin::Var<std::function<void()>> frame_by_frame_var("menu.FrameByFrame", [this](){
+    if (vi_player_) {
+      vi_player_->pauseAtEveryImage();
+      FLAGS_data_player_paused = true;
+    }
+  });
   pangolin::Var<std::function<void()>> resume_var("menu.ResumeData", [this](){
     if (vi_player_) {
       vi_player_->resume();
+      FLAGS_data_player_paused = false;
     }
   });
   keep_old_map_points_var_ = std::make_shared<pangolin::Var<bool>>("menu.KeepOldMapPoints", false, true);

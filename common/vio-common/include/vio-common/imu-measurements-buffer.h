@@ -87,7 +87,7 @@ class ImuMeasurementBuffer {
   /// will return false and no data will be removed from the buffer.
   QueryResult getImuDataInterpolatedBordersBlocking(
       int64_t timestamp_ns_from, int64_t timestamp_ns_to,
-      int64_t wait_timeout_nanoseconds,
+      int64_t wait_timeout_nanoseconds,  // negative value means waitting forever (until shutdown)
       Eigen::Matrix<int64_t, 1, Eigen::Dynamic>* imu_timestamps,
       Eigen::Matrix<double, 6, Eigen::Dynamic>* imu_measurements) const;
 

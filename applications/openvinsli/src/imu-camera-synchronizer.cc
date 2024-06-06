@@ -11,6 +11,7 @@ DEFINE_double(
     vio_nframe_sync_max_output_frequency_hz, 10.0,
     "Maximum output frequency of the synchronized IMU-NFrame structures "
     "from the synchronizer.");
+DECLARE_bool(data_player_paused);
 
 namespace openvinsli {
 
@@ -96,6 +97,10 @@ void ImuCameraSynchronizer::checkIfMessagesAreIncomingWorker() {
       return;
     }
 
+    if (FLAGS_data_player_paused) {
+      continue;
+    }
+
     const int64_t current_time_ns = aslam::time::nanoSecondsSinceEpoch();
     LOG_IF(
         WARNING,
@@ -155,7 +160,8 @@ void ImuCameraSynchronizer::processDataThreadWorker() {
     // Wait for the required IMU data.
     CHECK(aslam::time::isValidTime(previous_nframe_timestamp_ns_));
     CHECK_LT(previous_nframe_timestamp_ns_, current_frame_timestamp_ns);
-    const int64_t kWaitTimeoutNanoseconds = aslam::time::milliseconds(50);
+    // const int64_t kWaitTimeoutNanoseconds = aslam::time::milliseconds(50);
+    const int64_t kWaitTimeoutNanoseconds = -1;  // wait until shutdown
     vio_common::ImuMeasurementBuffer::QueryResult result;
     bool skip_frame = false;
     while ((result = imu_buffer_->getImuDataInterpolatedBordersBlocking(

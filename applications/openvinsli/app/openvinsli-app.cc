@@ -41,6 +41,7 @@ DEFINE_bool(
     "Optimize and process the map into a localization map before "
     "saving it.");
 DECLARE_double(openvinsli_image_resize_factor);
+DECLARE_bool(data_player_paused);
 
 
 std::shared_ptr<openvinsli::OpenvinsliNode> openvins_localization_node = nullptr;
@@ -191,9 +192,11 @@ int main(int argc, char** argv) {
       openvins_localization_node->isDataSourceExhausted();
   int main_loop = 0;
   while (ros::ok() && !end_of_days_signal_received.load()) {
-    VLOG_EVERY_N(1, 10) << "\n" << flow->printDeliveryQueueStatistics();
-    if (main_loop++ % 10 == 0) {
-      std::cout << "[APP STATUS] main_loop = " << main_loop << std::endl;
+    if (!FLAGS_data_player_paused) {
+      VLOG_EVERY_N(1, 10) << "\n" << flow->printDeliveryQueueStatistics();
+      if (main_loop++ % 10 == 0) {
+        std::cout << "[APP STATUS] main_loop = " << main_loop << std::endl;
+      }
     }
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }

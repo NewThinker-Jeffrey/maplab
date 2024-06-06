@@ -25,12 +25,13 @@
 #include "core/VioManager.h"
 #include <mutex>
 
+#include "openvinsli/mini-nav2d-flow.h"
+
 
 #if ENABLE_PANGOLIN
 #include <pangolin/pangolin.h>
 #include "slam_viz/pangolin_helper_types.h"
 
-#include "openvinsli/mini-nav2d-flow.h"
 #include "hear_slam/common/datasource/vi_player.h"
 
 namespace openvinsli {
@@ -101,6 +102,9 @@ public:
   }
   void init() {}
   void show(std::shared_ptr<ov_msckf::VioManager::Output> task) {}
+  void setNav(Nav2dFlow* nav) {}
+  void setNavCmd(const openvinsli::Nav2dCmd::ConstPtr& nav_cmd) {}
+  void setViPlayer(hear_slam::ViPlayer* vi_player) {}
 };
 
 } // namespace openvinsli
