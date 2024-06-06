@@ -208,11 +208,13 @@ std::cout << "OpenvinsliViewer::init(): After pangolin::OpenGlRenderState" << st
   pangolin::View& d_cam2 = pangolin::Display("cam2")
     .SetAspect(640.0f/480.0f)
     .SetHandler(new pangolin::Handler3D(*s_cam2))
-    .SetBounds(0.5, 1.0, 0.5 * (1 + menu_width), 1.0);
+    // .SetBounds(0.5, 1.0, 0.5 * (1 + menu_width), 1.0);
+    .SetBounds(0.0, 0.5, menu_width, 0.5 * (1 + menu_width));
 
   pangolin::View& d_feat_track_img = pangolin::Display("feature_tracking")
     .SetAspect(640.0f/480.0f)
-    .SetBounds(0.0, 0.5, 0.5 * (1 + menu_width), 1.0);
+    // .SetBounds(0.0, 0.5, 0.5 * (1 + menu_width), 1.0);
+    .SetBounds(0.0, 1.0, 0.5 * (1 + menu_width), 1.0);
 }
 
 void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {

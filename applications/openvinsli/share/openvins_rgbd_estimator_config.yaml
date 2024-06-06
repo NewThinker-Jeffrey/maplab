@@ -25,6 +25,9 @@ propagation_feature_psuedo_stationary_sigma: 0.7  # metre
 
 disable_visual_update: false     # for testing propagation
 
+feat_viz_cur_only_highlighted: true
+feat_viz_prev_only_highlighted: true
+
 use_rgbd: true
 virtual_baseline_for_rgbd: 0.095
 depth_unit_for_rgbd: 0.001
