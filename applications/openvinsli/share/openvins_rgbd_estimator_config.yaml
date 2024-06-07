@@ -25,6 +25,16 @@ propagation_feature_psuedo_stationary_sigma: 0.7  # metre
 
 disable_visual_update: false     # for testing propagation
 
+enable_depth_update: false
+depth_update_max_depth:  5.0
+depth_update_image_downsample:  16
+depth_update_knn_k:  16
+depth_update_neibour_blocks_size:  3
+depth_update_max_points_per_block:  16
+depth_update_eigen_ratio_thr:  0.11
+depth_update_flat_eigen_multiplier:  10000.0
+depth_update_print_eigenvalus: false
+
 feat_viz_cur_only_highlighted: true
 feat_viz_prev_only_highlighted: true
 
@@ -178,6 +188,11 @@ up_slam_sigma_px: 2
 up_slam_chi2_multipler: 1
 up_slam_absolute_residual_thr: -1.0
 # up_slam_absolute_residual_thr: 3.0
+
+up_mappoint_sigma_px: 2
+up_mappoint_chi2_multipler: 1
+up_mappoint_absolute_residual_thr: -1.0
+# up_mappoint_absolute_residual_thr: 3.0
 
 up_aruco_sigma_px: 2
 up_aruco_chi2_multipler: 1
