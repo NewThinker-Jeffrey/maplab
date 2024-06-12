@@ -13,25 +13,32 @@ max_cameras: 1 # how many cameras we have 1 = mono, 2 = stereo, >2 = binocular (
 
 propagate_with_stereo_feature: true
 grivaty_update_after_propagate_with_stereo_feature: true
+
+# propagation_feature_n_select: 20
+# propagation_feature_n_max_adopt: 1
+# propagation_feature_skip_latest_used: false
+# propagation_feature_n_con_thr: 4
+# propagation_feature_n_con_thr2: 10
 propagation_feature_n_select: 20
 propagation_feature_n_max_adopt: 20
 propagation_feature_skip_latest_used: false
 propagation_feature_n_con_thr: 4
 propagation_feature_n_con_thr2: 10
+
 propagation_feature_con_trans_diff_thr: 0.01  # metre
 propagation_feature_bearing_sigma: 0.0025  # rad
 propagation_feature_force_psuedo_stationary: false
 propagation_feature_psuedo_stationary_sigma: 0.7  # metre
 
-disable_visual_update: false     # for testing propagation
+disable_visual_update: true     # for testing propagation
 
-enable_depth_update: false
+enable_depth_update: true
 depth_update_max_depth:  5.0
 depth_update_image_downsample:  16
 depth_update_knn_k:  16
 depth_update_neibour_blocks_size:  3
 depth_update_max_points_per_block:  16
-depth_update_eigen_ratio_thr:  0.11
+depth_update_eigen_ratio_thr:  0.11 # 0.11
 depth_update_flat_eigen_multiplier:  10000.0
 depth_update_print_eigenvalus: false
 
@@ -70,7 +77,10 @@ use_semantic_masking: false
 semantic_masking_model_path: "/slam/seg_model"
 semantic_masking_profiler_path: "/tmp/mmseg_profile.bin"
 semantic_masking_labels_to_mask: [15]  # 15 stands for 'person' in VOC12 dataset.
-semantic_masking_dilate_kernel_size: 5
+# semantic_masking_image_downsample: 2
+# semantic_masking_dilate_kernel_size: 5
+semantic_masking_image_downsample: 3
+semantic_masking_dilate_kernel_size: 9
 
 
 calib_cam_extrinsics: true # if the transform between camera and IMU should be optimized R_ItoC, p_CinI
