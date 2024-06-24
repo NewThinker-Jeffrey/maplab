@@ -78,11 +78,11 @@ semantic_masking_model_path: "/slam/seg_model"
 semantic_masking_profiler_path: "/tmp/mmseg_profile.bin"
 semantic_masking_labels_to_mask: [15]  # 15 stands for 'person' in VOC12 dataset.
 
-semantic_masking_image_downsample: 1
-semantic_masking_dilate_kernel_size: 7
+# semantic_masking_image_downsample: 1
+# semantic_masking_dilate_kernel_size: 7
 
-# semantic_masking_image_downsample: 2
-# semantic_masking_dilate_kernel_size: 5
+semantic_masking_image_downsample: 2
+semantic_masking_dilate_kernel_size: 5
 
 # semantic_masking_image_downsample: 3
 # semantic_masking_dilate_kernel_size: 15
