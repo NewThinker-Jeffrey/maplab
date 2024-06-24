@@ -36,14 +36,14 @@ enable_depth_update: true
 depth_update_max_depth:  5.0
 depth_update_image_downsample:  16
 depth_update_knn_k:  16
-depth_update_neibour_blocks_size:  3
+depth_update_neibour_blocks_size:  2
 depth_update_max_points_per_block:  16
 depth_update_eigen_ratio_thr:  0.11 # 0.11
 depth_update_flat_eigen_multiplier:  10000.0
 depth_update_print_eigenvalus: false
 
-feat_viz_cur_only_highlighted: true
-feat_viz_prev_only_highlighted: true
+feat_viz_cur_only_highlighted: false
+feat_viz_prev_only_highlighted: false
 
 use_rgbd: true
 virtual_baseline_for_rgbd: 0.095
@@ -73,14 +73,19 @@ rgbd_mapping_max_voxels: 2000000
 rgbd_mapping_max_dispaly_voxels: 500000
 
 
-use_semantic_masking: false
+use_semantic_masking: true
 semantic_masking_model_path: "/slam/seg_model"
 semantic_masking_profiler_path: "/tmp/mmseg_profile.bin"
 semantic_masking_labels_to_mask: [15]  # 15 stands for 'person' in VOC12 dataset.
+
+semantic_masking_image_downsample: 1
+semantic_masking_dilate_kernel_size: 7
+
 # semantic_masking_image_downsample: 2
 # semantic_masking_dilate_kernel_size: 5
-semantic_masking_image_downsample: 3
-semantic_masking_dilate_kernel_size: 9
+
+# semantic_masking_image_downsample: 3
+# semantic_masking_dilate_kernel_size: 15
 
 
 calib_cam_extrinsics: true # if the transform between camera and IMU should be optimized R_ItoC, p_CinI
