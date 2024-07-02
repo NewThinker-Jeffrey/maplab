@@ -20,20 +20,22 @@ grivaty_update_after_propagate_with_stereo_feature: true
 # propagation_feature_n_con_thr: 4
 # propagation_feature_n_con_thr2: 10
 propagation_feature_n_select: 20
-propagation_feature_n_max_adopt: 20
+propagation_feature_n_max_adopt: 1
+# propagation_feature_n_max_adopt: 20
 propagation_feature_skip_latest_used: false
 propagation_feature_n_con_thr: 4
 propagation_feature_n_con_thr2: 10
 
 propagation_feature_con_trans_diff_thr: 0.01  # metre
-propagation_feature_bearing_sigma: 0.0025  # rad
+# propagation_feature_bearing_sigma: 0.0025  # rad
+propagation_feature_bearing_sigma: 0.00125  # rad
 propagation_feature_force_psuedo_stationary: false
 propagation_feature_psuedo_stationary_sigma: 0.7  # metre
 
-disable_visual_update: true     # for testing propagation
+disable_visual_update: false     # for testing propagation
 
 enable_depth_update: true
-depth_update_max_depth:  5.0
+depth_update_max_depth:  4.0
 depth_update_image_downsample:  16
 depth_update_knn_k:  16
 depth_update_neibour_blocks_size:  2
@@ -42,8 +44,22 @@ depth_update_eigen_ratio_thr:  0.11 # 0.11
 depth_update_flat_eigen_multiplier:  10000.0
 depth_update_print_eigenvalus: false
 
-feat_viz_cur_only_highlighted: false
-feat_viz_prev_only_highlighted: false
+enable_stereo_ransac: true
+stereo_ransac_estimate_full6d: false  # much faster
+# stereo_ransac_estimate_full6d: true
+
+# stereo_ransac_error_thr: 0.0025
+# stereo_ransac_error_thr: 0.0004
+stereo_ransac_error_thr: 0.0001
+stereo_ransac_min_inlier_ratio: 0.3
+# stereo_ransac_min_inlier_ratio: 0.5
+# stereo_ransac_min_inlier_ratio: 0.7
+stereo_ransac_confidence: 0.999
+stereo_ransac_local_opt_max_iter: 4
+stereo_ransac_debug: true
+
+feat_viz_cur_only_highlighted: true
+feat_viz_prev_only_highlighted: true
 
 use_rgbd: true
 virtual_baseline_for_rgbd: 0.095
@@ -177,7 +193,7 @@ num_opencv_threads: 4 # -1: auto, 0-1: serial, >1: number of threads
 histogram_method: "HISTOGRAM" # NONE, HISTOGRAM, CLAHE
 
 klt_left_major_stereo: true
-klt_strict_stereo: false
+klt_strict_stereo: true
 klt_force_fundamental: true
 feattrack_high_frequency_log: false
 feattrack_predict_keypoints: true
