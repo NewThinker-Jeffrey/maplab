@@ -88,7 +88,7 @@ class DataPublisherFlow {
   std::mutex mtx_latest_dense_map_ptr_;
   DenseMapWrapper::ConstPtr latest_dense_map_ptr_;
 
-  std::unique_ptr<hear_slam::VoidWorkQueue> height_map_work_queue_;
+  std::unique_ptr<hear_slam::TaskQueue> height_map_work_queue_;
 };
 
 }  //  namespace openvinsli

@@ -271,7 +271,7 @@ DataPublisherFlow::DataPublisherFlow()
           FLAGS_map_publish_interval_s * kSecondsToNanoSeconds)) {
   visualization::RVizVisualizationSink::init();
   plotter_.reset(new visualization::ViwlsGraphRvizPlotter);
-  height_map_work_queue_.reset(new hear_slam::VoidWorkQueue(1, "height_map_q", 1, true));
+  height_map_work_queue_.reset(new hear_slam::TaskQueue("height_map_q", 1, 1, true));
 }
 
 DataPublisherFlow::~DataPublisherFlow() {
