@@ -515,7 +515,8 @@ void DataPublisherFlow::publishVinsState(
       gravity_aligned_T_M_I, FLAGS_tf_mission_frame, "imu_with_gravity_aligned", timestamp_ros);
 
   // Publish height map if available.
-  if (pub_local_heightmap_->getNumSubscribers() > 0) {
+  bool always_publish_heightmap = true;
+  if (always_publish_heightmap || pub_local_heightmap_->getNumSubscribers() > 0) {
     Eigen::Isometry3d pose(T_M_I.getRotation().toImplementation());
     pose.translation() = T_M_I.getPosition();
     
