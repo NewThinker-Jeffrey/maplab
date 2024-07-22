@@ -35,6 +35,7 @@ propagation_feature_psuedo_stationary_sigma: 0.7  # metre
 disable_visual_update: false     # for testing propagation
 
 enable_depth_update: true
+depth_update_freq_downsample: 3
 depth_update_max_depth:  4.0
 depth_update_image_downsample:  16
 depth_update_knn_k:  16
