@@ -12,7 +12,14 @@ use_stereo: true # if we have more than 1 camera, if we should try to track ster
 max_cameras: 1 # how many cameras we have 1 = mono, 2 = stereo, >2 = binocular (all mono tracking)
 
 propagate_with_stereo_feature: true
-grivaty_update_after_propagate_with_stereo_feature: true
+gravity_update_after_propagate_with_stereo_feature: true
+
+# gravity_update_direction_sigma: 0.1
+# gravity_update_mal_dis_thr: 2.0
+
+gravity_update_direction_sigma: 0.02
+gravity_update_mal_dis_thr: 9.0
+
 
 # propagation_feature_n_select: 20
 # propagation_feature_n_max_adopt: 1
@@ -35,7 +42,7 @@ propagation_feature_psuedo_stationary_sigma: 0.7  # metre
 disable_visual_update: false     # for testing propagation
 
 enable_depth_update: true
-depth_update_freq_downsample: 3
+depth_update_freq_downsample: 1
 depth_update_max_depth:  4.0
 depth_update_image_downsample:  16
 depth_update_knn_k:  16
