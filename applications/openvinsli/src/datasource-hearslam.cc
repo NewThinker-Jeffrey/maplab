@@ -54,7 +54,9 @@ DEFINE_string(hearslam_data_rs_serial_num, "", "realsense serial num for hearsla
 DEFINE_string(hearslam_data_rs_name_hint, "", "realsense name_hint for hearslam datasource");
 DEFINE_string(hearslam_data_rs_port_hint, "", "realsense port hint for hearslam datasource");
 DEFINE_double(hearslam_data_infra_exposure_time_us, -1.0, "<0 for auto exposure");
-DEFINE_double(hearslam_data_color_exposure_time_us, -1.0, "<0 for auto exposure");
+DEFINE_double(hearslam_data_color_exposure_time_100us, -1.0, "<0 for auto exposure");
+DEFINE_double(hearslam_data_infra_gain, -1.0, "<0 for the default gain");
+DEFINE_double(hearslam_data_color_gain, -1.0, "<0 for the default gain");
 DEFINE_bool(
     hearslam_data_visualize_depth, false,
     "Whether to visualize depth images.");
@@ -159,8 +161,11 @@ DataSourceHearslam::DataSourceHearslam(
     bs.infra_framerate = 30;
     bs.infra_width = image_width;
     bs.infra_height = image_height;
+
+    bs.infra_gain = FLAGS_hearslam_data_infra_gain;
     bs.infra_exposure_time_us = FLAGS_hearslam_data_infra_exposure_time_us;
-    bs.color_exposure_time_us = FLAGS_hearslam_data_color_exposure_time_us;
+    bs.color_gain = FLAGS_hearslam_data_color_gain;
+    bs.color_exposure_time_100us = FLAGS_hearslam_data_color_exposure_time_100us;
 
     LOGW(YELLOW "Sensor settings for realsense: image size_wh(%d, %d), imu_rate(%d)\n" RESET, bs.infra_width, bs.infra_height, bs.gyro_framerate);
 
