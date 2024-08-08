@@ -37,6 +37,9 @@
 #include "utils/print.h"             // ov_core
 #include "utils/sensor_data.h"       // ov_core
 
+#include "hear_slam/basic/time.h"
+#include "hear_slam/basic/logging.h"
+
 // DEFINE_bool(
 //     openvins_update_filter_on_imu, true,
 //     "Update the filter state for IMU measurement; if false the IMU measurements"
@@ -136,6 +139,7 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
   flow->registerSubscriber<message_flow_topics::IMU_MEASUREMENTS>(
       kSubscriberNodeName, openvins_subscriber_options,
       [this](const vio::ImuMeasurement::ConstPtr& imu) {
+        hear_slam::TimeCounter tc;
         // Do not apply the predictions but only queue them. They will be
         // applied before the next update.
         ov_core::ImuData ov_imu;
@@ -148,6 +152,11 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
 
         localization_handler_->T_M_I_buffer_mutable()->bufferImuMeasurement(
             *imu);
+
+        double eplased_ms = tc.elapsed().millis();
+        if (eplased_ms > 1) {
+          LOGI("OpenvinsFlow.IMU: cost time %.3f ms, timestamp %.3f s", eplased_ms, ov_imu.timestamp);
+        }
       });
 
   // Input Odometry.
@@ -194,9 +203,6 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
           openvins_cam_id = *p_openvins_cam_index;
         }
 
-        const double openvins_timestamp_sec =
-            time_translation_.convertMaplabToOpenvinsTimestamp(image->timestamp);
-
         // we only support three settings in openvins: mono, stereo, rgbd.
         assert(openvins_cam_id == 0 || openvins_cam_id == 1);
         cam_id_to_image_queue_[openvins_cam_id].push_back(image);
@@ -205,6 +211,7 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         const int64_t MAX_PRECISION_NS = 10;  // Maybe 1 is enough.
         if (openvins_params.state_options.num_cameras == 2 || openvins_params.state_options.use_rgbd) {
           while (!cam_id_to_image_queue_[0].empty() && !cam_id_to_image_queue_[1].empty()) {
+            hear_slam::TimeCounter tc;
             vio::ImageMeasurement::ConstPtr image0 = cam_id_to_image_queue_[0].front();
             vio::ImageMeasurement::ConstPtr image1 = cam_id_to_image_queue_[1].front();
             if (abs(image0->timestamp - image1->timestamp) > MAX_PRECISION_NS) {
@@ -230,9 +237,15 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
             openvins_interface_->feed_measurement_camera(cam);
             cam_id_to_image_queue_[0].pop_front();
             cam_id_to_image_queue_[1].pop_front();
+
+            double eplased_ms = tc.elapsed().millis();
+            if (eplased_ms > 1) {
+              LOGI("OpenvinsFlow.IMAGE: cost time %.3f ms, timestamp %.3f s", eplased_ms, cam.timestamp);
+            }
           }
         } else {
           while (!cam_id_to_image_queue_[0].empty()) {
+            hear_slam::TimeCounter tc;
             vio::ImageMeasurement::ConstPtr image0 = cam_id_to_image_queue_[0].front();
             ov_core::CameraData cam;
             cam.timestamp = time_translation_.convertMaplabToOpenvinsTimestamp(image0->timestamp);
@@ -243,6 +256,11 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
 
             openvins_interface_->feed_measurement_camera(cam);
             cam_id_to_image_queue_[0].pop_front();
+
+            double eplased_ms = tc.elapsed().millis();
+            if (eplased_ms > 1) {
+              LOGI("OpenvinsFlow.IMAGE: cost time %.3f ms, timestamp %.3f s", eplased_ms, cam.timestamp);
+            }
           }
         }
       });
