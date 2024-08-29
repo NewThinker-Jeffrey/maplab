@@ -17,6 +17,9 @@
 
 #include "core/VioManager.h"         // ov_msckf
 #include "openvinsli/viewer.h"       
+#include "hear_slam/vtag/vtag_factory.h"
+#include "hear_slam/basic/work_queue.h"
+
 namespace openvinsli {
 class OpenvinsLocalizationHandler;
 
@@ -35,6 +38,9 @@ class OpenvinsFlow {
   ov_msckf::VioManager* openvinsInterface() const {
     return openvins_interface_.get();
   }
+
+ private:
+  void processTag(ov_core::CameraData cam);
 
  private:
   std::unique_ptr<ov_msckf::VioManager> openvins_interface_;
@@ -57,6 +63,12 @@ class OpenvinsFlow {
   // camera synchronizing
   using ImageQueue = std::deque<vio::ImageMeasurement::ConstPtr>;
   std::map<size_t, ImageQueue> cam_id_to_image_queue_;
+
+  // vtag
+
+  std::shared_ptr<hear_slam::TagDetectorInterface> vtag_detector_;
+  // hear_slam::SimpleCameraParams simple_camera_params_;
+  std::shared_ptr<hear_slam::WorkQueue<ov_core::CameraData>> vtag_work_queue_;
 };
 }  // namespace openvinsli
 #endif  // OPENVINSLI_OPENVINS_FLOW_H_

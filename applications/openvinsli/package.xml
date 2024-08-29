@@ -43,4 +43,5 @@
   <depend>vi_mapping_test_app</depend>
   <depend>vio_common</depend>
   <depend>visualization</depend>
+  <depend>apriltag</depend>
 </package>

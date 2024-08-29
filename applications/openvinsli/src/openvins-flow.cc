@@ -53,6 +53,14 @@ DEFINE_bool(
     "Perform health checking on the estimator output and reset if necessary.");
 
 DEFINE_bool(
+    openvinsli_enable_vtag, true,
+    "Enable vtag or not.");
+
+DEFINE_bool(
+    openvinsli_visualize_vtag, true,
+    "Visualize vtag or not.");
+
+DEFINE_bool(
     use_zeroed_openvins_time, false,
     "OPENVINS uses seconds (double) and maplab nanoseconds (int64_t) as "
     "timestamps. To reduce precision loss the timestamps can be zeroed using the "
@@ -119,9 +127,18 @@ OpenvinsFlow::OpenvinsFlow(
         std::cout << "feature_images_dir '" <<  FLAGS_openvinsli_feature_images_dir << "' already exists or cannot be created!!" << std::endl;
     }
   }
+
+  if (FLAGS_openvinsli_enable_vtag) {
+    vtag_detector_ = hear_slam::TagDetectorFactory::createDetector(hear_slam::TagType::April);
+    vtag_work_queue_ = std::make_shared<hear_slam::WorkQueue<ov_core::CameraData>>(
+        std::bind(&OpenvinsFlow::processTag, this, std::placeholders::_1), "vtag_work_queue", 1, 2, true);
+  }
 }
 
 OpenvinsFlow::~OpenvinsFlow() {
+  if (vtag_work_queue_) {
+    vtag_work_queue_->stop();
+  }
 }
 
 void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
@@ -325,6 +342,43 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
     auto map_wrapper_ptr = std::make_shared<const DenseMapWrapper>(map_wrapper);
     publish_rgbd_local_map(map_wrapper_ptr);
   });
+}
+
+void OpenvinsFlow::processTag(ov_core::CameraData cam) {
+  auto openvins_cams = openvins_interface_->getLastOutput()->state_clone->_cam_intrinsics_cameras;
+  if (openvins_cams.empty()) {
+    LOG(ERROR) << "OpenvinsFlow::processTag(): No camera intrinsics found in Openvins output";
+    return;
+  }
+
+  const int cam_id = 0;
+  if (openvins_cams.count(cam_id) == 0) {
+    LOG(ERROR) << "OpenvinsFlow::processTag(): No camera intrinsics found for camera id " << cam_id;
+    return;
+  }
+
+  auto openvins_cam = openvins_cams.at(0);
+  Eigen::MatrixXd openvins_cam_params = openvins_cam->get_value();
+
+  hear_slam::SimpleCameraParams simple_camera_params;
+  simple_camera_params.fx = openvins_cam_params(0);
+  simple_camera_params.fy = openvins_cam_params(1);
+  simple_camera_params.cx = openvins_cam_params(2);
+  simple_camera_params.cy = openvins_cam_params(3);
+
+  ASSERT(cam.sensor_ids.at(0) == 0);
+  std::vector<hear_slam::TagDetection> detections = vtag_detector_->detect(cam.images.at(0), simple_camera_params);
+
+  if (FLAGS_openvinsli_visualize_vtag) {
+    bool display_cov = false;
+    bool display_rmse = true;
+    cv::Mat display_image = hear_slam::TagDetectorInterface::visualizeTagDetections(
+        cam.timestamp * 1e9, cam.images.at(0),
+        simple_camera_params,
+        detections, display_cov, display_rmse);
+    cv::imshow("Tag detections", display_image);
+    cv::waitKey(1);
+  }
 }
 
 void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::Output& output) {
