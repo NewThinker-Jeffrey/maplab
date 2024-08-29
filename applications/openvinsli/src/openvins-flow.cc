@@ -252,6 +252,11 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
             cam.masks.push_back(cv::Mat::zeros(image1->image.rows, image1->image.cols, CV_8UC1));
 
             openvins_interface_->feed_measurement_camera(cam);
+
+            if (vtag_work_queue_) {
+              vtag_work_queue_->enqueue(cam);
+            }
+
             cam_id_to_image_queue_[0].pop_front();
             cam_id_to_image_queue_[1].pop_front();
 
@@ -272,6 +277,11 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
             cam.masks.push_back(cv::Mat::zeros(image0->image.rows, image0->image.cols, CV_8UC1));
 
             openvins_interface_->feed_measurement_camera(cam);
+
+            if (vtag_work_queue_) {
+              vtag_work_queue_->enqueue(cam);
+            }
+
             cam_id_to_image_queue_[0].pop_front();
 
             double eplased_ms = tc.elapsed().millis();
