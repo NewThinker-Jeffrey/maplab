@@ -377,13 +377,19 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
   simple_camera_params.cy = openvins_cam_params(3);
 
   ASSERT(cam.sensor_ids.at(0) == 0);
-  std::vector<hear_slam::TagDetection> detections = vtag_detector_->detect(cam.images.at(0), simple_camera_params);
+  cv::Mat gray;
+  if (cam.images.at(0).channels() == 3) {
+    cv::cvtColor(cam.images.at(0), gray, cv::COLOR_RGB2GRAY);
+  } else {
+    gray = cam.images.at(0);
+  }
+  std::vector<hear_slam::TagDetection> detections = vtag_detector_->detect(gray, simple_camera_params);
 
   if (FLAGS_openvinsli_visualize_vtag) {
     bool display_cov = false;
     bool display_rmse = true;
     cv::Mat display_image = hear_slam::TagDetectorInterface::visualizeTagDetections(
-        cam.timestamp * 1e9, cam.images.at(0),
+        cam.timestamp * 1e9, gray,
         simple_camera_params,
         detections, display_cov, display_rmse);
     cv::imshow("Tag detections", display_image);
