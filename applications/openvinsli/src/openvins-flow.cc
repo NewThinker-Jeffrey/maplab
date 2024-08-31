@@ -336,6 +336,10 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
           &OpenvinsLocalizationHandler::processLocalizationResult,
           localization_handler_.get(), std::placeholders::_1));
 
+  // Output tag detections
+  publish_tag_detections_ =
+      flow->registerPublisher<message_flow_topics::TAG_DETECTIONS>();
+
   // Output OPENVINS estimates.
   publish_openvins_estimates_ =
       flow->registerPublisher<message_flow_topics::OPENVINS_ESTIMATES>();
@@ -383,7 +387,18 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
   } else {
     gray = cam.images.at(0);
   }
+
+  using hear_slam::Time;
+  Time start_time = Time::now();
   std::vector<hear_slam::TagDetection> detections = vtag_detector_->detect(gray, simple_camera_params);
+  Time end_time = Time::now();
+  LOGI("Tag-detection took %.2f ms", (end_time - start_time).millis());
+
+  auto stamped_detections = std::make_shared<StampedTagDetections>();
+  stamped_detections->timestamp_ns = time_translation_.convertOpenvinsToMaplabTimestamp(cam.timestamp);
+  stamped_detections->detections.swap(detections);
+  stamped_detections->cam_id = cam.sensor_ids.at(0);
+  publish_tag_detections_(stamped_detections);
 
   if (FLAGS_openvinsli_visualize_vtag) {
     bool display_cov = false;

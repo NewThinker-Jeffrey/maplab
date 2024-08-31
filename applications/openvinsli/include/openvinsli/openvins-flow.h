@@ -10,6 +10,7 @@
 #include <sensors/imu.h>
 #include <vio-common/vio-types.h>
 
+#include "openvinsli/flow-topics.h"
 #include "openvinsli/openvins-estimate.h"
 #include "openvinsli/openvins-factory.h"
 #include "openvinsli/openvins-health-monitor.h"
@@ -69,6 +70,8 @@ class OpenvinsFlow {
   std::shared_ptr<hear_slam::TagDetectorInterface> vtag_detector_;
   // hear_slam::SimpleCameraParams simple_camera_params_;
   std::shared_ptr<hear_slam::WorkQueue<ov_core::CameraData>> vtag_work_queue_;
+
+  std::function<void(const StampedTagDetections::ConstPtr&)> publish_tag_detections_;
 };
 }  // namespace openvinsli
 #endif  // OPENVINSLI_OPENVINS_FLOW_H_

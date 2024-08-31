@@ -9,6 +9,7 @@
 #include "openvinsli/openvins-estimate.h"
 #include "openvinsli/vi-map-with-mutex.h"
 #include "core/SimpleDenseMapping.h"
+#include "hear_slam/vtag/vtag.h"
 
 // TODO(schneith): All message should be ConstPtr.
 
@@ -29,10 +30,21 @@ struct DenseMapWrapper {
   int64_t timestamp_ns;
   using ConstPtr = std::shared_ptr<const DenseMapWrapper>;
 };
+
+struct StampedTagDetections {
+  int64_t timestamp_ns;
+  int cam_id;
+  std::vector<hear_slam::TagDetection> detections;
+  using ConstPtr = std::shared_ptr<const StampedTagDetections>;
+  using Ptr = std::shared_ptr<const StampedTagDetections>;
+};
 }  // namespace openvinsli
 
 MESSAGE_FLOW_TOPIC(
     RGBD_LOCAL_MAP, openvinsli::DenseMapWrapper::ConstPtr);
+
+MESSAGE_FLOW_TOPIC(
+    TAG_DETECTIONS, openvinsli::StampedTagDetections::ConstPtr);
 
 // Output of the localizer.
 MESSAGE_FLOW_TOPIC(LOCALIZATION_RESULT, vio::LocalizationResult::ConstPtr);
