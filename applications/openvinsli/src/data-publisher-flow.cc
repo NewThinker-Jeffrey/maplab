@@ -7,6 +7,8 @@
 #include <minkindr_conversions/kindr_msg.h>
 #include <nav_msgs/Odometry.h>
 
+#include <eigen_conversions/eigen_msg.h>
+
 #include <sensor_msgs/Image.h>
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
@@ -321,6 +323,8 @@ void DataPublisherFlow::registerPublishers() {
           kTopicMaplabOdomMsg, 1);
   pub_odom_T_M_I_ =
       node_handle_.advertise<nav_msgs::Odometry>(kTopicOdomMsg, 1);
+  pub_grasp_points_computed_from_tag_ = node_handle_.advertise<geometry_msgs::PoseArray>(
+      "grasp_points", 1);
   if (!FLAGS_share_raw_image0_topic.empty()) {
     it_.reset(new image_transport::ImageTransport(node_handle_));
     pub_raw_image0_.reset(new image_transport::Publisher(it_->advertise(FLAGS_share_raw_image0_topic, 1)));
@@ -373,6 +377,49 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
           }
           sensor_msgs::ImagePtr msg = cv_img.toImageMsg();
           pub_raw_image0_->publish(msg);
+        }
+      });
+
+  // publish grasp points (tag)
+  flow->registerSubscriber<message_flow_topics::TAG_DETECTIONS>(
+      kSubscriberNodeName, message_flow::DeliveryOptions(),
+      [this](StampedTagDetections::ConstPtr stamped_detections) {
+        if (stamped_detections->cam_id == 0) {
+          using hear_slam::TagFamily;
+          using hear_slam::TagID;
+          const TagID target_tag_id(TagFamily::April_36h11, 1);
+
+          for (const auto& detection :
+               stamped_detections->detections) {
+            if (detection.tag_id == target_tag_id) {
+              const Eigen::Isometry3d& T_Cam_Tag = detection.T_Cam_Tag->toIsometry();
+              Eigen::Quaterniond tag_q(T_Cam_Tag.rotation());
+              Eigen::Vector3d tag_p(T_Cam_Tag.translation());
+
+              // Publish estimated grasp points.
+              geometry_msgs::PoseArray grasp_points_message;
+              // grasp_points_message.header.frame_id = "color_camera";
+              grasp_points_message.header.frame_id = FLAGS_tf_imu_frame;  // TODO: change to camera frame
+              grasp_points_message.header.stamp = createRosTimestamp(stamped_detections->timestamp_ns);
+
+              Eigen::Vector3d grasp_position1 = T_Cam_Tag * Eigen::Vector3d(-0.20, 0.0, 0.1);
+              Eigen::Quaterniond grasp_orientation1 = tag_q;
+              geometry_msgs::Pose grasp_point_message1;
+              tf::pointEigenToMsg(grasp_position1, grasp_point_message1.position);
+              tf::quaternionEigenToMsg(grasp_orientation1, grasp_point_message1.orientation);
+              grasp_points_message.poses.emplace_back(grasp_point_message1);
+
+              Eigen::Vector3d grasp_position2 = T_Cam_Tag * Eigen::Vector3d( 0.20, 0.0, 0.1);
+              Eigen::Quaterniond grasp_orientation2 = tag_q;
+              geometry_msgs::Pose grasp_point_message2;
+              tf::pointEigenToMsg(grasp_position2, grasp_point_message2.position);
+              tf::quaternionEigenToMsg(grasp_orientation2, grasp_point_message2.orientation);
+              grasp_points_message.poses.emplace_back(grasp_point_message2);
+
+              pub_grasp_points_computed_from_tag_.publish(grasp_points_message);
+              break;
+            }
+          }
         }
       });
 

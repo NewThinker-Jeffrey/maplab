@@ -65,6 +65,7 @@ class DataPublisherFlow {
   ros::Publisher pub_imu_acc_bias_;
   ros::Publisher pub_imu_gyro_bias_;
   ros::Publisher pub_extrinsics_T_C_Bs_;
+  ros::Publisher pub_grasp_points_computed_from_tag_;
 
   // Maplab odometry message publisher (includes IMU biases).
   ros::Publisher pub_maplab_odom_T_M_I_;
