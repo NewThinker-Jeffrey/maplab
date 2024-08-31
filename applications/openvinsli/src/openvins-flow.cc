@@ -402,11 +402,11 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
 
   if (FLAGS_openvinsli_visualize_vtag) {
     bool display_cov = false;
-    bool display_rmse = true;
+    bool display_rmse = false;
     cv::Mat display_image = hear_slam::TagDetectorInterface::visualizeTagDetections(
         cam.timestamp * 1e9, gray,
         simple_camera_params,
-        detections, display_cov, display_rmse);
+        stamped_detections->detections, display_cov, display_rmse);
     cv::imshow("Tag detections", display_image);
     cv::waitKey(1);
   }

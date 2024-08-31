@@ -399,17 +399,20 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
               // Publish estimated grasp points.
               geometry_msgs::PoseArray grasp_points_message;
               // grasp_points_message.header.frame_id = "color_camera";
-              grasp_points_message.header.frame_id = FLAGS_tf_imu_frame;  // TODO: change to camera frame
+              grasp_points_message.header.frame_id = FLAGS_tf_imu_frame;
+                    // TODO: change to camera frame (the camera frame is not
+                    // registered to tf for now, so we temporarily use the IMU
+                    // frame)
               grasp_points_message.header.stamp = createRosTimestamp(stamped_detections->timestamp_ns);
 
-              Eigen::Vector3d grasp_position1 = T_Cam_Tag * Eigen::Vector3d(-0.20, 0.0, 0.1);
+              Eigen::Vector3d grasp_position1 = T_Cam_Tag * Eigen::Vector3d(-0.20, 0.0, -0.1);
               Eigen::Quaterniond grasp_orientation1 = tag_q;
               geometry_msgs::Pose grasp_point_message1;
               tf::pointEigenToMsg(grasp_position1, grasp_point_message1.position);
               tf::quaternionEigenToMsg(grasp_orientation1, grasp_point_message1.orientation);
               grasp_points_message.poses.emplace_back(grasp_point_message1);
 
-              Eigen::Vector3d grasp_position2 = T_Cam_Tag * Eigen::Vector3d( 0.20, 0.0, 0.1);
+              Eigen::Vector3d grasp_position2 = T_Cam_Tag * Eigen::Vector3d( 0.20, 0.0, -0.1);
               Eigen::Quaterniond grasp_orientation2 = tag_q;
               geometry_msgs::Pose grasp_point_message2;
               tf::pointEigenToMsg(grasp_position2, grasp_point_message2.position);
