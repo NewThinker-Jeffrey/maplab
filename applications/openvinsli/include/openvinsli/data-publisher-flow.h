@@ -90,6 +90,9 @@ class DataPublisherFlow {
   DenseMapWrapper::ConstPtr latest_dense_map_ptr_;
 
   std::unique_ptr<hear_slam::TaskQueue> height_map_work_queue_;
+
+  using GraspObjectId = uint32_t;
+  std::map<GraspObjectId, std::vector<Eigen::Vector3d>> local_grasp_points_map_;
 };
 
 }  //  namespace openvinsli

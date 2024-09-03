@@ -16,6 +16,10 @@
 #include "openvinsli/ros-helpers.h"
 #include "core/SimpleDenseMapping.h"      // ov_msckf
 
+#include "hear_slam/common/yaml_helper.h"
+#include "hear_slam/basic/string_helper.h"
+#include "hear_slam/basic/logging.h"
+
 DEFINE_double(
     map_publish_interval_s, 2.0,
     "Interval of publishing the visual-inertial map to ROS [seconds].");
@@ -80,6 +84,10 @@ DEFINE_double(
 DEFINE_double(
     height_map_upperbound_param_d, 0.0,
     "param (d in metres) used for filtering overhanging obstacles");
+
+DEFINE_string(
+    local_grasp_points_yaml, "",
+    "Grasp points yaml file");
 
 
 DECLARE_bool(openvinsli_run_map_builder);
@@ -274,6 +282,29 @@ DataPublisherFlow::DataPublisherFlow()
   visualization::RVizVisualizationSink::init();
   plotter_.reset(new visualization::ViwlsGraphRvizPlotter);
   height_map_work_queue_.reset(new hear_slam::TaskQueue("height_map_q", 1, 1, true));
+  if (!FLAGS_local_grasp_points_yaml.empty()) {
+    auto local_grasp_points_yamlptr = hear_slam::loadYaml(FLAGS_local_grasp_points_yaml);
+    auto& local_grasp_points_yaml = *local_grasp_points_yamlptr;
+    const auto& objectes = local_grasp_points_yaml["objects"];
+    size_t n_objects = objectes.size();
+    for (size_t i = 0; i < n_objects; ++i) {
+      const auto& object = objectes[i];
+      GraspObjectId object_id = object["id"].as<GraspObjectId>();
+      const auto& grasp_points = object["grasp_points"];
+      size_t n_grasp_points = grasp_points.size();
+      std::vector<Eigen::Vector3d> grasp_points_vec;
+      for (size_t j = 0; j < n_grasp_points; ++j) {
+        const auto& grasp_point = grasp_points[j];
+        Eigen::Vector3d grasp_point_vec(grasp_point[0].as<double>(), grasp_point[1].as<double>(), grasp_point[2].as<double>());
+        grasp_points_vec.push_back(grasp_point_vec);
+      }
+      local_grasp_points_map_[object_id] = grasp_points_vec;
+    }
+    for (auto& pair : local_grasp_points_map_) {
+      using hear_slam::toStr;
+      LOGI("Grasp points for object %d: %s", pair.first, toStr(pair.second, [](const Eigen::Vector3d& v) { return v.transpose(); }).c_str());
+    }
+  }  
 }
 
 DataPublisherFlow::~DataPublisherFlow() {
@@ -388,6 +419,12 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
           using hear_slam::TagFamily;
           using hear_slam::TagID;
           const TagID target_tag_id(TagFamily::April_36h11, 1);
+          GraspObjectId obj_id = target_tag_id.id;
+          auto iter = local_grasp_points_map_.find(obj_id);
+          if (iter == local_grasp_points_map_.end()) {
+            return;            
+          }
+          const auto& local_grasp_points = iter->second;
 
           for (const auto& detection :
                stamped_detections->detections) {
@@ -405,19 +442,14 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
                     // frame)
               grasp_points_message.header.stamp = createRosTimestamp(stamped_detections->timestamp_ns);
 
-              Eigen::Vector3d grasp_position1 = T_Cam_Tag * Eigen::Vector3d(-0.20, 0.0, -0.1);
-              Eigen::Quaterniond grasp_orientation1 = tag_q;
-              geometry_msgs::Pose grasp_point_message1;
-              tf::pointEigenToMsg(grasp_position1, grasp_point_message1.position);
-              tf::quaternionEigenToMsg(grasp_orientation1, grasp_point_message1.orientation);
-              grasp_points_message.poses.emplace_back(grasp_point_message1);
-
-              Eigen::Vector3d grasp_position2 = T_Cam_Tag * Eigen::Vector3d( 0.20, 0.0, -0.1);
-              Eigen::Quaterniond grasp_orientation2 = tag_q;
-              geometry_msgs::Pose grasp_point_message2;
-              tf::pointEigenToMsg(grasp_position2, grasp_point_message2.position);
-              tf::quaternionEigenToMsg(grasp_orientation2, grasp_point_message2.orientation);
-              grasp_points_message.poses.emplace_back(grasp_point_message2);
+              for (const auto& local_grasp_point : local_grasp_points) {
+                Eigen::Vector3d grasp_position = T_Cam_Tag * local_grasp_point;
+                Eigen::Quaterniond grasp_orientation = tag_q;
+                geometry_msgs::Pose grasp_point_message;
+                tf::pointEigenToMsg(grasp_position, grasp_point_message.position);
+                tf::quaternionEigenToMsg(grasp_orientation, grasp_point_message.orientation);
+                grasp_points_message.poses.emplace_back(grasp_point_message);
+              }
 
               pub_grasp_points_computed_from_tag_.publish(grasp_points_message);
               break;
