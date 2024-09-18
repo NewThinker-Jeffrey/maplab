@@ -672,21 +672,13 @@ void DataPublisherFlow::publishVinsState(
     // - [1.0, 0.0, 0.0, -0.03022]
     // - [0.0, 1.0, 0.0,  0.0074 ]
     // - [0.0, 0.0, 1.0,  0.01602]
-
-    Eigen::Isometry3d pose_M_I(T_M_I.getRotation().toImplementation());
-    pose_M_I.translation() = T_M_I.getPosition();
-    auto Zc = pose_M_I.rotation().col(2);
-    float yaw = atan2(Zc.y(), Zc.x());
-    pose_M_I.linear() = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix();
-    // pose_M_I.translation().z() = 0.0;  // Fix z = 0?
-
-    Eigen::Matrix3d R_I_Cleft;
-    R_I_ Cleft << 1, 0, 0,
+    Eigen::Matrix3d R_I_Curdf;
+    R_I_Curdf << 1, 0, 0,
                   0, 1, 0,
                   0, 0, 1;
-    Eigen::Vector3d T_I_Curdf(-0.03022, 0.0074, 0.01602);
+    Eigen::Vector3d t_I_Curdf(-0.03022, 0.0074, 0.01602);
 
-    T_I_Curdf = aslam::Transformation(T_I_Curdf, Eigen::Quaterniond(R_I_Cleft));
+    T_I_Curdf = aslam::Transformation(t_I_Curdf, Eigen::Quaterniond(R_I_Curdf));
   }
 
   visualization::publishTF(
