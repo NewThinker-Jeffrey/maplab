@@ -414,7 +414,7 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
   publish_tag_detections_(stamped_detections);
 
   if (FLAGS_openvinsli_visualize_vtag) {
-    bool display_cov = false;
+    bool display_cov = true;
     bool display_rmse = false;
     cv::Mat display_image = hear_slam::TagDetectorInterface::visualizeTagDetections(
         cam.timestamp * 1e9, gray,
