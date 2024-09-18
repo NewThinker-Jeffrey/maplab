@@ -36,9 +36,12 @@
 #include "state/StateHelper.h"       // ov_msckf
 #include "utils/print.h"             // ov_core
 #include "utils/sensor_data.h"       // ov_core
+#include "cam/CamEqui.h"
+#include "cam/CamRadtan.h"
 
 #include "hear_slam/basic/time.h"
 #include "hear_slam/basic/logging.h"
+#include "hear_slam/common/camera_models/camera_model_factory.h"
 
 // DEFINE_bool(
 //     openvins_update_filter_on_imu, true,
@@ -374,11 +377,21 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
   auto openvins_cam = openvins_cams.at(0);
   Eigen::MatrixXd openvins_cam_params = openvins_cam->get_value();
 
-  hear_slam::SimpleCameraParams simple_camera_params;
-  simple_camera_params.fx = openvins_cam_params(0);
-  simple_camera_params.fy = openvins_cam_params(1);
-  simple_camera_params.cx = openvins_cam_params(2);
-  simple_camera_params.cy = openvins_cam_params(3);
+  std::unique_ptr<hear_slam::CameraModelInterface> camera;
+  if (dynamic_cast<ov_core::CamRadtan*>(openvins_cam.get())) {
+    camera = hear_slam::createCameraModel(
+        hear_slam::CameraModelType::RADTAN4,
+        openvins_cam_params);
+  } else if (dynamic_cast<ov_core::CamEqui*>(openvins_cam.get())) {
+    camera = hear_slam::createCameraModel(
+        hear_slam::CameraModelType::EQUIDISTANT,
+        openvins_cam_params);
+  } else {
+    const double* d = openvins_cam_params.data();
+    Eigen::Matrix<double, 4, 1> intrin;
+    intrin << d[0], d[1], d[2], d[3];
+    camera = hear_slam::createCameraModel<hear_slam::CameraModelType::PINHOLE>(intrin);
+  }
 
   ASSERT(cam.sensor_ids.at(0) == 0);
   cv::Mat gray;
@@ -390,7 +403,7 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
 
   using hear_slam::Time;
   Time start_time = Time::now();
-  std::vector<hear_slam::TagDetection> detections = vtag_detector_->detect(gray, simple_camera_params);
+  std::vector<hear_slam::TagDetection> detections = vtag_detector_->detect(gray, true, camera.get());
   Time end_time = Time::now();
   LOGI("Tag-detection took %.2f ms", (end_time - start_time).millis());
 
@@ -405,8 +418,9 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
     bool display_rmse = false;
     cv::Mat display_image = hear_slam::TagDetectorInterface::visualizeTagDetections(
         cam.timestamp * 1e9, gray,
-        simple_camera_params,
-        stamped_detections->detections, display_cov, display_rmse);
+        stamped_detections->detections,
+        camera.get(),
+        display_cov, display_rmse);
     cv::imshow("Tag detections", display_image);
     cv::waitKey(1);
   }
