@@ -403,7 +403,7 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
 
   using hear_slam::Time;
   Time start_time = Time::now();
-  std::vector<hear_slam::TagDetection> detections = vtag_detector_->detect(gray, true, camera.get());
+  std::vector<hear_slam::TagDetection> detections = vtag_detector_->detect(gray, camera.get(), true, true, true);
   Time end_time = Time::now();
   LOGI("Tag-detection took %.2f ms", (end_time - start_time).millis());
 
@@ -415,12 +415,11 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
 
   if (FLAGS_openvinsli_visualize_vtag) {
     bool display_cov = true;
-    bool display_rmse = false;
     cv::Mat display_image = hear_slam::TagDetectorInterface::visualizeTagDetections(
         cam.timestamp * 1e9, gray,
         stamped_detections->detections,
-        camera.get(),
-        display_cov, display_rmse);
+        camera.get(), nullptr,
+        display_cov);
     cv::imshow("Tag detections", display_image);
     cv::waitKey(1);
   }
