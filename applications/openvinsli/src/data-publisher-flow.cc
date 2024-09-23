@@ -683,8 +683,10 @@ void DataPublisherFlow::publishVinsState(
 
   visualization::publishTF(
       T_M_I, FLAGS_tf_mission_frame, FLAGS_tf_imu_frame, timestamp_ros);
+  // visualization::publishTF(
+  //     T_M_I * T_I_Curdf, FLAGS_tf_mission_frame, tf_urdf_cam_frame, timestamp_ros);
   visualization::publishTF(
-      T_M_I * T_I_Curdf, FLAGS_tf_mission_frame, tf_urdf_cam_frame, timestamp_ros);
+      (T_M_I * T_I_Curdf).inverse(), tf_urdf_cam_frame, FLAGS_tf_mission_frame, timestamp_ros);
 
   // Publish pose in global frame.
   aslam::Transformation T_G_I = T_G_M * T_M_I;
@@ -713,8 +715,10 @@ void DataPublisherFlow::publishVinsState(
         T_G_M, timestamp_ros, FLAGS_tf_map_frame, &T_G_M_message);
     pub_baseframe_T_G_M_.publish(T_G_M_message);
   }
+  // visualization::publishTF(
+  //     T_G_M, FLAGS_tf_map_frame, FLAGS_tf_mission_frame, timestamp_ros);
   visualization::publishTF(
-      T_G_M, FLAGS_tf_map_frame, FLAGS_tf_mission_frame, timestamp_ros);
+      T_G_M.inverse(), FLAGS_tf_mission_frame, FLAGS_tf_map_frame, timestamp_ros);
 
   // Publish velocity.
   if (velocity_I_should_publish || maplab_odom_should_publish ||
