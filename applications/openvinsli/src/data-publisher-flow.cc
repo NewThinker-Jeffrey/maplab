@@ -388,6 +388,19 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         localizationCallback(localization->T_G_B.getPosition());
       });
 
+  // Publish global pose fusion.
+  flow->registerSubscriber<message_flow_topics::GLOBAL_POSE_FUSION>(
+      kSubscriberNodeName, message_flow::DeliveryOptions(),
+      [this](const StampedGlobalPose::ConstPtr& global_pose) {
+        CHECK(global_pose != nullptr);
+        // publish T_I_G to tf.
+        aslam::Transformation T_G_I(global_pose->pose.translation(), Eigen::Quaterniond(global_pose->pose.linear()));
+        ros::Time timestamp_ros = createRosTimestamp(global_pose->timestamp_ns);
+        LOG(INFO) << "publishing tf T_G_I at time " << timestamp_ros;
+        visualization::publishTF(
+            T_G_I.inverse(), FLAGS_tf_imu_frame, FLAGS_tf_map_frame, timestamp_ros);
+      });
+
   // Publish raw image.
   flow->registerSubscriber<message_flow_topics::IMAGE_MEASUREMENTS>(
       kSubscriberNodeName, message_flow::DeliveryOptions(),
@@ -717,8 +730,8 @@ void DataPublisherFlow::publishVinsState(
   }
   // visualization::publishTF(
   //     T_G_M, FLAGS_tf_map_frame, FLAGS_tf_mission_frame, timestamp_ros);
-  visualization::publishTF(
-      T_G_M.inverse(), FLAGS_tf_mission_frame, FLAGS_tf_map_frame, timestamp_ros);
+  // visualization::publishTF(
+  //     T_G_M.inverse(), FLAGS_tf_mission_frame, FLAGS_tf_map_frame, timestamp_ros);
 
   // Publish velocity.
   if (velocity_I_should_publish || maplab_odom_should_publish ||

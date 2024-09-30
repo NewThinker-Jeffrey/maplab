@@ -20,6 +20,8 @@
 #include "openvinsli/viewer.h"       
 #include "hear_slam/vtag/vtag_factory.h"
 #include "hear_slam/basic/work_queue.h"
+#include "hear_slam/vtag/vtag_mapping.h"
+#include "hear_slam/unstable/global_pose_fusion/global_pose_fusion.h"
 
 namespace openvinsli {
 class OpenvinsLocalizationHandler;
@@ -58,6 +60,8 @@ class OpenvinsFlow {
 
   std::unique_ptr<OpenvinsLocalizationHandler> localization_handler_;
 
+  std::unique_ptr<hear_slam::GlobalPoseFusion> global_pose_fusion_;
+
   // External OPENVINS odometry calibration
   aslam::Transformation odom_calibration_;
 
@@ -68,10 +72,13 @@ class OpenvinsFlow {
   // vtag
 
   std::shared_ptr<hear_slam::TagDetectorInterface> vtag_detector_;
+  std::map<hear_slam::TagID, hear_slam::TagMapping::TagState> tag_map_;
   // hear_slam::SimpleCameraParams simple_camera_params_;
   std::shared_ptr<hear_slam::WorkQueue<ov_core::CameraData>> vtag_work_queue_;
 
   std::function<void(const StampedTagDetections::ConstPtr&)> publish_tag_detections_;
+
+  std::function<void(const StampedGlobalPose::ConstPtr&)> publish_global_pose_fusion_;
 };
 }  // namespace openvinsli
 #endif  // OPENVINSLI_OPENVINS_FLOW_H_

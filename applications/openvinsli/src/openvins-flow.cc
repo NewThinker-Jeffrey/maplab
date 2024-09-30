@@ -42,6 +42,7 @@
 #include "hear_slam/basic/time.h"
 #include "hear_slam/basic/logging.h"
 #include "hear_slam/common/camera_models/camera_model_factory.h"
+#include "hear_slam/vtag/vtag_mapping.h"
 
 // DEFINE_bool(
 //     openvins_update_filter_on_imu, true,
@@ -63,6 +64,10 @@ DEFINE_bool(
     openvinsli_visualize_vtag, true,
     "Visualize vtag or not.");
 
+DEFINE_string(
+    openvinsli_tag_map, "",
+    "Path to the tag map file.");
+
 DEFINE_bool(
     use_zeroed_openvins_time, false,
     "OPENVINS uses seconds (double) and maplab nanoseconds (int64_t) as "
@@ -76,6 +81,8 @@ DEFINE_bool(
 DEFINE_string(
     openvinsli_feature_images_dir, "tmp_feature_images",
     "dir to save feature tracking images.");
+
+#define DISABLE_OPENVINS_RELOCAL
 
 namespace openvinsli {
 OpenvinsFlow::OpenvinsFlow(
@@ -115,9 +122,11 @@ OpenvinsFlow::OpenvinsFlow(
   openvins_interface_.reset(
       constructAndConfigureOpenvins(motion_tracking_ncamera, imu_sigmas));
 
+#ifndef DISABLE_OPENVINS_RELOCAL
   localization_handler_.reset(new OpenvinsLocalizationHandler(
       openvins_interface_.get(), &time_translation_, camera_calibration,
       maplab_to_openvins_cam_indices_mapping_));
+#endif
 
   // Store external OPENVINS odometry calibration
   odom_calibration_ = odom_calibration;
@@ -131,10 +140,28 @@ OpenvinsFlow::OpenvinsFlow(
     }
   }
 
+  global_pose_fusion_ = std::make_unique<hear_slam::GlobalPoseFusion>();
+  global_pose_fusion_->setPoseUpdateCallback(
+      [this](double time, const hear_slam::GlobalPoseFusion::Pose3d& pose, const Eigen::Matrix<double, 6, 6>& cov) {
+        std::cout << "Fusion localization pose: p(" << pose.translation().vector().transpose() << ")  q("
+                  << Eigen::Quaterniond(pose.linear().matrix()).coeffs().transpose() << ")" << std::endl;
+        std::cout << "Fusion localization cov diag sqrt: " << cov.diagonal().cwiseSqrt().transpose() << std::endl;
+
+        // publish pose
+        auto fusion_res = std::make_shared<StampedGlobalPose>();
+        fusion_res->timestamp_ns = time_translation_.convertOpenvinsToMaplabTimestamp(time);
+        fusion_res->pose = Eigen::Isometry3d(pose.linear().matrix());
+        fusion_res->pose.translation() = pose.translation().vector();
+        publish_global_pose_fusion_(fusion_res);
+      });
+
   if (FLAGS_openvinsli_enable_vtag) {
     vtag_detector_ = hear_slam::TagDetectorFactory::createDetector(hear_slam::TagType::April);
     vtag_work_queue_ = std::make_shared<hear_slam::WorkQueue<ov_core::CameraData>>(
         std::bind(&OpenvinsFlow::processTag, this, std::placeholders::_1), "vtag_work_queue", 1, 2, true);
+    if (!FLAGS_openvinsli_tag_map.empty()) {
+      tag_map_ = hear_slam::TagMapping::loadTagStates(FLAGS_openvinsli_tag_map);
+    }
   }
 }
 
@@ -170,8 +197,10 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         ov_imu.wm << data[3], data[4], data[5];
         openvins_interface_->feed_measurement_imu(ov_imu);
 
+#ifndef DISABLE_OPENVINS_RELOCAL
         localization_handler_->T_M_I_buffer_mutable()->bufferImuMeasurement(
             *imu);
+#endif
 
         double eplased_ms = tc.elapsed().millis();
         if (eplased_ms > 1) {
@@ -333,15 +362,21 @@ void OpenvinsFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
 //       });
 
   // Input localization updates.
+#ifndef DISABLE_OPENVINS_RELOCAL
   flow->registerSubscriber<message_flow_topics::LOCALIZATION_RESULT>(
       kSubscriberNodeName, openvins_subscriber_options,
       std::bind(
           &OpenvinsLocalizationHandler::processLocalizationResult,
           localization_handler_.get(), std::placeholders::_1));
+#endif
 
   // Output tag detections
   publish_tag_detections_ =
       flow->registerPublisher<message_flow_topics::TAG_DETECTIONS>();
+
+  // Output global pose fusion
+  publish_global_pose_fusion_ =
+      flow->registerPublisher<message_flow_topics::GLOBAL_POSE_FUSION>();
 
   // Output OPENVINS estimates.
   publish_openvins_estimates_ =
@@ -407,6 +442,49 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
   Time end_time = Time::now();
   LOGI("Tag-detection took %.2f ms", (end_time - start_time).millis());
 
+  if (!tag_map_.empty() && !detections.empty()) {
+    double reproj_rmse_thr = -1;
+    double reproj_maxerr_thr = -1;
+    int min_tags_to_loc = 1;
+    bool compute_cov = false;  // true
+
+    Time start_time = Time::now();
+    std::unique_ptr<hear_slam::Pose3dWithCov> pose_and_cov =
+    hear_slam::TagMapping::localizeCamera(
+        *camera, detections, tag_map_, reproj_rmse_thr,
+        reproj_maxerr_thr, min_tags_to_loc, compute_cov);
+    Time end_time = Time::now();
+    LOGI("Tag-loc took %.2f ms", (end_time - start_time).millis());
+
+    if (pose_and_cov) {
+      Eigen::Isometry3d T_I_Color;
+      {
+        // - [1.0, 0.0, 0.0, 0.02878]
+        // - [0.0, 1.0, 0.0, 0.0074]
+        // - [0.0, 0.0, 1.0, 0.01602]
+        Eigen::Matrix3d R_I_Color;
+        R_I_Color <<  1, 0, 0,
+                      0, 1, 0,
+                      0, 0, 1;
+        Eigen::Vector3d t_I_Color(0.02878, 0.0074, 0.01602);
+
+        T_I_Color = Eigen::Isometry3d(R_I_Color);
+        T_I_Color.translation() = t_I_Color;
+      }
+
+      hear_slam::Pose3dWithCov imu_pose_and_cov = (*pose_and_cov) * (T_I_Color.inverse());
+      hear_slam::GlobalPoseFusion::Pose3d pose(imu_pose_and_cov.R, imu_pose_and_cov.p);
+      if (compute_cov) {
+        Eigen::Matrix<double, 6, 6> cov;
+        cov << imu_pose_and_cov.cov.block<3, 3>(3, 3), imu_pose_and_cov.cov.block<3, 3>(3, 0),
+              imu_pose_and_cov.cov.block<3, 3>(0, 3), imu_pose_and_cov.cov.block<3, 3>(0, 0);
+        global_pose_fusion_->feedGlobalPose(cam.timestamp, pose, &cov);
+      } else {
+        global_pose_fusion_->feedGlobalPose(cam.timestamp, pose);
+      }
+    }
+  }
+
   auto stamped_detections = std::make_shared<StampedTagDetections>();
   stamped_detections->timestamp_ns = time_translation_.convertOpenvinsToMaplabTimestamp(cam.timestamp);
   stamped_detections->detections.swap(detections);
@@ -461,6 +539,13 @@ void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::O
   aslam::Transformation T_M_I(
       output.state_clone->_imu->pos(),
       Eigen::Quaterniond(output.state_clone->_imu->Rot().inverse()));
+
+  global_pose_fusion_->feedOdomometry(
+      output.status.timestamp,
+      hear_slam::GlobalPoseFusion::Pose3d(
+          output.state_clone->_imu->Rot().inverse(),
+          output.state_clone->_imu->pos()));
+
 // std::cout << "processAndPublishOpenvinsUpdate: DEBUG 2" << std::endl;
   common::ensurePositiveQuaternion(&T_M_I.getRotation());
   const Eigen::Vector3d v_M = output.state_clone->_imu->vel();
@@ -531,6 +616,8 @@ void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::O
 
   // Optional localizations.
 // std::cout << "processAndPublishOpenvinsUpdate: DEBUG 5" << std::endl;
+
+#ifndef DISABLE_OPENVINS_RELOCAL
   openvins_estimate->has_T_G_M =
       extractLocalizationFromOpenvinsState(output, &openvins_estimate->T_G_M);
 // std::cout << "processAndPublishOpenvinsUpdate: DEBUG 6" << std::endl;
@@ -540,6 +627,9 @@ void OpenvinsFlow::processAndPublishOpenvinsUpdate(const ov_msckf::VioManager::O
     localization_handler_->buffer_T_G_M(openvins_estimate->T_G_M);
   }
   localization_handler_->dealWithBufferedLocalizations();
+#else
+  openvins_estimate->has_T_G_M = false;
+#endif
 
   std::swap(openvins_estimate, openvins_estimate_);
   publish_openvins_estimates_(openvins_estimate_);

@@ -38,7 +38,17 @@ struct StampedTagDetections {
   using ConstPtr = std::shared_ptr<const StampedTagDetections>;
   using Ptr = std::shared_ptr<const StampedTagDetections>;
 };
+
+struct StampedGlobalPose {
+  int64_t timestamp_ns;
+  Eigen::Isometry3d pose;
+  using ConstPtr = std::shared_ptr<const StampedGlobalPose>;
+};
+
 }  // namespace openvinsli
+
+MESSAGE_FLOW_TOPIC(
+    GLOBAL_POSE_FUSION, openvinsli::StampedGlobalPose::ConstPtr);
 
 MESSAGE_FLOW_TOPIC(
     RGBD_LOCAL_MAP, openvinsli::DenseMapWrapper::ConstPtr);
