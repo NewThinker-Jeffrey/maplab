@@ -4,7 +4,8 @@ project(openvinsli)
 # NOTE: GTSAM should be find_package()'ed before calling catkin_simple(),
 #       otherwise link errors about TBB (used by GTSAM) might raise.
 find_package(GTSAM REQUIRED)
-list(APPEND openvins_dep_libs gtsam)
+find_package(GTSAM_UNSTABLE REQUIRED)
+list(APPEND openvins_dep_libs gtsam gtsam_unstable)
 
 find_package(catkin_simple REQUIRED)
 catkin_simple(ALL_DEPS_REQUIRED)
