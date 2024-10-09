@@ -452,8 +452,8 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
 
   std::unique_ptr<hear_slam::Pose3dWithCov> cam_pose_and_cov;
   if (!tag_map_.empty() && !detections.empty()) {
-    double reproj_rmse_thr = 0.5;
-    double reproj_maxerr_thr = 2.0;
+    double reproj_rmse_thr = 1.0;  // 0.5;
+    double reproj_maxerr_thr = 3.0;  // 2.0;
     int min_tags_to_loc = 2;  // 1
     bool compute_cov = false;  // true
 
@@ -500,27 +500,25 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
   publish_tag_detections_(stamped_detections);
 
   if (FLAGS_openvinsli_visualize_vtag) {
-    bool display_cov = true;
-
     cv::Mat display_image;
-
     if (!tag_map_.empty()) {
       Eigen::Isometry3d T_G_C;
       if (cam_pose_and_cov) {
         T_G_C = cam_pose_and_cov->toIsometry();
+        display_image = hear_slam::TagMapping::visualizeTagReprojection(
+            cam.timestamp * 1e9, gray, *camera,
+            stamped_detections->detections,
+            T_G_C, tag_map_);
+      } else {
+        display_image = hear_slam::TagDetectorInterface::visualizeTagDetections(
+            cam.timestamp * 1e9, gray, stamped_detections->detections);
       }
-      display_image = hear_slam::TagMapping::visualizeTagReprojection(
-          cam.timestamp * 1e9, gray, *camera,
-          stamped_detections->detections,
-          T_G_C, tag_map_);
     } else {
       display_image = hear_slam::TagDetectorInterface::visualizeTagDetections(
           cam.timestamp * 1e9, gray,
           stamped_detections->detections,
-          camera.get(), nullptr,
-          display_cov);
+          camera.get());
     }
-
 
     cv::imshow("Tag detections", display_image);
     cv::waitKey(1);
