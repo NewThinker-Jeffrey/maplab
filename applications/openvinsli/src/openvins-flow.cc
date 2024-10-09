@@ -452,7 +452,7 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
 
   std::unique_ptr<hear_slam::Pose3dWithCov> cam_pose_and_cov;
   if (!tag_map_.empty() && !detections.empty()) {
-    double reproj_rmse_thr = 1.0;  // 0.5;
+    double reproj_rmse_thr = 1.5;  // 0.5;
     double reproj_maxerr_thr = 3.0;  // 2.0;
     int min_tags_to_loc = 2;  // 1
     bool compute_cov = false;  // true
