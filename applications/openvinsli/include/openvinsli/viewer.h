@@ -32,7 +32,7 @@
 #include <pangolin/pangolin.h>
 #include "slam_viz/pangolin_helper_types.h"
 
-#include "hear_slam/common/datasource/vi_player.h"
+#include "hear_slam/utils/datasource/vi_player.h"
 
 namespace openvinsli {
 

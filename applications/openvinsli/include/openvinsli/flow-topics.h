@@ -9,7 +9,7 @@
 #include "openvinsli/openvins-estimate.h"
 #include "openvinsli/vi-map-with-mutex.h"
 #include "core/SimpleDenseMapping.h"
-#include "hear_slam/vtag/vtag.h"
+#include "hear_slam/slam/vtag/vtag.h"
 
 // TODO(schneith): All message should be ConstPtr.
 

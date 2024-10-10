@@ -16,7 +16,7 @@
 #include "openvinsli/ros-helpers.h"
 #include "core/SimpleDenseMapping.h"      // ov_msckf
 
-#include "hear_slam/common/yaml_helper.h"
+#include "hear_slam/utils/yaml_helper.h"
 #include "hear_slam/basic/string_helper.h"
 #include "hear_slam/basic/logging.h"
 

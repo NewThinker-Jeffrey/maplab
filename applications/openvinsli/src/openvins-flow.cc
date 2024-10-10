@@ -42,7 +42,7 @@
 #include "hear_slam/basic/time.h"
 #include "hear_slam/basic/logging.h"
 #include "hear_slam/common/camera_models/camera_model_factory.h"
-#include "hear_slam/vtag/vtag_mapping.h"
+#include "hear_slam/slam/vtag/vtag_mapping.h"
 
 // DEFINE_bool(
 //     openvins_update_filter_on_imu, true,

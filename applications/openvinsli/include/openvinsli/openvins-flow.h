@@ -18,9 +18,9 @@
 
 #include "core/VioManager.h"         // ov_msckf
 #include "openvinsli/viewer.h"       
-#include "hear_slam/vtag/vtag_factory.h"
+#include "hear_slam/slam/vtag/vtag_factory.h"
 #include "hear_slam/basic/work_queue.h"
-#include "hear_slam/vtag/vtag_mapping.h"
+#include "hear_slam/slam/vtag/vtag_mapping.h"
 #include "hear_slam/unstable/global_pose_fusion/global_pose_fusion.h"
 
 namespace openvinsli {

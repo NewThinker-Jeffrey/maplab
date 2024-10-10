@@ -33,7 +33,7 @@
 #include "utils/print.h"             // ov_core
 #include "utils/sensor_data.h"       // ov_core
 
-#include "hear_slam/common/yaml_helper.h"
+#include "hear_slam/utils/yaml_helper.h"
 
 DEFINE_double(
     nav_record_path_point_dist, 0.5,
