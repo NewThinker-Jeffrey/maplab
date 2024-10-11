@@ -142,7 +142,8 @@ OpenvinsFlow::OpenvinsFlow(
   }
 
   const auto fusion_config = hear_slam::rootCfg().get("global_pose_fusion");
-  global_pose_fusion_ = std::make_unique<hear_slam::GlobalPoseFusion>(fusion_config);
+  hear_slam::GlobalPoseFusion::Params fusion_params(fusion_config);
+  global_pose_fusion_ = std::make_unique<hear_slam::GlobalPoseFusion>(fusion_params);
   global_pose_fusion_->setPoseUpdateCallback(
       [this](double time, const hear_slam::GlobalPoseFusion::Pose3d& pose, const Eigen::Matrix<double, 6, 6>& cov) {
         std::cout << "Fusion localization pose: p(" << pose.translation().vector().transpose() << ")  q("
@@ -455,9 +456,12 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
   std::unique_ptr<hear_slam::Pose3dWithCov> cam_pose_and_cov;
   if (!tag_map_.empty() && !detections.empty()) {
     static const auto vtag_loc_cfg = hear_slam::rootCfg().get("vtag_localization");
-    static const double reproj_rmse_thr = vtag_loc_cfg.get<double>("reproj_rmse_thr", 1.5);  // 0.5;
-    static const double reproj_maxerr_thr = vtag_loc_cfg.get<double>("reproj_maxerr_thr", 3.0);  // 2.0;
-    static const int min_tags_to_loc = vtag_loc_cfg.get<int>("min_tags_to_loc", 2);  // 1
+    static double reproj_rmse_thr = 1.5;  // 0.5;
+    static double reproj_maxerr_thr = 3.0;  // 2.0;
+    static int min_tags_to_loc = 2;  // 1
+    READ_CONFIG_ONCE_I(vtag_loc_cfg, reproj_rmse_thr);
+    READ_CONFIG_ONCE_I(vtag_loc_cfg, reproj_maxerr_thr);
+    READ_CONFIG_ONCE_I(vtag_loc_cfg, min_tags_to_loc);
     bool compute_cov = false;  // true
 
     Time start_time = Time::now();
