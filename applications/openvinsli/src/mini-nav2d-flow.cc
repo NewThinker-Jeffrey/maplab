@@ -269,7 +269,7 @@ bool Nav2dFlow::stopNav() {
 }
 
 bool Nav2dFlow::deserialize(const std::string& nav_config_file) {
-  hear_slam::YamlObjPtr p_obj = hear_slam::loadYaml(nav_config_file);
+  auto p_obj = hear_slam::loadYaml(nav_config_file);
   hear_slam::YamlObj& obj = *p_obj;
   auto target_points = obj["target_points"];
   target_points_.resize(target_points.size());

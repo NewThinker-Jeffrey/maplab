@@ -9,6 +9,8 @@ NCAMERA_CALIBRATION="$OPENVINS_CONFIG_DIR/ncamera-euroc.yaml"
 IMU_PARAMETERS_MAPLAB="$OPENVINS_CONFIG_DIR/imu-adis16488.yaml"
 REST=$@
 
+export HEAR_SLAM_ROOT_CFG="$OPENVINS_CONFIG_DIR/hear_slam_root_cfg.yaml"
+
 rosrun openvinsli openvinsli \
   --alsologtostderr=1 \
   --v=2 \
