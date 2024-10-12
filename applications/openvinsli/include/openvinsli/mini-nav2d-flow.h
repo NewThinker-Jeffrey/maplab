@@ -17,6 +17,7 @@
 #include "openvinsli/feature-tracking.h"
 
 #include "openvinsli/mini-nav2d-msg.h"
+#include "openvinsli/flow-topics.h"
 
 // ros interface
 #define EANBLE_ROS_NAV_INTERFACE
@@ -94,6 +95,8 @@ class Nav2dFlow {
     std::vector<Eigen::Vector3d> current_path;
     // Eigen::Vector3d current_pathpoint;
 
+    std::unique_ptr<Eigen::Isometry3d> T_O_G;  // global in odom.
+
     std::string state;
   };
 
@@ -103,7 +106,8 @@ class Nav2dFlow {
 
   void nav_worker();
 
-  void processInput(const OpenvinsEstimate::ConstPtr& estimate);
+  // void processInput(const OpenvinsEstimate::ConstPtr& estimate);
+  void processInput(const StampedGlobalPose::ConstPtr& estimate);
 
   void tryAddingTrajPoint(const Eigen::Vector3d& traj_point);
 
@@ -138,9 +142,9 @@ class Nav2dFlow {
 
   bool stop_request_;
 
-  std::deque<OpenvinsEstimate::ConstPtr> vio_estimates_;
-
-
+  // std::deque<OpenvinsEstimate::ConstPtr> vio_estimates_;
+  std::deque<StampedGlobalPose::ConstPtr> vio_estimates_;
+  
 
   // current nav task
   std::mutex mutex_nav_;
@@ -171,6 +175,8 @@ class Nav2dFlow {
   Nav2dCmd::Ptr last_played_nav_cmd_;
 
   int32_t nav_cmd_play_idx_ = 0;
+
+  std::unique_ptr<Eigen::Isometry3d> T_G_O_;
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
  private:

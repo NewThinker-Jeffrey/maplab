@@ -42,6 +42,7 @@ struct StampedTagDetections {
 struct StampedGlobalPose {
   int64_t timestamp_ns;
   Eigen::Isometry3d pose;
+  Eigen::Isometry3d T_G_O;
   using ConstPtr = std::shared_ptr<const StampedGlobalPose>;
 };
 

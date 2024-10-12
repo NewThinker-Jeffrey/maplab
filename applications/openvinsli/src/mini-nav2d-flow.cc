@@ -35,6 +35,8 @@
 
 #include "hear_slam/utils/yaml_helper.h"
 
+#define PUBLISH_NAV_CMD_IN_ODOM_FRAME  // otherwise publish that in global frame
+
 DEFINE_double(
     nav_record_path_point_dist, 0.5,
     "The average distance between two path points when recording path. (0.5)");
@@ -87,15 +89,46 @@ Eigen::Vector3d transformPoseFrom3dTo2d(const Eigen::Isometry3d& pose_3d) {
   return pose_2d;
 }
 
+Eigen::Matrix2d getRotation2d(const double yaw) {
+  Eigen::Matrix2d rot;
+  rot << cos(yaw), -sin(yaw),
+         sin(yaw), cos(yaw);
+  return rot;
+}
+
+Eigen::Vector3d inversePose2d(const Eigen::Vector3d& pose_2d) {
+  Eigen::Vector3d inv;
+  inv[2] = -pose_2d[2];
+  inv.head<2>() = getRotation2d(inv[2]) * (- (pose_2d.head<2>()));
+  return inv;
+}
+
+Eigen::Vector3d composePose2d(const Eigen::Vector3d& pose_1, const Eigen::Vector3d& pose_2) {
+  Eigen::Vector3d ret;
+  ret[2] = pose_1[2] + pose_2[2];
+  if (ret[2] > M_PI) {
+    ret[2] -= 2 * M_PI;
+  } else if (ret[2] < -M_PI) {
+    ret[2] += 2 * M_PI;
+  }
+  ret.head<2>() = getRotation2d(pose_1[2]) * pose_2.head<2>() + pose_1.head<2>();
+  return ret;
+}
+
 Eigen::Vector3d transformPoseFrom3dTo2d(const aslam::Transformation& pose_3d) {
   Eigen::Vector3d pose_2d = pose_3d.getPosition();
   pose_2d[2] = getYawFromQuaternion(pose_3d.getRotation().toImplementation());
   return pose_2d;
 }
 
-Eigen::Vector3d getPose2dFromVioEstimate(OpenvinsEstimate::ConstPtr vio_estimate) {
-  CHECK(vio_estimate->has_T_G_M);
-  aslam::Transformation T_G_I = vio_estimate->T_G_M * vio_estimate->vinode.get_T_M_I();
+// Eigen::Vector3d getPose2dFromVioEstimate(OpenvinsEstimate::ConstPtr vio_estimate) {
+//   CHECK(vio_estimate->has_T_G_M);
+//   aslam::Transformation T_G_I = vio_estimate->T_G_M * vio_estimate->vinode.get_T_M_I();
+//   return transformPoseFrom3dTo2d(T_G_I);
+// }
+
+Eigen::Vector3d getPose2dFromGlobalPoseEstimate(StampedGlobalPose::ConstPtr vio_estimate) {
+  Eigen::Isometry3d T_G_I = vio_estimate->pose;
   return transformPoseFrom3dTo2d(T_G_I);
 }
 
@@ -117,6 +150,23 @@ Eigen::Isometry3d transformPoseFrom2dTo3d(const Eigen::Vector3d& pose_2d) {
   pose_3d.linear() = rot;
   pose_3d.translation() = translation;
   return pose_3d;
+}
+
+Nav2dCmd::Ptr toNav2dCmdInOdomFrame(const Nav2dCmd& nav_cmd, const Eigen::Isometry3d& T_O_G) {
+  Nav2dCmd::Ptr ret_ptr;
+  ret_ptr.reset(new Nav2dCmd());
+  Nav2dCmd& ret = *ret_ptr;
+  ret.timestamp_ns = nav_cmd.timestamp_ns;
+  ret.is_last_pathpoint = nav_cmd.is_last_pathpoint;
+
+  Eigen::Vector3d T_O_G_2d = transformPoseFrom3dTo2d(T_O_G);
+  ret.cur_pose2d = composePose2d(T_O_G_2d, nav_cmd.cur_pose2d);
+  ret.next_pathpoints.clear();
+  ret.next_pathpoints.reserve(nav_cmd.next_pathpoints.size());
+  for (const auto& next_pathpoint : nav_cmd.next_pathpoints) {
+    ret.next_pathpoints.push_back(composePose2d(T_O_G_2d, next_pathpoint));
+  }
+  return ret_ptr;
 }
 
 }  // namespace
@@ -151,17 +201,27 @@ void Nav2dFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
   publish_nav_ =
       flow->registerPublisher<message_flow_topics::NAV2D_CMD>();
 
-  //// subscribe odometry
-  flow->registerSubscriber<message_flow_topics::OPENVINS_ESTIMATES>(
+  // //// subscribe odometry
+  // flow->registerSubscriber<message_flow_topics::OPENVINS_ESTIMATES>(
+  //     kSubscriberNodeName, message_flow::DeliveryOptions(),
+  //     [this](const OpenvinsEstimate::ConstPtr& estimate) {
+  //       CHECK(estimate);
+  //       // process the estimate in a special thread?
+  //       std::unique_lock<std::mutex> lock(mutex_queue_);
+  //       vio_estimates_.push_back(estimate);
+  //       cond_queue_.notify_one();
+  //     });
+
+  // subscribe global pose fusion.
+  flow->registerSubscriber<message_flow_topics::GLOBAL_POSE_FUSION>(
       kSubscriberNodeName, message_flow::DeliveryOptions(),
-      [this](const OpenvinsEstimate::ConstPtr& estimate) {
-        CHECK(estimate);
-        // process the estimate in a special thread?
+      [this](const StampedGlobalPose::ConstPtr& global_pose) {
+        CHECK(global_pose != nullptr);
+        // process the global_pose in a special thread.
         std::unique_lock<std::mutex> lock(mutex_queue_);
-        vio_estimates_.push_back(estimate);
+        vio_estimates_.push_back(global_pose);
         cond_queue_.notify_one();
       });
-
 
   // maybe we also need an occupancy-mapping-flow?
 
@@ -317,7 +377,8 @@ bool Nav2dFlow::serialize(const std::string& nav_config_file) {
 void Nav2dFlow::nav_worker() {
   while (1) {
     // get new odometry measurement.
-    OpenvinsEstimate::ConstPtr vio_estimate = nullptr;
+    // OpenvinsEstimate::ConstPtr vio_estimate = nullptr;
+    StampedGlobalPose::ConstPtr vio_estimate = nullptr;
     {
       std::unique_lock<std::mutex> lock(mutex_queue_);
       cond_queue_.wait(lock, [this](){
@@ -346,9 +407,15 @@ void Nav2dFlow::nav_worker() {
   // std::cout << "end of nav_worker()." << std::endl;
 }
 
-void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
+// void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
+void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
   // Deal with vio_estimate.
   std::unique_lock<std::mutex> lock(mutex_nav_);
+
+  if (!T_G_O_) {
+    T_G_O_ = std::make_unique<Eigen::Isometry3d>();
+  }
+  *T_G_O_ = vio_estimate->T_G_O;
 
   if (!nav_cmds_to_play_.empty()) {
     // If we're in offline mode, we just play back the recorded nav_cmds.
@@ -360,10 +427,18 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
         Nav2dCmd::Ptr nav_cmd = aligned_shared<Nav2dCmd>(cur_nav_cmd);
         state_ = NavState::NAVIGATING;
 
-#ifdef EANBLE_ROS_NAV_INTERFACE
-        convertAndPublishNavCmd(*nav_cmd);
+#ifdef PUBLISH_NAV_CMD_IN_ODOM_FRAME
+        Nav2dCmd::Ptr nav_cmd_in_odom_frame = toNav2dCmdInOdomFrame(*nav_cmd, T_G_O_->inverse());
+        Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd_in_odom_frame;
+#else
+        Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd;
 #endif
-        publish_nav_(nav_cmd);
+
+
+#ifdef EANBLE_ROS_NAV_INTERFACE
+        convertAndPublishNavCmd(*nav_cmd_to_publish);
+#endif
+        publish_nav_(nav_cmd_to_publish);
         nav_cmd_play_idx_ ++;
         last_played_nav_cmd_ = nav_cmd;
       } else {
@@ -377,18 +452,19 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
     }
     return;
   }
-  
-  if (!vio_estimate->has_T_G_M) {
-    if (state_ != NavState::IDLE) {
-      LOG(WARNING) << "Nav2dFlow:  The robot has not been localized yet "
-                      "or the localization has been lost! Change state from "
-                    << stateStr(state_) << " to IDLE";
-      state_ = NavState::IDLE;
-    }
-    return;
-  }
 
-  current_pose_2d_ = getPose2dFromVioEstimate(vio_estimate);
+  // if (!vio_estimate->has_T_G_M) {
+  //   if (state_ != NavState::IDLE) {
+  //     LOG(WARNING) << "Nav2dFlow:  The robot has not been localized yet "
+  //                     "or the localization has been lost! Change state from "
+  //                   << stateStr(state_) << " to IDLE";
+  //     state_ = NavState::IDLE;
+  //   }
+  //   return;
+  // }
+
+  // current_pose_2d_ = getPose2dFromVioEstimate(vio_estimate);
+  current_pose_2d_ = getPose2dFromGlobalPoseEstimate(vio_estimate);
 
   if (NavState::PATH_RECORDING == state_) {
     tryAddingTrajPoint(current_pose_2d_);
@@ -403,11 +479,18 @@ void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
 
     Nav2dCmd::Ptr nav_cmd = runNav(vio_estimate->timestamp_ns);
 
-#ifdef EANBLE_ROS_NAV_INTERFACE
-    convertAndPublishNavCmd(*nav_cmd);
+#ifdef PUBLISH_NAV_CMD_IN_ODOM_FRAME
+        Nav2dCmd::Ptr nav_cmd_in_odom_frame = toNav2dCmdInOdomFrame(*nav_cmd, T_G_O_->inverse());
+        Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd_in_odom_frame;
+#else
+        Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd;
 #endif
-    publish_nav_(nav_cmd);
-    saveNavCmd(*nav_cmd);
+
+#ifdef EANBLE_ROS_NAV_INTERFACE
+    convertAndPublishNavCmd(*nav_cmd_to_publish);
+#endif
+    publish_nav_(nav_cmd_to_publish);
+    saveNavCmd(*nav_cmd);  // Save the nav_cmd for offline playback.
   } else if (NavState::PATH_PLANNING == state_) {
     // find the path
     current_path_ = findPoint2PointTraj(current_pose_2d_, current_target_idx_);
@@ -660,20 +743,38 @@ Nav2dCmd::Ptr Nav2dFlow::runNav(int64_t timestamp_ns) {
 std::shared_ptr<Nav2dFlow::NavInfoForDisplay>
 Nav2dFlow::getCurNavInfoForDisplay() {
   std::unique_lock<std::mutex> lock(mutex_nav_);
+  if (!T_G_O_) {
+    return nullptr;
+  }
+
   std::shared_ptr<NavInfoForDisplay> info_ptr(new NavInfoForDisplay());
   NavInfoForDisplay& info = *info_ptr;
+
+  // Eigen::Vector3d T_O_G_2d = transformPoseFrom3dTo2d(*T_G_O_);
+  Eigen::Isometry3d T_O_G = T_G_O_->inverse();
+  info.T_O_G = std::make_unique<Eigen::Isometry3d>(T_O_G);
 
   info.traj = traj_2d_;
   for (size_t i=0; i<info.traj.size(); i++) {
     info.traj[i].z() = 0;  // set z=0 for all traj points.
+
+    // convert to odom frame
+    info.traj[i] = T_O_G * info.traj[i];
+    // info.traj[i].z() = 0;
   }
+
   for (size_t i=0; i<target_points_.size(); i++) {
-    info.nav_targets.push_back(transformPoseFrom2dTo3d(traj_2d_[target_points_[i]]));
+    info.nav_targets.push_back(T_O_G * transformPoseFrom2dTo3d(traj_2d_[target_points_[i]]));
   }
+
   info.target_names = target_point_names_;
   info.current_path = current_path_;
   for (size_t i=0; i<info.current_path.size(); i++) {
     info.current_path[i].z() = 0;
+
+    // convert to odom frame
+    info.current_path[i] = T_O_G * info.current_path[i];
+    // info.current_path[i].z() = 0;
   }
   // info.current_pathpoint = current_path_[current_pathpoint_idx_];
   // info.current_pathpoint.z() = 0;

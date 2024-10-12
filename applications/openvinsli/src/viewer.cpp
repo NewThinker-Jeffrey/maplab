@@ -578,6 +578,19 @@ void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> outpu
     // // draw whole traj
     // drawPointTrajectory(nav_info->traj, Color(255, 255, 0, 90), 1.0);
 
+    // draw the global frame.
+    if (nav_info->T_O_G) {
+      Eigen::Isometry3f T_O_G = nav_info->T_O_G->cast<float>();
+      multMatrixfAndDraw(T_O_G.matrix(), [&](){
+        drawMultiTextLines(
+            {TextLine("NavGlobal", false, getChineseFont())},
+            Eigen::Vector3f(0, 0, 0),
+            Eigen::Matrix3f::Identity(),
+            1.0 / 36.0);
+        drawFrame(2.0, 10.0, 80);
+      });
+    }
+    
     // draw target points
     for (size_t i=0; i<nav_info->nav_targets.size(); i++) {
       Eigen::Isometry3f nav_target = nav_info->nav_targets[i].cast<float>();
