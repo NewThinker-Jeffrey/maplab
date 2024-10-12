@@ -459,9 +459,9 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
     static double reproj_rmse_thr = 1.5;  // 0.5;
     static double reproj_maxerr_thr = 3.0;  // 2.0;
     static int min_tags_to_loc = 2;  // 1
-    READ_CONFIG_ONCE_I(vtag_loc_cfg, reproj_rmse_thr);
-    READ_CONFIG_ONCE_I(vtag_loc_cfg, reproj_maxerr_thr);
-    READ_CONFIG_ONCE_I(vtag_loc_cfg, min_tags_to_loc);
+    CONFIG_UPDT_ONCE_I(vtag_loc_cfg, reproj_rmse_thr);
+    CONFIG_UPDT_ONCE_I(vtag_loc_cfg, reproj_maxerr_thr);
+    CONFIG_UPDT_ONCE_I(vtag_loc_cfg, min_tags_to_loc);
     bool compute_cov = false;  // true
 
     Time start_time = Time::now();
