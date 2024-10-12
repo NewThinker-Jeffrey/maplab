@@ -6,10 +6,11 @@ vtag_localization:
   reproj_rmse_thr:  1.5  # 0.5,  -1.0
 
 global_pose_fusion:
-  odom_r_sigma:  0.002
-  odom_t_sigma:   0.01
-  global_r_sigma: 0.01
-  global_t_sigma: 0.1
+  smoother_lag:  10.0   # in seconds
+  odom_r_sigma:  0.005  # in [rad / sqrt(s)]
+  odom_t_sigma:   0.01  # in [m / sqrt(s)]
+  global_r_sigma: 0.02  # in [rad]
+  global_t_sigma: 0.1   # in [m]
   global_inlier_check:
     r_sigma: 0.1
     t_sigma: 0.02
