@@ -149,7 +149,7 @@ OpenvinsFlow::OpenvinsFlow(
              const hear_slam::GlobalPoseFusion::Pose3d& T_G_O,
              const hear_slam::GlobalPoseFusion::Pose3d& pose,
              const Eigen::Matrix<double, 6, 6>& cov) {
-        std::cout << "Fusion localization pose: p(" << pose.translation().vector().transpose() << ")  q("
+        std::cout << "Fusion localization pose: p(" << pose.translation().transpose() << ")  q("
                   << Eigen::Quaterniond(pose.linear().matrix()).coeffs().transpose() << ")" << std::endl;
         std::cout << "Fusion localization cov diag sqrt: " << cov.diagonal().cwiseSqrt().transpose() << std::endl;
 
@@ -157,9 +157,9 @@ OpenvinsFlow::OpenvinsFlow(
         auto fusion_res = std::make_shared<StampedGlobalPose>();
         fusion_res->timestamp_ns = time_translation_.convertOpenvinsToMaplabTimestamp(time);
         fusion_res->pose = Eigen::Isometry3d(pose.linear().matrix());
-        fusion_res->pose.translation() = pose.translation().vector();
+        fusion_res->pose.translation() = pose.translation();
         fusion_res->T_G_O = Eigen::Isometry3d(T_G_O.linear().matrix());
-        fusion_res->T_G_O.translation() = T_G_O.translation().vector();
+        fusion_res->T_G_O.translation() = T_G_O.translation();
         publish_global_pose_fusion_(fusion_res);
       });
 
