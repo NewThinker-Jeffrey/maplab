@@ -576,7 +576,7 @@ void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> outpu
   // draw NAV
   if (nav_info) {
     // // draw whole traj
-    // drawPointTrajectory(nav_info->traj, Color(255, 255, 0, 90), 1.0);
+    drawPointTrajectory(nav_info->traj, Color(255, 255, 0, 90), 1.0);
 
     // draw the global frame.
     if (nav_info->T_O_G) {
@@ -625,6 +625,8 @@ void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> outpu
         }
         drawPointTrajectory(plan, Color(255, 255, 0, 120), 8.0);
       }
+    } else {
+      cur_nav_cmd_.reset();
     }
   }
 }

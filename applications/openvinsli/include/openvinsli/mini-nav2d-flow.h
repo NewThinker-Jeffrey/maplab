@@ -144,7 +144,8 @@ class Nav2dFlow {
 
   // std::deque<OpenvinsEstimate::ConstPtr> vio_estimates_;
   std::deque<StampedGlobalPose::ConstPtr> vio_estimates_;
-  
+
+  int64_t last_vio_estimate_timestamp_ns_ = -1;
 
   // current nav task
   std::mutex mutex_nav_;
@@ -184,10 +185,12 @@ class Nav2dFlow {
   ros::NodeHandle node_handle_;
   ros::ServiceServer ros_nav_srv_;
   ros::Publisher ros_pub_nav_cmd_;
+  ros::Publisher ros_pub_nav_cmd_viz_;  
   uint32_t ros_nav_cmd_seq_ = 0;
   void initRosInterface();
   bool dealWithRosRequest(RosNavRequest::Request &request, RosNavRequest::Response &response);
   void convertAndPublishNavCmd(const Nav2dCmd& cmd);
+  void publishNavInfoViz();
 #endif
 };
 }  // namespace openvinsli

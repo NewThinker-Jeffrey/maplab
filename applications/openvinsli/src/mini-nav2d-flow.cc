@@ -35,6 +35,17 @@
 
 #include "hear_slam/utils/yaml_helper.h"
 
+// ros and rviz interface
+#ifdef EANBLE_ROS_NAV_INTERFACE
+#include <eigen_conversions/eigen_msg.h>
+#include <tf/transform_broadcaster.h>
+#include <geometry_msgs/PoseArray.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <visualization/common-rviz-visualization.h>
+#include <visualization/rviz-visualization-sink.h>
+#endif
+
+
 #define PUBLISH_NAV_CMD_IN_ODOM_FRAME  // otherwise publish that in global frame
 
 DEFINE_double(
@@ -73,19 +84,19 @@ namespace openvinsli {
 
 namespace {
 
-double getYawFromQuaternion(const Eigen::Quaterniond& q) {
-  // For our sensor, Z is forward.
-  Eigen::Vector3d front = Eigen::Vector3d::UnitZ();
-  front = q * front;
+double getYawFromQuaternion(const Eigen::Quaterniond& q, const Eigen::Vector3d& local_front) {
+  Eigen::Vector3d front = q * local_front;
   // todo:make sure front.y() and front.x() fixed.
   return  atan2(front.y(), front.x());
 }
 
-Eigen::Vector3d transformPoseFrom3dTo2d(const Eigen::Isometry3d& pose_3d) {
+Eigen::Vector3d transformPoseFrom3dTo2d(const Eigen::Isometry3d& pose_3d,
+                                        // For our sensor, Z is forward.
+                                        const Eigen::Vector3d& local_front = Eigen::Vector3d::UnitZ()) {
   Eigen::Vector3d pose_2d = pose_3d.translation();
   Eigen::Quaterniond q(pose_3d.linear());
   q.normalize();
-  pose_2d[2] = getYawFromQuaternion(q);
+  pose_2d[2] = getYawFromQuaternion(q, local_front);
   return pose_2d;
 }
 
@@ -115,9 +126,9 @@ Eigen::Vector3d composePose2d(const Eigen::Vector3d& pose_1, const Eigen::Vector
   return ret;
 }
 
-Eigen::Vector3d transformPoseFrom3dTo2d(const aslam::Transformation& pose_3d) {
+Eigen::Vector3d transformPoseFrom3dTo2d(const aslam::Transformation& pose_3d, const Eigen::Vector3d& local_front = Eigen::Vector3d::UnitZ()) {
   Eigen::Vector3d pose_2d = pose_3d.getPosition();
-  pose_2d[2] = getYawFromQuaternion(pose_3d.getRotation().toImplementation());
+  pose_2d[2] = getYawFromQuaternion(pose_3d.getRotation().toImplementation(), local_front);
   return pose_2d;
 }
 
@@ -132,7 +143,8 @@ Eigen::Vector3d getPose2dFromGlobalPoseEstimate(StampedGlobalPose::ConstPtr vio_
   return transformPoseFrom3dTo2d(T_G_I);
 }
 
-Eigen::Isometry3d transformPoseFrom2dTo3d(const Eigen::Vector3d& pose_2d) {
+// FrontZ can recover the real 3d pose of the camera, but not friendly for visualization.
+Eigen::Isometry3d transformPoseFrom2dTo3d_FrontZ(const Eigen::Vector3d& pose_2d) {
   Eigen::Isometry3d pose_3d = Eigen::Isometry3d::Identity();
 
   Eigen::Vector3d Z(cos(pose_2d[2]), sin(pose_2d[2]), 0);
@@ -152,6 +164,29 @@ Eigen::Isometry3d transformPoseFrom2dTo3d(const Eigen::Vector3d& pose_2d) {
   return pose_3d;
 }
 
+// FrontX is more friendly for visualization.
+Eigen::Isometry3d transformPoseFrom2dTo3d_FrontX(const Eigen::Vector3d& pose_2d) {
+  Eigen::Isometry3d pose_3d = Eigen::Isometry3d::Identity();
+
+  Eigen::Vector3d X(cos(pose_2d[2]), sin(pose_2d[2]), 0);
+  X.normalize();
+  Eigen::Vector3d Z(0, 0, 1);
+  Eigen::Vector3d Y = Z.cross(X);
+  Y.normalize();
+
+  Eigen::Matrix3d rot;
+  rot << X,Y,Z;
+
+  Eigen::Vector3d translation = pose_2d;
+  translation.z() = 0;
+
+  pose_3d.linear() = rot;
+  pose_3d.translation() = translation;
+  return pose_3d;
+}
+
+
+
 Nav2dCmd::Ptr toNav2dCmdInOdomFrame(const Nav2dCmd& nav_cmd, const Eigen::Isometry3d& T_O_G) {
   Nav2dCmd::Ptr ret_ptr;
   ret_ptr.reset(new Nav2dCmd());
@@ -159,13 +194,23 @@ Nav2dCmd::Ptr toNav2dCmdInOdomFrame(const Nav2dCmd& nav_cmd, const Eigen::Isomet
   ret.timestamp_ns = nav_cmd.timestamp_ns;
   ret.is_last_pathpoint = nav_cmd.is_last_pathpoint;
 
-  Eigen::Vector3d T_O_G_2d = transformPoseFrom3dTo2d(T_O_G);
+  Eigen::Vector3d T_O_G_2d = transformPoseFrom3dTo2d(T_O_G, Eigen::Vector3d::UnitX());
   ret.cur_pose2d = composePose2d(T_O_G_2d, nav_cmd.cur_pose2d);
+  ret.target = composePose2d(T_O_G_2d, nav_cmd.target);
   ret.next_pathpoints.clear();
   ret.next_pathpoints.reserve(nav_cmd.next_pathpoints.size());
   for (const auto& next_pathpoint : nav_cmd.next_pathpoints) {
     ret.next_pathpoints.push_back(composePose2d(T_O_G_2d, next_pathpoint));
   }
+
+  // ret.cur_pose2d = transformPoseFrom3dTo2d(T_O_G * transformPoseFrom2dTo3d_FrontZ(nav_cmd.cur_pose2d));
+  // ret.next_pathpoints.clear();
+  // ret.next_pathpoints.reserve(nav_cmd.next_pathpoints.size());
+  // for (const auto& next_pathpoint : nav_cmd.next_pathpoints) {    
+  //   ret.next_pathpoints.push_back(
+  //     transformPoseFrom3dTo2d(T_O_G * transformPoseFrom2dTo3d_FrontZ(next_pathpoint)));
+  // }
+
   return ret_ptr;
 }
 
@@ -411,11 +456,14 @@ void Nav2dFlow::nav_worker() {
 void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
   // Deal with vio_estimate.
   std::unique_lock<std::mutex> lock(mutex_nav_);
-
   if (!T_G_O_) {
     T_G_O_ = std::make_unique<Eigen::Isometry3d>();
   }
   *T_G_O_ = vio_estimate->T_G_O;
+  last_vio_estimate_timestamp_ns_ = vio_estimate->timestamp_ns;
+#ifdef EANBLE_ROS_NAV_INTERFACE
+  publishNavInfoViz();
+#endif
 
   if (!nav_cmds_to_play_.empty()) {
     // If we're in offline mode, we just play back the recorded nav_cmds.
@@ -450,6 +498,7 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
     if (last_played_nav_cmd_ && vio_estimate->timestamp_ns - last_played_nav_cmd_->timestamp_ns > 300000000) {
       state_ = NavState::IDLE;
     }
+
     return;
   }
 
@@ -698,6 +747,7 @@ Nav2dCmd::Ptr Nav2dFlow::runNav(int64_t timestamp_ns) {
   Nav2dCmd::Ptr nav_cmd = aligned_shared<Nav2dCmd>();
   nav_cmd->timestamp_ns = timestamp_ns;
   nav_cmd->cur_pose2d = current_pose_2d_;
+  nav_cmd->target = current_path_.back();
 
   if (current_pathpoint_idx_ + 1 < current_path_.size()) {
     // Check whether we need to change current_pathpoint_idx_.
@@ -764,7 +814,7 @@ Nav2dFlow::getCurNavInfoForDisplay() {
   }
 
   for (size_t i=0; i<target_points_.size(); i++) {
-    info.nav_targets.push_back(T_O_G * transformPoseFrom2dTo3d(traj_2d_[target_points_[i]]));
+    info.nav_targets.push_back(T_O_G * transformPoseFrom2dTo3d_FrontX(traj_2d_[target_points_[i]]));
   }
 
   info.target_names = target_point_names_;
@@ -840,6 +890,9 @@ void Nav2dFlow::initRosInterface() {
 
   ros_pub_nav_cmd_ =
       node_handle_.advertise<RosNav2dCmd>("nav2d_cmd", 1);
+
+  ros_pub_nav_cmd_viz_ = node_handle_.advertise<geometry_msgs::PoseArray>(
+      "nav2d_cmd_viz", 1);
 }
 
 bool Nav2dFlow::dealWithRosRequest(RosNavRequest::Request &request, RosNavRequest::Response &response) {
@@ -864,17 +917,21 @@ bool Nav2dFlow::dealWithRosRequest(RosNavRequest::Request &request, RosNavReques
 }
 
 void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
-  if (ros_pub_nav_cmd_.getNumSubscribers() == 0) {
+  if (ros_pub_nav_cmd_.getNumSubscribers() == 0 && ros_pub_nav_cmd_viz_.getNumSubscribers() == 0) {
     return;
   }
 
   RosNav2dCmd roscmd;
+  ros::Time timestamp_ros = createRosTimestamp(cmd.timestamp_ns);
   roscmd.header.seq = ros_nav_cmd_seq_++;
-  roscmd.header.stamp = createRosTimestamp(cmd.timestamp_ns);  
+  roscmd.header.stamp = timestamp_ros;  
   roscmd.header.frame_id = "NAV";
   roscmd.cur_pose2d.x = cmd.cur_pose2d.x();
   roscmd.cur_pose2d.y = cmd.cur_pose2d.y();
   roscmd.cur_pose2d.theta = cmd.cur_pose2d.z();
+  roscmd.target.x = cmd.target.x();
+  roscmd.target.y = cmd.target.y();
+  roscmd.target.theta = cmd.target.z();
 
   for (const Eigen::Vector3d& next_pathpoint : cmd.next_pathpoints) {
     geometry_msgs::Pose2D p;
@@ -885,7 +942,59 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
   }
   roscmd.is_last_pathpoint = cmd.is_last_pathpoint;
   ros_pub_nav_cmd_.publish(roscmd);
+
+  // publish pose array for rviz visualization
+  geometry_msgs::PoseArray nav_cmd_viz_msg;
+  nav_cmd_viz_msg.header.frame_id = FLAGS_tf_mission_frame;
+  nav_cmd_viz_msg.header.stamp = createRosTimestamp(cmd.timestamp_ns);
+  for (const Eigen::Vector3d& next_point_2d : cmd.next_pathpoints) {
+    const Eigen::Isometry3d& next_point_3d = transformPoseFrom2dTo3d_FrontX(next_point_2d);
+    Eigen::Quaterniond next_point_q(next_point_3d.linear());
+    Eigen::Vector3d next_point_p(next_point_3d.translation());
+
+    geometry_msgs::Pose next_point_msg;
+    tf::pointEigenToMsg(next_point_p, next_point_msg.position);
+    tf::quaternionEigenToMsg(next_point_q, next_point_msg.orientation);
+    nav_cmd_viz_msg.poses.emplace_back(next_point_msg);
+  }
+  ros_pub_nav_cmd_viz_.publish(nav_cmd_viz_msg);
+
+  // publish current target point to tf
+  const Eigen::Isometry3d& target_3d = transformPoseFrom2dTo3d_FrontX(cmd.target);
+  Eigen::Quaterniond target_q(target_3d.linear());
+  Eigen::Vector3d target_p(target_3d.translation());
+  const aslam::Transformation target_pose(target_p, target_q);
+  visualization::publishTF(
+      target_pose, FLAGS_tf_mission_frame, "NAV_CUR_TARGET", timestamp_ros);
 }
+
+void Nav2dFlow::publishNavInfoViz() {
+  // publish pose of nav-target points to tf
+
+  if (last_vio_estimate_timestamp_ns_ > 0) {
+    ros::Time timestamp_ros = createRosTimestamp(last_vio_estimate_timestamp_ns_);
+#ifdef PUBLISH_NAV_CMD_IN_ODOM_FRAME
+    std::string parent_frame = FLAGS_tf_mission_frame;
+    Eigen::Vector3d T_O_G_2d = transformPoseFrom3dTo2d(T_G_O_->inverse(), Eigen::Vector3d::UnitX());
+#else
+    std::string parent_frame = FLAGS_tf_map_frame;
+#endif
+    for (size_t i = 0; i < target_points_.size(); ++i) {
+      size_t point_idx = target_points_[i];
+      Eigen::Vector3d target_2d = traj_2d_[point_idx];
+#ifdef PUBLISH_NAV_CMD_IN_ODOM_FRAME
+      target_2d = composePose2d(T_O_G_2d, target_2d);
+#endif
+      const Eigen::Isometry3d& target_3d = transformPoseFrom2dTo3d_FrontX(target_2d);
+      Eigen::Quaterniond target_q(target_3d.linear());
+      Eigen::Vector3d target_p(target_3d.translation());
+      const aslam::Transformation target_pose(target_p, target_q);
+      visualization::publishTF(
+          target_pose, parent_frame, "NAV_" + target_point_names_[i], timestamp_ros);
+    }
+  }
+}
+
 #endif
 
 
