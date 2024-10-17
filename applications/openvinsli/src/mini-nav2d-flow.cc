@@ -787,6 +787,18 @@ Nav2dCmd::Ptr Nav2dFlow::runNav(int64_t timestamp_ns) {
     nav_cmd->is_last_pathpoint = true;
   }
 
+  bool re_orient_intermediate_pathpoints = true;
+  if (re_orient_intermediate_pathpoints) {
+    // Re-orient intermediate pathpoints.
+    if (nav_cmd->next_pathpoints.size() > 1) {
+      for (size_t i=0; i<nav_cmd->next_pathpoints.size() - 1; i++) {
+        Eigen::Vector3d diff = nav_cmd->next_pathpoints[i+1] - nav_cmd->next_pathpoints[i];
+        diff.z() = 0;
+        nav_cmd->next_pathpoints[i].z() = std::atan2(diff.y(), diff.x());
+      }
+    }
+  }
+
   return nav_cmd;
 }
 
