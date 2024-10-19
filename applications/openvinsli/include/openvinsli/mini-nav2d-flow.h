@@ -78,10 +78,7 @@ class Nav2dFlow {
 
   bool navigateToWaypoint(const std::string& waypoint_name);
 
-  bool navigateToObject(int from_waypoint_idx, const std::string& mode = "" /*reserved for future*/);
-
-  bool navigateToObject(const std::string& from_waypoint_name,
-                        const std::string& mode = "" /*reserved for future*/);
+  bool navigateToObject(const std::string& object_name);
 
   bool stopNav();
 
@@ -181,14 +178,15 @@ class Nav2dFlow {
 
   // for TO_OBJECT
   struct NavToObjectParams {
-    int from_waypoint_idx = -1;
+    int ref_waypoint_idx = -1;
+    std::string ref_waypoint_name;
     double max_forward_distance = 0.3;
     NavToObjectParams() {}
 
     using Config = hear_slam::YamlConfig;
     NavToObjectParams(const Config& config) : NavToObjectParams() {
-      // CONFIG_UPDT_I(config, from_waypoint_idx);
-      CONFIG_UPDT_I(config, max_forward_distance);
+      CONFIG_LOAD_I(config, ref_waypoint_name);
+      CONFIG_LOAD_I(config, max_forward_distance);
     }
   };
   std::unique_ptr<NavToObjectParams> current_nav_to_object_params_;

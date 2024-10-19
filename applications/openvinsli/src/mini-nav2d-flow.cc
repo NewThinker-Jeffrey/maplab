@@ -374,38 +374,36 @@ bool Nav2dFlow::navigateToWaypoint(const std::string& waypoint_name) {
   return false;
 }
 
-bool Nav2dFlow::navigateToObject(int from_waypoint_idx, const std::string& mode/*reserved for future*/) {
-  if (from_waypoint_idx < 0) {
-    LOG(WARNING) << "Nav2dFlow: navigateToObject() failed since we require a valid FROM waypoint for now!";
+bool Nav2dFlow::navigateToObject(const std::string& object_name) {
+  if (object_name.empty()) {
+    LOG(WARNING) << "Nav2dFlow: navigateToObject() failed since we get an empty object name/type!!";
     return false;
+  }
+
+  std::string config_key = "object_nav.objects." + object_name;
+  if (!hear_slam::rootCfg().has(config_key)) {
+    LOG(WARNING) << "Nav2dFlow: navigateToObject() failed since the object is not defined!! name/type: " << object_name;
+    return false;
+  }
+
+  auto nav_to_object_params = std::make_unique<NavToObjectParams>(hear_slam::rootCfg().get(config_key));
+  for (size_t i=0; i<waypoint_names_.size(); i++) {
+    if (waypoint_names_[i] == nav_to_object_params->ref_waypoint_name) {
+      nav_to_object_params->ref_waypoint_idx = i;
+      break;
+    }
   }
 
   std::unique_lock<std::mutex> lock(mutex_nav_);
   if (state_ == NavState::IDLE) {
     state_ = NavState::PATH_PLANNING;
     current_nav_type_ = NavType::TO_OBJECT;
-    current_nav_to_object_params_ = std::make_unique<NavToObjectParams>(hear_slam::rootCfg().get("object_nav"));
-    current_nav_to_object_params_->from_waypoint_idx = from_waypoint_idx;
+    current_nav_to_object_params_ = std::move(nav_to_object_params);
     LOG(INFO) << "Nav2dFlow: navigateToObject() OK!";
     return true;
   }
 
   LOG(WARNING) << "Nav2dFlow: navigateToObject() failed since we're NOT in IDLE state!";
-  return false;
-}
-
-bool Nav2dFlow::navigateToObject(const std::string& from_waypoint_name, const std::string& mode/*reserved for future*/) {
-  if (from_waypoint_name.empty()) {
-    return navigateToObject(-1, mode);
-  }
-
-  for (size_t i=0; i<waypoint_names_.size(); i++) {
-    if (waypoint_names_[i] == from_waypoint_name) {
-      return navigateToObject(i, mode);
-    }
-  }
-
-  LOG(WARNING) << "Nav2dFlow: navigateToObject() failed since we can't find a waypoint named \"" << from_waypoint_name << "\"";
   return false;
 }
 
@@ -759,8 +757,26 @@ std::vector<Eigen::Vector3d> Nav2dFlow::findToObjectTraj(
       return std::vector<Eigen::Vector3d>();
     }
   }
+
   Eigen::Vector3d object_in_odom_frame_2d = transformPoseFrom3dTo2d(object_in_odom_frame, Eigen::Vector3d::UnitX());
-  return std::vector<Eigen::Vector3d>({object_in_odom_frame_2d});
+  Eigen::Vector2d object_xy = object_in_odom_frame_2d.head<2>();
+  double max_forward_distance = nav_params.max_forward_distance;
+  int ref_traj_point_idx = waypoints_[nav_params.ref_waypoint_idx];
+  Eigen::Vector3d ref_traj_point = traj_2d_[ref_traj_point_idx];
+  Eigen::Vector2d ref_xy = ref_traj_point.head<2>();
+
+  Eigen::Vector3d target;
+  target[2] = ref_traj_point[2];
+  Eigen::Matrix2d rot2d = getRotation2d(ref_traj_point[2]);
+
+  Eigen::Vector2d object_xy_in_ref = rot2d.transpose() * (object_xy - ref_xy);
+  Eigen::Vector2d target_xy_in_ref = object_xy_in_ref;
+  // target_xy_in_ref[0] = std::min(object_xy_in_ref[0], max_forward_distance);
+  target_xy_in_ref[0] = max_forward_distance;
+  Eigen::Vector2d target_xy = rot2d * target_xy_in_ref + ref_xy;
+  target.head<2>() = target_xy;
+
+  return std::vector<Eigen::Vector3d>({target});
 }
 
 std::vector<Eigen::Vector3d>  Nav2dFlow::findToWaypointTraj(
@@ -1094,8 +1110,8 @@ bool Nav2dFlow::dealWithRosRequest(RosNavRequest::Request &request, RosNavReques
     std::string waypoint_name = request.arg;
     response.ack = navigateToWaypoint(waypoint_name);
   } else if (cmd == "navigateToObject") {
-    std::string from_waypoint_name = request.arg;
-    response.ack = navigateToObject(from_waypoint_name);
+    std::string object_name = request.arg;
+    response.ack = navigateToObject(object_name);
   } else if (cmd == "stopNav") {
     response.ack = stopNav();
   } else {
