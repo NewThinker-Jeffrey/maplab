@@ -16,3 +16,15 @@ global_pose_fusion:
     t_sigma: 0.02
     ransac_inliers_thr: 3
     ransac_max_samples: 5
+
+object_nav:
+  object_cam_extrinsics:
+    - [1.0, 0.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0, 0.0]
+    - [0.0, 0.0, 1.0, 0.0]
+    - [0.0, 0.0, 0.0, 1.0]
+  objects:
+    boxOnTable:
+      max_forward_distance: 0.5
+      ref_waypoint_name: "A"
+
