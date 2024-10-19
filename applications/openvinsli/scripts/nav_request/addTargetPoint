@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 
-# TARGET_POINT="A3"
-TARGET_POINT=$1
-rosservice call NavRequest addTargetPoint "$TARGET_POINT"
+# WAYPOINT="A3"
+WAYPOINT=$1
+rosservice call NavRequest addWaypoint "$WAYPOINT"

@@ -146,20 +146,18 @@ OpenvinsFlow::OpenvinsFlow(
   global_pose_fusion_ = std::make_unique<hear_slam::GlobalPoseFusion>(fusion_params);
   global_pose_fusion_->setPoseUpdateCallback(
       [this](double time,
-             const hear_slam::GlobalPoseFusion::Pose3d& T_G_O,
-             const hear_slam::GlobalPoseFusion::Pose3d& pose,
+             const hear_slam::GlobalPoseFusion::Pose3d& odom_pose,
+             const hear_slam::GlobalPoseFusion::Pose3d& global_pose,
              const Eigen::Matrix<double, 6, 6>& cov) {
-        std::cout << "Fusion localization pose: p(" << pose.translation().transpose() << ")  q("
-                  << Eigen::Quaterniond(pose.linear().matrix()).coeffs().transpose() << ")" << std::endl;
+        std::cout << "Fusion localization pose: p(" << global_pose.translation().transpose() << ")  q("
+                  << Eigen::Quaterniond(global_pose.linear().matrix()).coeffs().transpose() << ")" << std::endl;
         std::cout << "Fusion localization cov diag sqrt: " << cov.diagonal().cwiseSqrt().transpose() << std::endl;
 
         // publish pose
         auto fusion_res = std::make_shared<StampedGlobalPose>();
         fusion_res->timestamp_ns = time_translation_.convertOpenvinsToMaplabTimestamp(time);
-        fusion_res->pose = Eigen::Isometry3d(pose.linear().matrix());
-        fusion_res->pose.translation() = pose.translation();
-        fusion_res->T_G_O = Eigen::Isometry3d(T_G_O.linear().matrix());
-        fusion_res->T_G_O.translation() = T_G_O.translation();
+        fusion_res->odom_pose = odom_pose;
+        fusion_res->global_pose = global_pose;
         publish_global_pose_fusion_(fusion_res);
       });
 

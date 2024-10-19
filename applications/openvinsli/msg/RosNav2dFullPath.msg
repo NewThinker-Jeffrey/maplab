@@ -2,6 +2,6 @@
 
 geometry_msgs/Pose2D[] pathpoints
 
-int32[] target_points
+int32[] waypoints
 
-string[] target_names
+string[] waypoint_names

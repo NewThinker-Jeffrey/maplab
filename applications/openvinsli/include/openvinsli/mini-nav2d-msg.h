@@ -18,7 +18,7 @@ struct Nav2dCmd {
 
   std::vector<Eigen::Vector3d> next_pathpoints;
 
-  Eigen::Vector3d target;
+  Eigen::Vector3d waypoint;
 
   bool is_last_pathpoint;
 
@@ -28,7 +28,7 @@ struct Nav2dCmd {
     size_t next_pathpoints_size;
     is >> cmd.timestamp_ns >> cmd.is_last_pathpoint >> next_pathpoints_size;
     is >> cmd.cur_pose2d.x() >> cmd.cur_pose2d.y() >> cmd.cur_pose2d.z();
-    is >> cmd.target.x() >> cmd.target.y() >> cmd.target.z();
+    is >> cmd.waypoint.x() >> cmd.waypoint.y() >> cmd.waypoint.z();
     for (int i = 0; i < next_pathpoints_size; ++i) {
       Eigen::Vector3d pathpoint;
       is >> pathpoint.x() >> pathpoint.y() >> pathpoint.z();
@@ -42,7 +42,7 @@ struct Nav2dCmd {
     oss << timestamp_ns << " " << is_last_pathpoint << " "
         << next_pathpoints.size() << " " << cur_pose2d.x() << " "
         << cur_pose2d.y() << " " << cur_pose2d.z() << " "
-        << target.x() << " " << target.y() << " " << target.z();
+        << waypoint.x() << " " << waypoint.y() << " " << waypoint.z();
     for (size_t i = 0; i < next_pathpoints.size(); ++i) {
       oss << " " << next_pathpoints[i].x() << " " << next_pathpoints[i].y()
           << " " << next_pathpoints[i].z();

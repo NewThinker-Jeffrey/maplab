@@ -23,6 +23,7 @@
 #define EANBLE_ROS_NAV_INTERFACE
 #ifdef EANBLE_ROS_NAV_INTERFACE
 #include <ros/ros.h>
+#include <geometry_msgs/PoseStamped.h>
 #include "openvinsli/RosNavRequest.h"
 #include "openvinsli/RosNav2dCmd.h"
 #endif
@@ -69,11 +70,16 @@ class Nav2dFlow {
 
   bool finishPathRecording(const std::string& savefile="");
 
-  bool addTargetPoint(const std::string& target_name="");
+  bool addWaypoint(const std::string& waypoint_name="");
 
-  bool navigateTo(size_t target_idx);
+  bool navigateToWaypoint(size_t waypoint_idx);
 
-  bool navigateTo(const std::string& target_name);
+  bool navigateToWaypoint(const std::string& waypoint_name);
+
+  bool navigateToObject(int from_waypoint_idx, const std::string& mode = "" /*reserved for future*/);
+
+  bool navigateToObject(const std::string& from_waypoint_name,
+                        const std::string& mode = "" /*reserved for future*/);
 
   bool stopNav();
 
@@ -88,14 +94,14 @@ class Nav2dFlow {
 
     std::vector<Eigen::Vector3d> traj;  // set z=0 for all traj points.
 
-    std::vector<Eigen::Isometry3d> nav_targets;
+    std::vector<StampedGlobalPose::Pose3d> nav_waypoints;
 
-    std::vector<std::string> target_names;
+    std::vector<std::string> waypoint_names;
 
     std::vector<Eigen::Vector3d> current_path;
     // Eigen::Vector3d current_pathpoint;
 
-    std::unique_ptr<Eigen::Isometry3d> T_O_G;  // global in odom.
+    std::unique_ptr<StampedGlobalPose::Pose3d> T_O_G;  // global in odom.
 
     std::string state;
   };
@@ -115,7 +121,7 @@ class Nav2dFlow {
   int findNearstTrajPoint(const Eigen::Vector3d& current_pose_2d, double* best_distance);
 
   // find p2p traj:
-  std::vector<Eigen::Vector3d>  findPoint2PointTraj(const Eigen::Vector3d& current_pose_2d, size_t target_point_idx);
+  std::vector<Eigen::Vector3d>  findPoint2PointTraj(const Eigen::Vector3d& current_pose_2d, size_t waypoint_idx);
 
   static double getPathLength(const Eigen::Vector3d& current_pose_2d, const std::vector<Eigen::Vector3d>& path);
 
@@ -126,6 +132,8 @@ class Nav2dFlow {
   Nav2dCmd::Ptr runNav(int64_t timestamp_ns=-1);
 
   void saveNavCmd(const Nav2dCmd& cmd);
+
+  std::unique_ptr<StampedGlobalPose::Pose3d> getOdomPoseAtTime(int64_t timestamp_ns);
 
  private:
 
@@ -152,19 +160,20 @@ class Nav2dFlow {
 
   // nav info
   std::vector<Eigen::Vector3d> traj_2d_;
-  std::vector<size_t> target_points_;
-  std::vector<std::string> target_point_names_;
+  std::vector<size_t> waypoints_;
+  std::vector<std::string> waypoint_names_;
 
   NavState state_;
   std::vector<Eigen::Vector3d> current_path_;
   size_t current_pathpoint_idx_;
   Eigen::Vector3d current_pose_2d_;
-  size_t current_target_idx_;
+  size_t current_waypoint_idx_;
 
   // std::deque<Eigen::Vector3d> traj_2d_recroding_;  // used for recording
   std::string path_record_file_;
 
  private:
+
   // saving online nav cmds
   std::shared_ptr<std::ofstream> nav_cmd_file_;
 
@@ -177,7 +186,9 @@ class Nav2dFlow {
 
   int32_t nav_cmd_play_idx_ = 0;
 
-  std::unique_ptr<Eigen::Isometry3d> T_G_O_;
+  std::unique_ptr<StampedGlobalPose::Pose3d> T_G_O_;
+
+  std::unique_ptr<StampedGlobalPose::Pose3d> last_odom_pose_;
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
  private:
@@ -185,10 +196,17 @@ class Nav2dFlow {
   ros::NodeHandle node_handle_;
   ros::ServiceServer ros_nav_srv_;
   ros::Publisher ros_pub_nav_cmd_;
-  ros::Publisher ros_pub_nav_cmd_viz_;  
+  ros::Publisher ros_pub_nav_cmd_viz_;
+
+  ros::Subscriber sub_local_object_pose_;  // for grasping task (nav to object)
+  StampedGlobalPose::Pose3d object_cam_extrinsics_;
+  std::unique_ptr<StampedGlobalPose::Pose3d> object_in_odom_frame_;
+  std::mutex mutex_object_nav_;
+
   uint32_t ros_nav_cmd_seq_ = 0;
   void initRosInterface();
   bool dealWithRosRequest(RosNavRequest::Request &request, RosNavRequest::Response &response);
+  void localObjectPoseCallback(const geometry_msgs::PoseStampedConstPtr& msg);
   void convertAndPublishNavCmd(const Nav2dCmd& cmd);
   void publishNavInfoViz();
 #endif

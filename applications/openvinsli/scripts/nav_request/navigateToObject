@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# FROM_WAYPOINT="A3"
+FROM_WAYPOINT=$1
+rosservice call NavRequest navigateToObject "$FROM_WAYPOINT"

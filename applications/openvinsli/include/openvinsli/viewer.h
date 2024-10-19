@@ -80,7 +80,7 @@ private:
   hear_slam::ViPlayer* vi_player_;
 
   // widgets
-  std::shared_ptr<pangolin::Var<std::string>> target_point_name_var_;
+  std::shared_ptr<pangolin::Var<std::string>> waypoint_name_var_;
   std::shared_ptr<pangolin::Var<bool>> show_nav_var_;
   std::shared_ptr<pangolin::Var<bool>> show_rgbd_map_var_;
   std::shared_ptr<pangolin::Var<bool>> show_reloc_var_;

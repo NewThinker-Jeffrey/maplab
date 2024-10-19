@@ -3,7 +3,7 @@ std_msgs/Header header
 
 geometry_msgs/Pose2D cur_pose2d
 
-geometry_msgs/Pose2D target
+geometry_msgs/Pose2D waypoint
 
 geometry_msgs/Pose2D[] next_pathpoints
 

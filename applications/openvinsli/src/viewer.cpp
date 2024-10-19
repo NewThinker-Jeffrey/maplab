@@ -113,11 +113,11 @@ void OpenvinsliViewer::init() {
       nav_->startPathRecording();
     }
   });
-  target_point_name_var_ = std::make_shared<pangolin::Var<std::string>>("menu.TargetName", "");
-  pangolin::Var<std::function<void()>> add_nav_target_var("menu.AddNavTarget", [this](){
+  waypoint_name_var_ = std::make_shared<pangolin::Var<std::string>>("menu.WaypointName", "");
+  pangolin::Var<std::function<void()>> add_nav_waypoint_var("menu.AddNavWaypoint", [this](){
     if (nav_) {
-      nav_->addTargetPoint(*target_point_name_var_);
-      (*target_point_name_var_) = "";
+      nav_->addWaypoint(*waypoint_name_var_);
+      (*waypoint_name_var_) = "";
     }
   });
   pangolin::Var<std::function<void()>> finish_path_record_var("menu.FinishPathRecrod", [this](){
@@ -125,10 +125,10 @@ void OpenvinsliViewer::init() {
       nav_->finishPathRecording();
     }
   });
-  pangolin::Var<std::function<void()>> navigate_to_var("menu.NavigateTo", [this](){
+  pangolin::Var<std::function<void()>> navigate_to_var("menu.NavToWaypoint", [this](){
     if (nav_) {
-      nav_->navigateTo(*target_point_name_var_);
-      (*target_point_name_var_) = "";
+      nav_->navigateToWaypoint(*waypoint_name_var_);
+      (*waypoint_name_var_) = "";
     }
   });
   pangolin::Var<std::function<void()>> cancel_nav_var("menu.CancelNav", [this](){
@@ -363,7 +363,7 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
        ,TextLine("predict_pos: " + predict_pos_str)
        ,TextLine("Traveled distance: " + distance_str)       
        ,TextLine("NAV State: " + (nav_info ? nav_info->state : std::string("none")))       
-      //  ,TextLine("NAV target: " + std::string(*target_point_name_var_))
+      //  ,TextLine("NAV waypoint: " + std::string(*waypoint_name_var_))
       },
       10, -120,
       1.0);
@@ -580,8 +580,8 @@ void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> outpu
 
     // draw the global frame.
     if (nav_info->T_O_G) {
-      Eigen::Isometry3f T_O_G = nav_info->T_O_G->cast<float>();
-      multMatrixfAndDraw(T_O_G.matrix(), [&](){
+      Eigen::Matrix4d T_O_G = nav_info->T_O_G->matrix();
+      multMatrixfAndDraw(T_O_G.cast<float>(), [&](){
         drawMultiTextLines(
             {TextLine("NavGlobal", false, getChineseFont())},
             Eigen::Vector3f(0, 0, 0),
@@ -591,15 +591,15 @@ void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> outpu
       });
     }
     
-    // draw target points
-    for (size_t i=0; i<nav_info->nav_targets.size(); i++) {
-      Eigen::Isometry3f nav_target = nav_info->nav_targets[i].cast<float>();
-      multMatrixfAndDraw(nav_target.matrix(), [&](){
+    // draw waypoint points
+    for (size_t i=0; i<nav_info->nav_waypoints.size(); i++) {
+      Eigen::Matrix4d nav_waypoint = nav_info->nav_waypoints[i].matrix();
+      multMatrixfAndDraw(nav_waypoint.cast<float>(), [&](){
         drawVehicle(
             0.4, Eigen::Vector3f(0, 0, 1), Eigen::Vector3f(0, -1, 0),
             Color(255,0,128,80), 4.0f);
         drawMultiTextLines(
-            {TextLine(nav_info->target_names[i], true, getChineseFont())},
+            {TextLine(nav_info->waypoint_names[i], true, getChineseFont())},
             Eigen::Vector3f(0.0, 0.0, 0.05),
             Eigen::AngleAxisf(0.5*M_PI, Eigen::Vector3f::UnitX()).toRotationMatrix(),
             // 1.0 / 36.0);

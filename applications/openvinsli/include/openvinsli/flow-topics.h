@@ -10,6 +10,7 @@
 #include "openvinsli/vi-map-with-mutex.h"
 #include "core/SimpleDenseMapping.h"
 #include "hear_slam/slam/vtag/vtag.h"
+#include "hear_slam/unstable/global_pose_fusion/global_pose_fusion.h"
 
 // TODO(schneith): All message should be ConstPtr.
 
@@ -40,9 +41,10 @@ struct StampedTagDetections {
 };
 
 struct StampedGlobalPose {
+  using Pose3d = hear_slam::GlobalPoseFusion::Pose3d;
   int64_t timestamp_ns;
-  Eigen::Isometry3d pose;
-  Eigen::Isometry3d T_G_O;
+  Pose3d odom_pose;
+  Pose3d global_pose;
   using ConstPtr = std::shared_ptr<const StampedGlobalPose>;
 };
 

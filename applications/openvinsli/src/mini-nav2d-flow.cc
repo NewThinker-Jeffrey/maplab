@@ -34,6 +34,7 @@
 #include "utils/sensor_data.h"       // ov_core
 
 #include "hear_slam/utils/yaml_helper.h"
+#include "hear_slam/basic/string_helper.h"
 
 // ros and rviz interface
 #ifdef EANBLE_ROS_NAV_INTERFACE
@@ -90,6 +91,17 @@ double getYawFromQuaternion(const Eigen::Quaterniond& q, const Eigen::Vector3d& 
   return  atan2(front.y(), front.x());
 }
 
+
+Eigen::Vector3d transformPoseFrom3dTo2d(const StampedGlobalPose::Pose3d& pose_3d,
+                                        // For our sensor, Z is forward.
+                                        const Eigen::Vector3d& local_front = Eigen::Vector3d::UnitZ()) {
+  Eigen::Vector3d pose_2d = pose_3d.translation();
+  Eigen::Quaterniond q(pose_3d.linear().matrix());
+  q.normalize();
+  pose_2d[2] = getYawFromQuaternion(q, local_front);
+  return pose_2d;
+}
+
 Eigen::Vector3d transformPoseFrom3dTo2d(const Eigen::Isometry3d& pose_3d,
                                         // For our sensor, Z is forward.
                                         const Eigen::Vector3d& local_front = Eigen::Vector3d::UnitZ()) {
@@ -139,13 +151,12 @@ Eigen::Vector3d transformPoseFrom3dTo2d(const aslam::Transformation& pose_3d, co
 // }
 
 Eigen::Vector3d getPose2dFromGlobalPoseEstimate(StampedGlobalPose::ConstPtr vio_estimate) {
-  Eigen::Isometry3d T_G_I = vio_estimate->pose;
-  return transformPoseFrom3dTo2d(T_G_I);
+  return transformPoseFrom3dTo2d(vio_estimate->global_pose);
 }
 
 // FrontZ can recover the real 3d pose of the camera, but not friendly for visualization.
-Eigen::Isometry3d transformPoseFrom2dTo3d_FrontZ(const Eigen::Vector3d& pose_2d) {
-  Eigen::Isometry3d pose_3d = Eigen::Isometry3d::Identity();
+StampedGlobalPose::Pose3d transformPoseFrom2dTo3d_FrontZ(const Eigen::Vector3d& pose_2d) {
+  StampedGlobalPose::Pose3d pose_3d = StampedGlobalPose::Pose3d::Identity();
 
   Eigen::Vector3d Z(cos(pose_2d[2]), sin(pose_2d[2]), 0);
   Z.normalize();
@@ -165,8 +176,8 @@ Eigen::Isometry3d transformPoseFrom2dTo3d_FrontZ(const Eigen::Vector3d& pose_2d)
 }
 
 // FrontX is more friendly for visualization.
-Eigen::Isometry3d transformPoseFrom2dTo3d_FrontX(const Eigen::Vector3d& pose_2d) {
-  Eigen::Isometry3d pose_3d = Eigen::Isometry3d::Identity();
+StampedGlobalPose::Pose3d transformPoseFrom2dTo3d_FrontX(const Eigen::Vector3d& pose_2d) {
+  StampedGlobalPose::Pose3d pose_3d = StampedGlobalPose::Pose3d::Identity();
 
   Eigen::Vector3d X(cos(pose_2d[2]), sin(pose_2d[2]), 0);
   X.normalize();
@@ -187,7 +198,7 @@ Eigen::Isometry3d transformPoseFrom2dTo3d_FrontX(const Eigen::Vector3d& pose_2d)
 
 
 
-Nav2dCmd::Ptr toNav2dCmdInOdomFrame(const Nav2dCmd& nav_cmd, const Eigen::Isometry3d& T_O_G) {
+Nav2dCmd::Ptr toNav2dCmdInOdomFrame(const Nav2dCmd& nav_cmd, const StampedGlobalPose::Pose3d& T_O_G) {
   Nav2dCmd::Ptr ret_ptr;
   ret_ptr.reset(new Nav2dCmd());
   Nav2dCmd& ret = *ret_ptr;
@@ -196,7 +207,7 @@ Nav2dCmd::Ptr toNav2dCmdInOdomFrame(const Nav2dCmd& nav_cmd, const Eigen::Isomet
 
   Eigen::Vector3d T_O_G_2d = transformPoseFrom3dTo2d(T_O_G, Eigen::Vector3d::UnitX());
   ret.cur_pose2d = composePose2d(T_O_G_2d, nav_cmd.cur_pose2d);
-  ret.target = composePose2d(T_O_G_2d, nav_cmd.target);
+  ret.waypoint = composePose2d(T_O_G_2d, nav_cmd.waypoint);
   ret.next_pathpoints.clear();
   ret.next_pathpoints.reserve(nav_cmd.next_pathpoints.size());
   for (const auto& next_pathpoint : nav_cmd.next_pathpoints) {
@@ -222,6 +233,13 @@ Nav2dFlow::Nav2dFlow() : state_(NavState::IDLE), path_record_file_("nav.yaml") {
 #ifdef EANBLE_ROS_NAV_INTERFACE
   initRosInterface();
 #endif
+
+  // get the object camera extrinsics (for grasping task)
+  auto object_nav_config = hear_slam::rootCfg().get("object_nav");
+  Eigen::Matrix4d object_cam_extrinsics = Eigen::Matrix4d::Identity();
+  CONFIG_UPDT_I(object_nav_config, object_cam_extrinsics);
+  object_cam_extrinsics_.linear() = object_cam_extrinsics.block<3, 3>(0, 0);
+  object_cam_extrinsics_.translation() = object_cam_extrinsics.block<3, 1>(0, 3);
 
   stop_request_ = false;
   nav_thread_ = std::make_shared<std::thread>(std::bind(&Nav2dFlow::nav_worker, this));
@@ -285,8 +303,8 @@ bool Nav2dFlow::startPathRecording() {
   if (state_ == NavState::IDLE) {
     state_ = NavState::PATH_RECORDING;
     traj_2d_.clear();
-    target_points_.clear();
-    target_point_names_.clear();
+    waypoints_.clear();
+    waypoint_names_.clear();
     LOG(INFO) << "Nav2dFlow: startPathRecording() OK!";
     return true;
   }
@@ -308,8 +326,8 @@ bool Nav2dFlow::finishPathRecording(const std::string& tmp_savefile) {
   if (state_ == NavState::PATH_RECORDING) {
     serialize(savefile);
     // traj_2d_.clear();
-    // target_points_.clear();
-    // target_point_names_.clear();
+    // waypoints_.clear();
+    // waypoint_names_.clear();
     LOG(INFO) << "Nav2dFlow: finishPathRecording() OK!";
     state_ = NavState::IDLE;
     return true;
@@ -319,45 +337,53 @@ bool Nav2dFlow::finishPathRecording(const std::string& tmp_savefile) {
   return false;
 }
 
-bool Nav2dFlow::addTargetPoint(const std::string& target_name) {
+bool Nav2dFlow::addWaypoint(const std::string& waypoint_name) {
   std::unique_lock<std::mutex> lock(mutex_nav_);
   if (state_ == NavState::PATH_RECORDING) {
-    int new_target_idx = target_points_.size();
-    target_points_.push_back(traj_2d_.size() - 1);
-    std::string name = target_name;
+    int new_waypoint_idx = waypoints_.size();
+    waypoints_.push_back(traj_2d_.size() - 1);
+    std::string name = waypoint_name;
     if (name.empty()) {
-      name = "target_" + std::to_string(new_target_idx);
+      name = "waypoint_" + std::to_string(new_waypoint_idx);
     }
-    target_point_names_.push_back(name);
-    LOG(INFO) << "Nav2dFlow: addTargetPoint() OK!";
+    waypoint_names_.push_back(name);
+    LOG(INFO) << "Nav2dFlow: addWaypoint() OK!";
     return true;
   }
 
-  LOG(WARNING) << "Nav2dFlow: addTargetPoint() failed since we're in a wrong state!";
+  LOG(WARNING) << "Nav2dFlow: addWaypoint() failed since we're in a wrong state!";
   return false;
 }
 
-bool Nav2dFlow::navigateTo(size_t target_idx) {
+bool Nav2dFlow::navigateToWaypoint(size_t waypoint_idx) {
   std::unique_lock<std::mutex> lock(mutex_nav_);
   if (state_ == NavState::IDLE) {
     state_ = NavState::PATH_PLANNING;
-    current_target_idx_ = target_idx;
-    LOG(INFO) << "Nav2dFlow: navigateTo() OK!";
+    current_waypoint_idx_ = waypoint_idx;
+    LOG(INFO) << "Nav2dFlow: navigateToWaypoint() OK!";
     return true;
   }
 
-  LOG(WARNING) << "Nav2dFlow: navigateTo() failed since we're in IDLE state!";
+  LOG(WARNING) << "Nav2dFlow: navigateToWaypoint() failed since we're in IDLE state!";
   return false;
 }
 
-bool Nav2dFlow::navigateTo(const std::string& target_name) {
-  for (size_t i=0; i<target_point_names_.size(); i++) {
-    if (target_point_names_[i] == target_name) {
-      return navigateTo(i);
+bool Nav2dFlow::navigateToWaypoint(const std::string& waypoint_name) {
+  for (size_t i=0; i<waypoint_names_.size(); i++) {
+    if (waypoint_names_[i] == waypoint_name) {
+      return navigateToWaypoint(i);
     }
   }
 
-  LOG(WARNING) << "Nav2dFlow: navigateTo() failed since we can't find a target named \"" << target_name << "\"";
+  LOG(WARNING) << "Nav2dFlow: navigateToWaypoint() failed since we can't find a waypoint named \"" << waypoint_name << "\"";
+  return false;
+}
+
+bool Nav2dFlow::navigateToObject(int from_waypoint_idx, const std::string& mode/*reserved for future*/) {
+  return false;
+}
+
+bool Nav2dFlow::navigateToObject(const std::string& from_waypoint_name, const std::string& mode/*reserved for future*/) {
   return false;
 }
 
@@ -376,13 +402,13 @@ bool Nav2dFlow::stopNav() {
 bool Nav2dFlow::deserialize(const std::string& nav_config_file) {
   auto p_obj = hear_slam::loadYaml(nav_config_file);
   hear_slam::YamlObj& obj = *p_obj;
-  auto target_points = obj["target_points"];
-  target_points_.resize(target_points.size());
-  target_point_names_.resize(target_points.size());
-  for (size_t i=0; i < target_points.size(); i++) {
-    auto target_point = target_points[i];
-    target_point_names_[i] = target_point["name"].as<std::string>();
-    target_points_[i] = target_point["traj_pidx"].as<int>();
+  auto waypoints = obj["waypoints"];
+  waypoints_.resize(waypoints.size());
+  waypoint_names_.resize(waypoints.size());
+  for (size_t i=0; i < waypoints.size(); i++) {
+    auto waypoint = waypoints[i];
+    waypoint_names_[i] = waypoint["name"].as<std::string>();
+    waypoints_[i] = waypoint["traj_pidx"].as<int>();
   }
 
   auto traj_points = obj["traj_points"];
@@ -399,11 +425,11 @@ bool Nav2dFlow::deserialize(const std::string& nav_config_file) {
 
 bool Nav2dFlow::serialize(const std::string& nav_config_file) {
   hear_slam::YamlObj obj;
-  for (size_t i=0; i<target_points_.size(); i++) {
-    hear_slam::YamlObj cur_target;
-    cur_target["name"] = target_point_names_[i];
-    cur_target["traj_pidx"] = target_points_[i];
-    obj["target_points"].push_back(cur_target);
+  for (size_t i=0; i<waypoints_.size(); i++) {
+    hear_slam::YamlObj cur_waypoint;
+    cur_waypoint["name"] = waypoint_names_[i];
+    cur_waypoint["traj_pidx"] = waypoints_[i];
+    obj["waypoints"].push_back(cur_waypoint);
   }
 
   for (size_t i=0; i<traj_2d_.size(); i++) {
@@ -457,9 +483,9 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
   // Deal with vio_estimate.
   std::unique_lock<std::mutex> lock(mutex_nav_);
   if (!T_G_O_) {
-    T_G_O_ = std::make_unique<Eigen::Isometry3d>();
+    T_G_O_ = std::make_unique<StampedGlobalPose::Pose3d>();
   }
-  *T_G_O_ = vio_estimate->T_G_O;
+  *T_G_O_ = vio_estimate->odom_pose.inverse() * vio_estimate->global_pose;
   last_vio_estimate_timestamp_ns_ = vio_estimate->timestamp_ns;
 #ifdef EANBLE_ROS_NAV_INTERFACE
   publishNavInfoViz();
@@ -502,24 +528,13 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
     return;
   }
 
-  // if (!vio_estimate->has_T_G_M) {
-  //   if (state_ != NavState::IDLE) {
-  //     LOG(WARNING) << "Nav2dFlow:  The robot has not been localized yet "
-  //                     "or the localization has been lost! Change state from "
-  //                   << stateStr(state_) << " to IDLE";
-  //     state_ = NavState::IDLE;
-  //   }
-  //   return;
-  // }
-
-  // current_pose_2d_ = getPose2dFromVioEstimate(vio_estimate);
   current_pose_2d_ = getPose2dFromGlobalPoseEstimate(vio_estimate);
 
   if (NavState::PATH_RECORDING == state_) {
     tryAddingTrajPoint(current_pose_2d_);
   } else if (NavState::NAVIGATING == state_) {
     // For now we skip the following check since it will be done by the downstream controller.
-    // // Check whether the robot has reached the target point.
+    // // Check whether the robot has reached the waypoint point.
     // if (checkArrival()) {
     //   LOG(WARNING) << "Nav2dFlow:  Finished navigation.";
     //   state_ = NavState::IDLE;
@@ -542,7 +557,7 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
     saveNavCmd(*nav_cmd);  // Save the nav_cmd for offline playback.
   } else if (NavState::PATH_PLANNING == state_) {
     // find the path
-    current_path_ = findPoint2PointTraj(current_pose_2d_, current_target_idx_);
+    current_path_ = findPoint2PointTraj(current_pose_2d_, current_waypoint_idx_);
     current_pathpoint_idx_ = 0;
     state_ = NavState::NAVIGATING;
   } else if (NavState::IDLE == state_) {
@@ -559,10 +574,10 @@ void Nav2dFlow::tryAddingTrajPoint(const Eigen::Vector3d& traj_point) {
     return;
   }
 
-  if (!target_points_.empty()) {
-    // ensure our target points won't be removed
-    size_t newest_target_pidx = target_points_.back();
-    if (n < newest_target_pidx + 2) {
+  if (!waypoints_.empty()) {
+    // ensure our waypoint points won't be removed
+    size_t newest_waypoint_pidx = waypoints_.back();
+    if (n < newest_waypoint_pidx + 2) {
       traj_2d_.push_back(traj_point);
       return;
     }
@@ -649,7 +664,7 @@ int Nav2dFlow::findNearstTrajPoint(const Eigen::Vector3d& current_pose_2d, doubl
 }
 
 std::vector<Eigen::Vector3d>  Nav2dFlow::findPoint2PointTraj(
-    const Eigen::Vector3d& current_pose_2d, size_t target_point_idx) {
+    const Eigen::Vector3d& current_pose_2d, size_t waypoint_idx) {
   std::vector<Eigen::Vector3d> path;
 
   double nearest_distance = std::numeric_limits<double>::max();
@@ -660,7 +675,7 @@ std::vector<Eigen::Vector3d>  Nav2dFlow::findPoint2PointTraj(
   }
 
   double dist_thr = std::max(FLAGS_nav_fastforward_dist_thr, nearest_distance + 0.1);
-  int end_traj_point_idx = target_points_[target_point_idx];
+  int end_traj_point_idx = waypoints_[waypoint_idx];
   std::vector<Eigen::Vector3d> left_path;
   std::vector<Eigen::Vector3d> right_path;
 
@@ -722,8 +737,8 @@ bool Nav2dFlow::checkArrival() const {
   }
 
   CHECK_EQ(current_pathpoint_idx_, current_path_.size() - 1);
-  Eigen::Vector3d target_pose_2d = current_path_[current_pathpoint_idx_];
-  Eigen::Vector3d diff = current_pose_2d_ - target_pose_2d;
+  Eigen::Vector3d waypoint_pose_2d = current_path_[current_pathpoint_idx_];
+  Eigen::Vector3d diff = current_pose_2d_ - waypoint_pose_2d;
 
   double theta_diff = diff.z();
   if (theta_diff > M_PI) {
@@ -747,7 +762,7 @@ Nav2dCmd::Ptr Nav2dFlow::runNav(int64_t timestamp_ns) {
   Nav2dCmd::Ptr nav_cmd = aligned_shared<Nav2dCmd>();
   nav_cmd->timestamp_ns = timestamp_ns;
   nav_cmd->cur_pose2d = current_pose_2d_;
-  nav_cmd->target = current_path_.back();
+  nav_cmd->waypoint = current_path_.back();
 
   if (current_pathpoint_idx_ + 1 < current_path_.size()) {
     // Check whether we need to change current_pathpoint_idx_.
@@ -813,8 +828,8 @@ Nav2dFlow::getCurNavInfoForDisplay() {
   NavInfoForDisplay& info = *info_ptr;
 
   // Eigen::Vector3d T_O_G_2d = transformPoseFrom3dTo2d(*T_G_O_);
-  Eigen::Isometry3d T_O_G = T_G_O_->inverse();
-  info.T_O_G = std::make_unique<Eigen::Isometry3d>(T_O_G);
+  StampedGlobalPose::Pose3d T_O_G = T_G_O_->inverse();
+  info.T_O_G = std::make_unique<StampedGlobalPose::Pose3d>(T_O_G);
 
   info.traj = traj_2d_;
   for (size_t i=0; i<info.traj.size(); i++) {
@@ -825,11 +840,11 @@ Nav2dFlow::getCurNavInfoForDisplay() {
     // info.traj[i].z() = 0;
   }
 
-  for (size_t i=0; i<target_points_.size(); i++) {
-    info.nav_targets.push_back(T_O_G * transformPoseFrom2dTo3d_FrontX(traj_2d_[target_points_[i]]));
+  for (size_t i=0; i<waypoints_.size(); i++) {
+    info.nav_waypoints.push_back(T_O_G * transformPoseFrom2dTo3d_FrontX(traj_2d_[waypoints_[i]]));
   }
 
-  info.target_names = target_point_names_;
+  info.waypoint_names = waypoint_names_;
   info.current_path = current_path_;
   for (size_t i=0; i<info.current_path.size(); i++) {
     info.current_path[i].z() = 0;
@@ -905,20 +920,58 @@ void Nav2dFlow::initRosInterface() {
 
   ros_pub_nav_cmd_viz_ = node_handle_.advertise<geometry_msgs::PoseArray>(
       "nav2d_cmd_viz", 1);
+
+  // node_handle_.subscribe("nav2d_waypoint", &Nav2dFlow::nav2dTargetCallback, this);
+  // boost::function<void(const sensor_msgs::ImuConstPtr&)> imu_callback =
+  //     boost::bind(&DataSourceRostopic::imuMeasurementCallback, this, _1);
+
+  //     ros::Subscriber sub_local_object_pose_
+  sub_local_object_pose_ = node_handle_.subscribe("local_object_pose", 1, &Nav2dFlow::localObjectPoseCallback, this);
+}
+
+void Nav2dFlow::localObjectPoseCallback(const geometry_msgs::PoseStampedConstPtr& msg) {
+  LOG(INFO) << "Nav2dFlow: Received local object pose: time " << msg->header.stamp.toSec() << "; position "
+            << msg->pose.position.x << ", " << msg->pose.position.y << ", " << msg->pose.position.z;
+
+  int64_t timestamp_ns = msg->header.stamp.toSec() * 1e9;
+  Eigen::Quaterniond local_object_q(msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z);
+  Eigen::Vector3d local_object_t(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
+  StampedGlobalPose::Pose3d local_object_pose(local_object_q.toRotationMatrix(), local_object_t);
+  local_object_pose = object_cam_extrinsics_ * local_object_pose;
+  auto odom_pose = getOdomPoseAtTime(timestamp_ns);
+  if (!odom_pose) {
+    return;
+  }
+  auto object_in_odom_frame = std::make_unique<StampedGlobalPose::Pose3d>(*odom_pose * local_object_pose);
+
+  std::unique_lock<std::mutex> lock(mutex_object_nav_);
+  object_in_odom_frame_ = std::move(object_in_odom_frame);
+}
+
+std::unique_ptr<StampedGlobalPose::Pose3d> Nav2dFlow::getOdomPoseAtTime(int64_t timestamp_ns) {
+  // TODO: Store a buffer of poses and interpolate between them.
+  if (last_odom_pose_) {
+    return nullptr;
+  } else {
+    return std::make_unique<StampedGlobalPose::Pose3d>(*last_odom_pose_);
+  }
 }
 
 bool Nav2dFlow::dealWithRosRequest(RosNavRequest::Request &request, RosNavRequest::Response &response) {
   std::string cmd = request.cmd;
   if (cmd == "startPathRecording") {
     response.ack = startPathRecording();
-  } else if (cmd == "addTargetPoint") {
-    std::string target_name = request.arg;
-    response.ack = addTargetPoint(target_name);
+  } else if (cmd == "addWaypoint") {
+    std::string waypoint_name = request.arg;
+    response.ack = addWaypoint(waypoint_name);
   } else if (cmd == "finishPathRecording") {
     response.ack = finishPathRecording();
-  } else if (cmd == "navigateTo") {
-    std::string target_name = request.arg;
-    response.ack = navigateTo(target_name);
+  } else if (cmd == "navigateToWaypoint") {
+    std::string waypoint_name = request.arg;
+    response.ack = navigateToWaypoint(waypoint_name);
+  } else if (cmd == "navigateToObject") {
+    std::string from_waypoint_name = request.arg;
+    response.ack = navigateToObject(from_waypoint_name);
   } else if (cmd == "stopNav") {
     response.ack = stopNav();
   } else {
@@ -941,9 +994,9 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
   roscmd.cur_pose2d.x = cmd.cur_pose2d.x();
   roscmd.cur_pose2d.y = cmd.cur_pose2d.y();
   roscmd.cur_pose2d.theta = cmd.cur_pose2d.z();
-  roscmd.target.x = cmd.target.x();
-  roscmd.target.y = cmd.target.y();
-  roscmd.target.theta = cmd.target.z();
+  roscmd.waypoint.x = cmd.waypoint.x();
+  roscmd.waypoint.y = cmd.waypoint.y();
+  roscmd.waypoint.theta = cmd.waypoint.z();
 
   for (const Eigen::Vector3d& next_pathpoint : cmd.next_pathpoints) {
     geometry_msgs::Pose2D p;
@@ -960,8 +1013,8 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
   nav_cmd_viz_msg.header.frame_id = FLAGS_tf_mission_frame;
   nav_cmd_viz_msg.header.stamp = createRosTimestamp(cmd.timestamp_ns);
   for (const Eigen::Vector3d& next_point_2d : cmd.next_pathpoints) {
-    const Eigen::Isometry3d& next_point_3d = transformPoseFrom2dTo3d_FrontX(next_point_2d);
-    Eigen::Quaterniond next_point_q(next_point_3d.linear());
+    const auto& next_point_3d = transformPoseFrom2dTo3d_FrontX(next_point_2d);
+    Eigen::Quaterniond next_point_q(next_point_3d.linear().matrix());
     Eigen::Vector3d next_point_p(next_point_3d.translation());
 
     geometry_msgs::Pose next_point_msg;
@@ -971,17 +1024,17 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
   }
   ros_pub_nav_cmd_viz_.publish(nav_cmd_viz_msg);
 
-  // publish current target point to tf
-  const Eigen::Isometry3d& target_3d = transformPoseFrom2dTo3d_FrontX(cmd.target);
-  Eigen::Quaterniond target_q(target_3d.linear());
-  Eigen::Vector3d target_p(target_3d.translation());
-  const aslam::Transformation target_pose(target_p, target_q);
+  // publish current waypoint point to tf
+  const auto& waypoint_3d = transformPoseFrom2dTo3d_FrontX(cmd.waypoint);
+  Eigen::Quaterniond waypoint_q(waypoint_3d.linear().matrix());
+  Eigen::Vector3d waypoint_p(waypoint_3d.translation());
+  const aslam::Transformation waypoint_pose(waypoint_p, waypoint_q);
   visualization::publishTF(
-      target_pose, FLAGS_tf_mission_frame, "NAV_CUR_TARGET", timestamp_ros);
+      waypoint_pose, FLAGS_tf_mission_frame, "NAV_CUR_TARGET", timestamp_ros);
 }
 
 void Nav2dFlow::publishNavInfoViz() {
-  // publish pose of nav-target points to tf
+  // publish pose of nav-waypoint points to tf
 
   if (last_vio_estimate_timestamp_ns_ > 0) {
     ros::Time timestamp_ros = createRosTimestamp(last_vio_estimate_timestamp_ns_);
@@ -991,18 +1044,18 @@ void Nav2dFlow::publishNavInfoViz() {
 #else
     std::string parent_frame = FLAGS_tf_map_frame;
 #endif
-    for (size_t i = 0; i < target_points_.size(); ++i) {
-      size_t point_idx = target_points_[i];
-      Eigen::Vector3d target_2d = traj_2d_[point_idx];
+    for (size_t i = 0; i < waypoints_.size(); ++i) {
+      size_t point_idx = waypoints_[i];
+      Eigen::Vector3d waypoint_2d = traj_2d_[point_idx];
 #ifdef PUBLISH_NAV_CMD_IN_ODOM_FRAME
-      target_2d = composePose2d(T_O_G_2d, target_2d);
+      waypoint_2d = composePose2d(T_O_G_2d, waypoint_2d);
 #endif
-      const Eigen::Isometry3d& target_3d = transformPoseFrom2dTo3d_FrontX(target_2d);
-      Eigen::Quaterniond target_q(target_3d.linear());
-      Eigen::Vector3d target_p(target_3d.translation());
-      const aslam::Transformation target_pose(target_p, target_q);
+      const auto& waypoint_3d = transformPoseFrom2dTo3d_FrontX(waypoint_2d);
+      Eigen::Quaterniond waypoint_q(waypoint_3d.linear().matrix());
+      Eigen::Vector3d waypoint_p(waypoint_3d.translation());
+      const aslam::Transformation waypoint_pose(waypoint_p, waypoint_q);
       visualization::publishTF(
-          target_pose, parent_frame, "NAV_" + target_point_names_[i], timestamp_ros);
+          waypoint_pose, parent_frame, "NAV_" + waypoint_names_[i], timestamp_ros);
     }
   }
 }
