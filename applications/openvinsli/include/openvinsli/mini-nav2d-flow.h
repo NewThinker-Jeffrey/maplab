@@ -19,6 +19,8 @@
 #include "openvinsli/mini-nav2d-msg.h"
 #include "openvinsli/flow-topics.h"
 
+#include "hear_slam/utils/yaml_helper.h"
+
 // ros interface
 #define EANBLE_ROS_NAV_INTERFACE
 #ifdef EANBLE_ROS_NAV_INTERFACE
@@ -121,7 +123,10 @@ class Nav2dFlow {
   int findNearstTrajPoint(const Eigen::Vector3d& current_pose_2d, double* best_distance);
 
   // find p2p traj:
-  std::vector<Eigen::Vector3d>  findPoint2PointTraj(const Eigen::Vector3d& current_pose_2d, size_t waypoint_idx);
+  std::vector<Eigen::Vector3d>  findToWaypointTraj(const Eigen::Vector3d& current_pose_2d, size_t waypoint_idx);
+
+  struct NavToObjectParams;
+  std::vector<Eigen::Vector3d> findToObjectTraj(const Eigen::Vector3d& current_pose_2d, const NavToObjectParams& nav_params);
 
   static double getPathLength(const Eigen::Vector3d& current_pose_2d, const std::vector<Eigen::Vector3d>& path);
 
@@ -129,7 +134,9 @@ class Nav2dFlow {
 
   bool checkArrival() const;
 
-  Nav2dCmd::Ptr runNav(int64_t timestamp_ns=-1);
+  Nav2dCmd::Ptr runWaypointNav(int64_t timestamp_ns=-1);
+
+  Nav2dCmd::Ptr runObjectNav(int64_t timestamp_ns=-1);
 
   void saveNavCmd(const Nav2dCmd& cmd);
 
@@ -153,8 +160,6 @@ class Nav2dFlow {
   // std::deque<OpenvinsEstimate::ConstPtr> vio_estimates_;
   std::deque<StampedGlobalPose::ConstPtr> vio_estimates_;
 
-  int64_t last_vio_estimate_timestamp_ns_ = -1;
-
   // current nav task
   std::mutex mutex_nav_;
 
@@ -164,10 +169,29 @@ class Nav2dFlow {
   std::vector<std::string> waypoint_names_;
 
   NavState state_;
+  enum class NavType : uint8_t {TO_WAYPOINT, TO_OBJECT};
+  NavType current_nav_type_;
   std::vector<Eigen::Vector3d> current_path_;
   size_t current_pathpoint_idx_;
-  Eigen::Vector3d current_pose_2d_;
+  Eigen::Vector3d current_global_pose_2d_;
+  Eigen::Vector3d current_odom_pose_2d_;
+
+  // for TO_WAYPOINT
   size_t current_waypoint_idx_;
+
+  // for TO_OBJECT
+  struct NavToObjectParams {
+    int from_waypoint_idx = -1;
+    double max_forward_distance = 0.3;
+    NavToObjectParams() {}
+
+    using Config = hear_slam::YamlConfig;
+    NavToObjectParams(const Config& config) : NavToObjectParams() {
+      // CONFIG_UPDT_I(config, from_waypoint_idx);
+      CONFIG_UPDT_I(config, max_forward_distance);
+    }
+  };
+  std::unique_ptr<NavToObjectParams> current_nav_to_object_params_;
 
   // std::deque<Eigen::Vector3d> traj_2d_recroding_;  // used for recording
   std::string path_record_file_;
@@ -208,7 +232,10 @@ class Nav2dFlow {
   bool dealWithRosRequest(RosNavRequest::Request &request, RosNavRequest::Response &response);
   void localObjectPoseCallback(const geometry_msgs::PoseStampedConstPtr& msg);
   void convertAndPublishNavCmd(const Nav2dCmd& cmd);
-  void publishNavInfoViz();
+  void publishGlobalNavInfoViz();
+
+  // only used to stamp the ros messages in publishGlobalNavInfoViz()
+  int64_t last_vio_estimate_timestamp_ns_ = -1;
 #endif
 };
 }  // namespace openvinsli

@@ -33,8 +33,8 @@
 #include "utils/print.h"             // ov_core
 #include "utils/sensor_data.h"       // ov_core
 
-#include "hear_slam/utils/yaml_helper.h"
 #include "hear_slam/basic/string_helper.h"
+#include "hear_slam/basic/logging.h"
 
 // ros and rviz interface
 #ifdef EANBLE_ROS_NAV_INTERFACE
@@ -150,10 +150,6 @@ Eigen::Vector3d transformPoseFrom3dTo2d(const aslam::Transformation& pose_3d, co
 //   return transformPoseFrom3dTo2d(T_G_I);
 // }
 
-Eigen::Vector3d getPose2dFromGlobalPoseEstimate(StampedGlobalPose::ConstPtr vio_estimate) {
-  return transformPoseFrom3dTo2d(vio_estimate->global_pose);
-}
-
 // FrontZ can recover the real 3d pose of the camera, but not friendly for visualization.
 StampedGlobalPose::Pose3d transformPoseFrom2dTo3d_FrontZ(const Eigen::Vector3d& pose_2d) {
   StampedGlobalPose::Pose3d pose_3d = StampedGlobalPose::Pose3d::Identity();
@@ -196,30 +192,28 @@ StampedGlobalPose::Pose3d transformPoseFrom2dTo3d_FrontX(const Eigen::Vector3d& 
   return pose_3d;
 }
 
-
-
-Nav2dCmd::Ptr toNav2dCmdInOdomFrame(const Nav2dCmd& nav_cmd, const StampedGlobalPose::Pose3d& T_O_G) {
+Nav2dCmd::Ptr transformNav2dCmd(const Nav2dCmd& nav_cmd, const StampedGlobalPose::Pose3d& transform) {
   Nav2dCmd::Ptr ret_ptr;
   ret_ptr.reset(new Nav2dCmd());
   Nav2dCmd& ret = *ret_ptr;
   ret.timestamp_ns = nav_cmd.timestamp_ns;
   ret.is_last_pathpoint = nav_cmd.is_last_pathpoint;
 
-  Eigen::Vector3d T_O_G_2d = transformPoseFrom3dTo2d(T_O_G, Eigen::Vector3d::UnitX());
-  ret.cur_pose2d = composePose2d(T_O_G_2d, nav_cmd.cur_pose2d);
-  ret.waypoint = composePose2d(T_O_G_2d, nav_cmd.waypoint);
+  Eigen::Vector3d transform_2d = transformPoseFrom3dTo2d(transform, Eigen::Vector3d::UnitX());
+  ret.cur_pose2d = composePose2d(transform_2d, nav_cmd.cur_pose2d);
+  ret.waypoint = composePose2d(transform_2d, nav_cmd.waypoint);
   ret.next_pathpoints.clear();
   ret.next_pathpoints.reserve(nav_cmd.next_pathpoints.size());
   for (const auto& next_pathpoint : nav_cmd.next_pathpoints) {
-    ret.next_pathpoints.push_back(composePose2d(T_O_G_2d, next_pathpoint));
+    ret.next_pathpoints.push_back(composePose2d(transform_2d, next_pathpoint));
   }
 
-  // ret.cur_pose2d = transformPoseFrom3dTo2d(T_O_G * transformPoseFrom2dTo3d_FrontZ(nav_cmd.cur_pose2d));
+  // ret.cur_pose2d = transformPoseFrom3dTo2d(transform * transformPoseFrom2dTo3d_FrontZ(nav_cmd.cur_pose2d));
   // ret.next_pathpoints.clear();
   // ret.next_pathpoints.reserve(nav_cmd.next_pathpoints.size());
   // for (const auto& next_pathpoint : nav_cmd.next_pathpoints) {    
   //   ret.next_pathpoints.push_back(
-  //     transformPoseFrom3dTo2d(T_O_G * transformPoseFrom2dTo3d_FrontZ(next_pathpoint)));
+  //     transformPoseFrom3dTo2d(transform * transformPoseFrom2dTo3d_FrontZ(next_pathpoint)));
   // }
 
   return ret_ptr;
@@ -359,12 +353,13 @@ bool Nav2dFlow::navigateToWaypoint(size_t waypoint_idx) {
   std::unique_lock<std::mutex> lock(mutex_nav_);
   if (state_ == NavState::IDLE) {
     state_ = NavState::PATH_PLANNING;
+    current_nav_type_ = NavType::TO_WAYPOINT;
     current_waypoint_idx_ = waypoint_idx;
     LOG(INFO) << "Nav2dFlow: navigateToWaypoint() OK!";
     return true;
   }
 
-  LOG(WARNING) << "Nav2dFlow: navigateToWaypoint() failed since we're in IDLE state!";
+  LOG(WARNING) << "Nav2dFlow: navigateToWaypoint() failed since we're  NOT in IDLE state!";
   return false;
 }
 
@@ -380,10 +375,37 @@ bool Nav2dFlow::navigateToWaypoint(const std::string& waypoint_name) {
 }
 
 bool Nav2dFlow::navigateToObject(int from_waypoint_idx, const std::string& mode/*reserved for future*/) {
+  if (from_waypoint_idx < 0) {
+    LOG(WARNING) << "Nav2dFlow: navigateToObject() failed since we require a valid FROM waypoint for now!";
+    return false;
+  }
+
+  std::unique_lock<std::mutex> lock(mutex_nav_);
+  if (state_ == NavState::IDLE) {
+    state_ = NavState::PATH_PLANNING;
+    current_nav_type_ = NavType::TO_OBJECT;
+    current_nav_to_object_params_ = std::make_unique<NavToObjectParams>(hear_slam::rootCfg().get("object_nav"));
+    current_nav_to_object_params_->from_waypoint_idx = from_waypoint_idx;
+    LOG(INFO) << "Nav2dFlow: navigateToObject() OK!";
+    return true;
+  }
+
+  LOG(WARNING) << "Nav2dFlow: navigateToObject() failed since we're NOT in IDLE state!";
   return false;
 }
 
 bool Nav2dFlow::navigateToObject(const std::string& from_waypoint_name, const std::string& mode/*reserved for future*/) {
+  if (from_waypoint_name.empty()) {
+    return navigateToObject(-1, mode);
+  }
+
+  for (size_t i=0; i<waypoint_names_.size(); i++) {
+    if (waypoint_names_[i] == from_waypoint_name) {
+      return navigateToObject(i, mode);
+    }
+  }
+
+  LOG(WARNING) << "Nav2dFlow: navigateToObject() failed since we can't find a waypoint named \"" << from_waypoint_name << "\"";
   return false;
 }
 
@@ -481,17 +503,34 @@ void Nav2dFlow::nav_worker() {
 // void Nav2dFlow::processInput(const OpenvinsEstimate::ConstPtr& vio_estimate) {
 void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
   // Deal with vio_estimate.
+
+  // TODO: Check the input to determine if it is valid.
+  //   NavToWaypoint requires global pose, while NavToObject only needs local poses.
+  bool cur_global_pose_valid = true;
+
   std::unique_lock<std::mutex> lock(mutex_nav_);
-  if (!T_G_O_) {
-    T_G_O_ = std::make_unique<StampedGlobalPose::Pose3d>();
+
+  if (!last_odom_pose_) {
+    last_odom_pose_ = std::make_unique<StampedGlobalPose::Pose3d>();
   }
-  *T_G_O_ = vio_estimate->odom_pose.inverse() * vio_estimate->global_pose;
-  last_vio_estimate_timestamp_ns_ = vio_estimate->timestamp_ns;
+  *last_odom_pose_ = vio_estimate->odom_pose;
+
 #ifdef EANBLE_ROS_NAV_INTERFACE
-  publishNavInfoViz();
+  last_vio_estimate_timestamp_ns_ = vio_estimate->timestamp_ns;
 #endif
 
-  if (!nav_cmds_to_play_.empty()) {
+  if (cur_global_pose_valid) {
+    if (!T_G_O_) {
+      T_G_O_ = std::make_unique<StampedGlobalPose::Pose3d>();
+    }
+    *T_G_O_ = vio_estimate->odom_pose.inverse() * vio_estimate->global_pose;
+#ifdef EANBLE_ROS_NAV_INTERFACE
+    publishGlobalNavInfoViz();
+#endif
+  }
+
+  // We only play back nav_cmds if global pose is valid.
+  if (cur_global_pose_valid && !nav_cmds_to_play_.empty()) {
     // If we're in offline mode, we just play back the recorded nav_cmds.
 
     while (nav_cmd_play_idx_ < nav_cmds_to_play_.size()) {
@@ -502,7 +541,7 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
         state_ = NavState::NAVIGATING;
 
 #ifdef PUBLISH_NAV_CMD_IN_ODOM_FRAME
-        Nav2dCmd::Ptr nav_cmd_in_odom_frame = toNav2dCmdInOdomFrame(*nav_cmd, T_G_O_->inverse());
+        Nav2dCmd::Ptr nav_cmd_in_odom_frame = transformNav2dCmd(*nav_cmd, T_G_O_->inverse());
         Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd_in_odom_frame;
 #else
         Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd;
@@ -528,10 +567,13 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
     return;
   }
 
-  current_pose_2d_ = getPose2dFromGlobalPoseEstimate(vio_estimate);
+  if (cur_global_pose_valid) {
+    current_global_pose_2d_ = transformPoseFrom3dTo2d(vio_estimate->global_pose);
+  }
+  current_odom_pose_2d_ = transformPoseFrom3dTo2d(vio_estimate->odom_pose);
 
   if (NavState::PATH_RECORDING == state_) {
-    tryAddingTrajPoint(current_pose_2d_);
+    tryAddingTrajPoint(current_global_pose_2d_);
   } else if (NavState::NAVIGATING == state_) {
     // For now we skip the following check since it will be done by the downstream controller.
     // // Check whether the robot has reached the waypoint point.
@@ -540,26 +582,67 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
     //   state_ = NavState::IDLE;
     //   return;
     // }
+    
+    if (current_nav_type_ == NavType::TO_WAYPOINT) {
+      if (!cur_global_pose_valid) {
+        LOG(WARNING) << "Nav2dFlow:  Global pose is not valid!!  Skip updating nav command!";
+        return;
+      }
 
-    Nav2dCmd::Ptr nav_cmd = runNav(vio_estimate->timestamp_ns);
-
+      Nav2dCmd::Ptr nav_cmd = runWaypointNav(vio_estimate->timestamp_ns);
 #ifdef PUBLISH_NAV_CMD_IN_ODOM_FRAME
-        Nav2dCmd::Ptr nav_cmd_in_odom_frame = toNav2dCmdInOdomFrame(*nav_cmd, T_G_O_->inverse());
-        Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd_in_odom_frame;
+      Nav2dCmd::Ptr nav_cmd_in_odom_frame = transformNav2dCmd(*nav_cmd, T_G_O_->inverse());
+      Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd_in_odom_frame;
 #else
-        Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd;
+      Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd;
 #endif
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
-    convertAndPublishNavCmd(*nav_cmd_to_publish);
+      convertAndPublishNavCmd(*nav_cmd_to_publish);
 #endif
-    publish_nav_(nav_cmd_to_publish);
-    saveNavCmd(*nav_cmd);  // Save the nav_cmd for offline playback.
+      publish_nav_(nav_cmd_to_publish);
+      saveNavCmd(*nav_cmd);  // Save the nav_cmd for offline playback.
+    } else {
+      ASSERT(current_nav_type_ == NavType::TO_OBJECT);
+      // For object navigation, the output nav_cmd of runObjectNav() is already in
+      // the odom frame.
+      Nav2dCmd::Ptr nav_cmd = runObjectNav(vio_estimate->timestamp_ns);
+#ifdef EANBLE_ROS_NAV_INTERFACE
+      convertAndPublishNavCmd(*nav_cmd);
+#endif
+      publish_nav_(nav_cmd);
+
+      // cmd saved for offline playback must be in the global frame
+      if (cur_global_pose_valid) {
+        saveNavCmd(*transformNav2dCmd(*nav_cmd, *T_G_O_));
+      }
+    }
   } else if (NavState::PATH_PLANNING == state_) {
     // find the path
-    current_path_ = findPoint2PointTraj(current_pose_2d_, current_waypoint_idx_);
-    current_pathpoint_idx_ = 0;
-    state_ = NavState::NAVIGATING;
+    if (current_nav_type_ == NavType::TO_WAYPOINT) {
+      if (!cur_global_pose_valid) {
+        LOG(WARNING) << "Nav2dFlow:  Global pose is not valid!!  Skip path planning and wait for next pose update.";
+        return;
+      }
+      current_path_ = findToWaypointTraj(current_global_pose_2d_, current_waypoint_idx_);
+      if (current_path_.size() > 0) {
+        current_pathpoint_idx_ = 0;
+        state_ = NavState::NAVIGATING;
+      } else {
+        LOG(WARNING) << "Nav2dFlow:  No path found to waypoint. Wait for next pose update.";
+        // state_ = NavState::IDLE;
+      }
+    } else {
+      ASSERT(current_nav_type_ == NavType::TO_OBJECT);
+      current_path_ = findToObjectTraj(current_global_pose_2d_, *current_nav_to_object_params_);
+      if (current_path_.size() > 0) {
+        current_pathpoint_idx_ = 0;
+        state_ = NavState::NAVIGATING;
+      } else {
+        LOG(WARNING) << "Nav2dFlow:  No path found to object. Wait for next pose update.";
+        // state_ = NavState::IDLE;
+      }
+    }
   } else if (NavState::IDLE == state_) {
     
   }
@@ -663,7 +746,24 @@ int Nav2dFlow::findNearstTrajPoint(const Eigen::Vector3d& current_pose_2d, doubl
   return best_i;
 }
 
-std::vector<Eigen::Vector3d>  Nav2dFlow::findPoint2PointTraj(
+std::vector<Eigen::Vector3d> Nav2dFlow::findToObjectTraj(
+    const Eigen::Vector3d& current_pose_2d, const NavToObjectParams& nav_params) {
+  StampedGlobalPose::Pose3d object_in_odom_frame;
+  {
+    std::unique_lock<std::mutex> lock(mutex_object_nav_);
+    if (object_in_odom_frame_) {
+      object_in_odom_frame = *object_in_odom_frame_;
+    } else {
+      LOG(WARNING) << "Nav2dFlow: Can't find traj to the object since "
+                   << "the pose of the object is unkonwn!!"; 
+      return std::vector<Eigen::Vector3d>();
+    }
+  }
+  Eigen::Vector3d object_in_odom_frame_2d = transformPoseFrom3dTo2d(object_in_odom_frame, Eigen::Vector3d::UnitX());
+  return std::vector<Eigen::Vector3d>({object_in_odom_frame_2d});
+}
+
+std::vector<Eigen::Vector3d>  Nav2dFlow::findToWaypointTraj(
     const Eigen::Vector3d& current_pose_2d, size_t waypoint_idx) {
   std::vector<Eigen::Vector3d> path;
 
@@ -738,7 +838,7 @@ bool Nav2dFlow::checkArrival() const {
 
   CHECK_EQ(current_pathpoint_idx_, current_path_.size() - 1);
   Eigen::Vector3d waypoint_pose_2d = current_path_[current_pathpoint_idx_];
-  Eigen::Vector3d diff = current_pose_2d_ - waypoint_pose_2d;
+  Eigen::Vector3d diff = current_global_pose_2d_ - waypoint_pose_2d;
 
   double theta_diff = diff.z();
   if (theta_diff > M_PI) {
@@ -758,10 +858,31 @@ bool Nav2dFlow::checkArrival() const {
   }
 }
 
-Nav2dCmd::Ptr Nav2dFlow::runNav(int64_t timestamp_ns) {
+Nav2dCmd::Ptr Nav2dFlow::runObjectNav(int64_t timestamp_ns) {
   Nav2dCmd::Ptr nav_cmd = aligned_shared<Nav2dCmd>();
   nav_cmd->timestamp_ns = timestamp_ns;
-  nav_cmd->cur_pose2d = current_pose_2d_;
+  nav_cmd->cur_pose2d = current_odom_pose_2d_;
+
+  // Replan path every time
+  auto new_path = findToObjectTraj(current_global_pose_2d_, *current_nav_to_object_params_);
+  if (new_path.size() > 0) {
+    std::swap(current_path_, new_path);
+    current_pathpoint_idx_ = 0;
+  } else {
+    LOG(WARNING) << "Nav2dFlow:  No new path found to object! keep the previes path.";
+    // state_ = NavState::IDLE;
+  }
+
+  nav_cmd->waypoint = current_path_.back();
+  nav_cmd->next_pathpoints = current_path_;
+  nav_cmd->is_last_pathpoint = (nav_cmd->next_pathpoints.size() == 1);
+  return nav_cmd;
+}
+
+Nav2dCmd::Ptr Nav2dFlow::runWaypointNav(int64_t timestamp_ns) {
+  Nav2dCmd::Ptr nav_cmd = aligned_shared<Nav2dCmd>();
+  nav_cmd->timestamp_ns = timestamp_ns;
+  nav_cmd->cur_pose2d = current_global_pose_2d_;
   nav_cmd->waypoint = current_path_.back();
 
   if (current_pathpoint_idx_ + 1 < current_path_.size()) {
@@ -771,7 +892,7 @@ Nav2dCmd::Ptr Nav2dFlow::runNav(int64_t timestamp_ns) {
     // fastforward as many steps as possible.
     for (size_t step = 1; current_pathpoint_idx_+step < current_path_.size(); step++) {
       Eigen::Vector3d next_pathp = current_path_[current_pathpoint_idx_+step];
-      Eigen::Vector3d diff = next_pathp - current_pose_2d_;
+      Eigen::Vector3d diff = next_pathp - current_global_pose_2d_;
       diff.z() = 0;
       double dist = diff.norm();
       if (dist < FLAGS_nav_fastforward_dist_thr) {
@@ -783,7 +904,7 @@ Nav2dCmd::Ptr Nav2dFlow::runNav(int64_t timestamp_ns) {
       current_pathpoint_idx_ += fastforward_step;
     } else {
       Eigen::Vector3d cur_pathp = current_path_[current_pathpoint_idx_];
-      Eigen::Vector3d diff = cur_pathp - current_pose_2d_;
+      Eigen::Vector3d diff = cur_pathp - current_global_pose_2d_;
       diff.z() = 0;
       double dist = diff.norm();
 
@@ -938,10 +1059,12 @@ void Nav2dFlow::localObjectPoseCallback(const geometry_msgs::PoseStampedConstPtr
   Eigen::Vector3d local_object_t(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
   StampedGlobalPose::Pose3d local_object_pose(local_object_q.toRotationMatrix(), local_object_t);
   local_object_pose = object_cam_extrinsics_ * local_object_pose;
+
   auto odom_pose = getOdomPoseAtTime(timestamp_ns);
   if (!odom_pose) {
     return;
   }
+
   auto object_in_odom_frame = std::make_unique<StampedGlobalPose::Pose3d>(*odom_pose * local_object_pose);
 
   std::unique_lock<std::mutex> lock(mutex_object_nav_);
@@ -950,6 +1073,7 @@ void Nav2dFlow::localObjectPoseCallback(const geometry_msgs::PoseStampedConstPtr
 
 std::unique_ptr<StampedGlobalPose::Pose3d> Nav2dFlow::getOdomPoseAtTime(int64_t timestamp_ns) {
   // TODO: Store a buffer of poses and interpolate between them.
+  std::unique_lock<std::mutex> lock(mutex_nav_);
   if (last_odom_pose_) {
     return nullptr;
   } else {
@@ -1033,7 +1157,7 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
       waypoint_pose, FLAGS_tf_mission_frame, "NAV_CUR_TARGET", timestamp_ros);
 }
 
-void Nav2dFlow::publishNavInfoViz() {
+void Nav2dFlow::publishGlobalNavInfoViz() {
   // publish pose of nav-waypoint points to tf
 
   if (last_vio_estimate_timestamp_ns_ > 0) {
