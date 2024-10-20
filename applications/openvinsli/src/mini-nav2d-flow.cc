@@ -231,7 +231,12 @@ Nav2dFlow::Nav2dFlow() : state_(NavState::IDLE), path_record_file_("nav.yaml") {
   // get the object camera extrinsics (for grasping task)
   auto object_nav_config = hear_slam::rootCfg().get("object_nav");
   Eigen::Matrix4d object_cam_extrinsics = Eigen::Matrix4d::Identity();
-  CONFIG_UPDT_I(object_nav_config, object_cam_extrinsics);
+
+  // CONFIG_UPDT_I(object_nav_config, object_cam_extrinsics);
+  object_cam_extrinsics = hear_slam::yamlToMatrix(object_nav_config.mutableYaml()["object_cam_extrinsics"]);
+      // This is a workround since maplab and hear_slam has different implementations for the conversion from yaml to Eigen matrix.
+  std::cout << "object_cam_extrinsics: " << std::endl << object_cam_extrinsics << std::endl;
+
   object_cam_extrinsics_.linear() = object_cam_extrinsics.block<3, 3>(0, 0);
   object_cam_extrinsics_.translation() = object_cam_extrinsics.block<3, 1>(0, 3);
 
