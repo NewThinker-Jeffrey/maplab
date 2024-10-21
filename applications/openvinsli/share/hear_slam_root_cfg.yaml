@@ -19,10 +19,10 @@ global_pose_fusion:
 
 object_nav:
   object_cam_extrinsics:
-    - [1.0, 0.0, 0.0, 0.0]
-    - [0.0, 1.0, 0.0, 0.0]
-    - [0.0, 0.0, 1.0, 0.0]
-    - [0.0, 0.0, 0.0, 1.0]
+    - [1, -0, 0, 0.058998]
+    - [-0, 1, 0, 0.149821]
+    - [0, 0, 1, 0.0866205]
+    - [0, 0, 0, 1]
   objects:
     boxOnTable:
       max_forward_distance: 0.5
