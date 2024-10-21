@@ -525,7 +525,7 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
 
   // TODO: Check the input to determine if it is valid.
   //   NavToWaypoint requires global pose, while NavToObject only needs local poses.
-  bool cur_global_pose_valid = true;
+  bool cur_global_pose_valid = vio_estimate->global_pose_valid;
 
   std::unique_lock<std::mutex> lock(mutex_nav_);
 

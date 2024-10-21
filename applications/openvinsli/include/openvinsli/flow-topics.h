@@ -45,6 +45,7 @@ struct StampedGlobalPose {
   int64_t timestamp_ns;
   Pose3d odom_pose;
   Pose3d global_pose;
+  bool global_pose_valid;
   using ConstPtr = std::shared_ptr<const StampedGlobalPose>;
 };
 

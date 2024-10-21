@@ -393,12 +393,14 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
       kSubscriberNodeName, message_flow::DeliveryOptions(),
       [this](const StampedGlobalPose::ConstPtr& global_pose) {
         CHECK(global_pose != nullptr);
-        // publish T_I_G to tf.
-        aslam::Transformation T_G_I(global_pose->global_pose.translation(), Eigen::Quaterniond(global_pose->global_pose.linear().matrix()));
-        ros::Time timestamp_ros = createRosTimestamp(global_pose->timestamp_ns);
-        LOG(INFO) << "publishing tf T_G_I at time " << timestamp_ros;
-        visualization::publishTF(
-            T_G_I.inverse(), FLAGS_tf_imu_frame, FLAGS_tf_map_frame, timestamp_ros);
+        if (global_pose->global_pose_valid) {
+          // publish T_I_G to tf.
+          aslam::Transformation T_G_I(global_pose->global_pose.translation(), Eigen::Quaterniond(global_pose->global_pose.linear().matrix()));
+          ros::Time timestamp_ros = createRosTimestamp(global_pose->timestamp_ns);
+          LOG(INFO) << "publishing tf T_G_I at time " << timestamp_ros;
+          visualization::publishTF(
+              T_G_I.inverse(), FLAGS_tf_imu_frame, FLAGS_tf_map_frame, timestamp_ros);
+        }
       });
 
   // Publish raw image.
