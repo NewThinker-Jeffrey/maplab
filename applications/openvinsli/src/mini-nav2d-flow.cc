@@ -1011,7 +1011,8 @@ Nav2dFlow::getCurNavInfoForDisplay() {
   }
 
   for (size_t i=0; i<waypoints_.size(); i++) {
-    info.nav_waypoints.push_back(T_O_G * transformPoseFrom2dTo3d_FrontX(traj_2d_[waypoints_[i]]));
+    // In our own viewer, Z of vehicle frame is assumed forward.
+    info.nav_waypoints.push_back(T_O_G * transformPoseFrom2dTo3d_FrontZ(traj_2d_[waypoints_[i]]));
   }
 
   info.waypoint_names = waypoint_names_;
