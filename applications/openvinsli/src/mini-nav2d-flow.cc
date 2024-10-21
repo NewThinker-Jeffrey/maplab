@@ -539,7 +539,8 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
     if (!T_G_O_) {
       T_G_O_ = std::make_unique<StampedGlobalPose::Pose3d>();
     }
-    *T_G_O_ = vio_estimate->odom_pose.inverse() * vio_estimate->global_pose;
+    // *T_G_O_ = vio_estimate->odom_pose.inverse() * vio_estimate->global_pose;
+    *T_G_O_ = vio_estimate->global_pose * vio_estimate->odom_pose.inverse();
 #ifdef EANBLE_ROS_NAV_INTERFACE
     publishGlobalNavInfoViz();
 #endif
@@ -1201,9 +1202,9 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
     std::unique_lock<std::mutex> lock(mutex_object_nav_);
     if (object_in_odom_frame_) {
       object_in_odom_frame = std::make_unique<StampedGlobalPose::Pose3d>(*object_in_odom_frame_);
+      ASSERT(object_observation_timestamp_ns_ > 0);
+      object_observation_time_ros = createRosTimestamp(object_observation_timestamp_ns_);
     }
-    ASSERT(object_observation_timestamp_ns_ > 0);
-    object_observation_time_ros = createRosTimestamp(object_observation_timestamp_ns_);
   }
   if (object_in_odom_frame) {
     Eigen::Quaterniond object_q(object_in_odom_frame->linear().matrix());
