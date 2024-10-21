@@ -20,6 +20,7 @@
 #include "openvinsli/flow-topics.h"
 
 #include "hear_slam/utils/yaml_helper.h"
+#include "hear_slam/unstable/global_pose_fusion/pose_buffer.h"
 
 // ros interface
 #define EANBLE_ROS_NAV_INTERFACE
@@ -212,6 +213,9 @@ class Nav2dFlow {
 
   std::unique_ptr<StampedGlobalPose::Pose3d> last_odom_pose_;
 
+  using PoseBuffer = hear_slam::PoseBuffer;
+  PoseBuffer odom_pose_buffer_;
+
 #ifdef EANBLE_ROS_NAV_INTERFACE
  private:
   // ros interface
@@ -222,6 +226,8 @@ class Nav2dFlow {
 
   ros::Subscriber sub_local_object_pose_;  // for grasping task (nav to object)
   StampedGlobalPose::Pose3d object_cam_extrinsics_;
+  int64_t object_observation_timestamp_ns_ = -1;
+  StampedGlobalPose::Pose3d local_object_pose_;
   std::unique_ptr<StampedGlobalPose::Pose3d> object_in_odom_frame_;
   std::mutex mutex_object_nav_;
 

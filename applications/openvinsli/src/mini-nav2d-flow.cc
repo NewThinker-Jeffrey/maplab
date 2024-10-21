@@ -404,6 +404,14 @@ bool Nav2dFlow::navigateToObject(const std::string& object_name) {
     state_ = NavState::PATH_PLANNING;
     current_nav_type_ = NavType::TO_OBJECT;
     current_nav_to_object_params_ = std::move(nav_to_object_params);
+
+    {
+      std::unique_lock<std::mutex> lock(mutex_object_nav_);
+      // local_object_pose_ = local_object_pose;
+      object_observation_timestamp_ns_ = -1;
+      object_in_odom_frame_.reset();
+    }
+
     LOG(INFO) << "Nav2dFlow: navigateToObject() OK!";
     return true;
   }
@@ -416,6 +424,14 @@ bool Nav2dFlow::stopNav() {
   std::unique_lock<std::mutex> lock(mutex_nav_);
   if (state_ == NavState::NAVIGATING) {
     LOG(INFO) << "Nav2dFlow: stopNav() OK!";
+
+    {
+      std::unique_lock<std::mutex> lock(mutex_object_nav_);
+      // local_object_pose_ = local_object_pose;
+      object_observation_timestamp_ns_ = -1;
+      object_in_odom_frame_.reset();
+    }
+
     state_ = NavState::IDLE;
     return true;
   }
@@ -513,10 +529,7 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
 
   std::unique_lock<std::mutex> lock(mutex_nav_);
 
-  if (!last_odom_pose_) {
-    last_odom_pose_ = std::make_unique<StampedGlobalPose::Pose3d>();
-  }
-  *last_odom_pose_ = vio_estimate->odom_pose;
+  odom_pose_buffer_.addPose(vio_estimate->timestamp_ns * 1e-9, vio_estimate->odom_pose);
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
   last_vio_estimate_timestamp_ns_ = vio_estimate->timestamp_ns;
@@ -753,14 +766,28 @@ std::vector<Eigen::Vector3d> Nav2dFlow::findToObjectTraj(
     const Eigen::Vector3d& current_pose_2d, const NavToObjectParams& nav_params) {
   StampedGlobalPose::Pose3d object_in_odom_frame;
   {
-    std::unique_lock<std::mutex> lock(mutex_object_nav_);
-    if (object_in_odom_frame_) {
-      object_in_odom_frame = *object_in_odom_frame_;
-    } else {
+    StampedGlobalPose::Pose3d local_object_pose;
+
+    std::unique_lock<std::mutex> lock(mutex_object_nav_);    
+    if (object_observation_timestamp_ns_ < 0) {
       LOG(WARNING) << "Nav2dFlow: Can't find traj to the object since "
-                   << "the pose of the object is unkonwn!!"; 
+                   << "the object has not been observed!!"; 
       return std::vector<Eigen::Vector3d>();
     }
+    local_object_pose = local_object_pose_;
+    auto odom_pose = getOdomPoseAtTime(object_observation_timestamp_ns_);
+    if (!odom_pose) {
+      LOG(WARNING) << "Nav2dFlow: Can't find traj to the object since "
+                    << "the pose of the robot at the object observation time "
+                    << "is unknown!!"; 
+      return std::vector<Eigen::Vector3d>();
+    }
+
+    if (!object_in_odom_frame_) {
+      object_in_odom_frame_ = std::make_unique<StampedGlobalPose::Pose3d>();
+    }
+    *object_in_odom_frame_ = *odom_pose * local_object_pose;
+    object_in_odom_frame = *object_in_odom_frame_;
   }
 
   Eigen::Vector3d object_in_odom_frame_2d = transformPoseFrom3dTo2d(object_in_odom_frame, Eigen::Vector3d::UnitX());
@@ -1081,25 +1108,15 @@ void Nav2dFlow::localObjectPoseCallback(const geometry_msgs::PoseStampedConstPtr
   StampedGlobalPose::Pose3d local_object_pose(local_object_q.toRotationMatrix(), local_object_t);
   local_object_pose = object_cam_extrinsics_ * local_object_pose;
 
-  auto odom_pose = getOdomPoseAtTime(timestamp_ns);
-  if (!odom_pose) {
-    return;
-  }
-
-  auto object_in_odom_frame = std::make_unique<StampedGlobalPose::Pose3d>(*odom_pose * local_object_pose);
 
   std::unique_lock<std::mutex> lock(mutex_object_nav_);
-  object_in_odom_frame_ = std::move(object_in_odom_frame);
+  local_object_pose_ = local_object_pose;
+  object_observation_timestamp_ns_ = timestamp_ns;
 }
 
 std::unique_ptr<StampedGlobalPose::Pose3d> Nav2dFlow::getOdomPoseAtTime(int64_t timestamp_ns) {
-  // TODO: Store a buffer of poses and interpolate between them.
-  std::unique_lock<std::mutex> lock(mutex_nav_);
-  if (last_odom_pose_) {
-    return nullptr;
-  } else {
-    return std::make_unique<StampedGlobalPose::Pose3d>(*last_odom_pose_);
-  }
+  // std::unique_lock<std::mutex> lock(mutex_nav_);
+  return odom_pose_buffer_.getPose(timestamp_ns * 1e-9);  
 }
 
 bool Nav2dFlow::dealWithRosRequest(RosNavRequest::Request &request, RosNavRequest::Response &response) {
@@ -1176,6 +1193,27 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
   const aslam::Transformation waypoint_pose(waypoint_p, waypoint_q);
   visualization::publishTF(
       waypoint_pose, FLAGS_tf_mission_frame, "NAV_CUR_TARGET", timestamp_ros);
+
+  // publish object pose to tf when we re navigating to an object
+  std::unique_ptr<StampedGlobalPose::Pose3d> object_in_odom_frame;
+  ros::Time object_observation_time_ros;
+  {
+    std::unique_lock<std::mutex> lock(mutex_object_nav_);
+    if (object_in_odom_frame_) {
+      object_in_odom_frame = std::make_unique<StampedGlobalPose::Pose3d>(*object_in_odom_frame_);
+    }
+    ASSERT(object_observation_timestamp_ns_ > 0);
+    object_observation_time_ros = createRosTimestamp(object_observation_timestamp_ns_);
+  }
+  if (object_in_odom_frame) {
+    Eigen::Quaterniond object_q(object_in_odom_frame->linear().matrix());
+    Eigen::Vector3d object_p(object_in_odom_frame->translation());
+    const aslam::Transformation object_pose(object_p, object_q);
+    visualization::publishTF(
+        object_pose, FLAGS_tf_mission_frame, "NAV_OBJECT",
+        timestamp_ros //object_observation_time_ros
+        );
+  }
 }
 
 void Nav2dFlow::publishGlobalNavInfoViz() {
