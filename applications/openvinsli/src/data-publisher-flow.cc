@@ -51,6 +51,10 @@ DEFINE_string(
     share_raw_image0_topic, "/raw_image0",
     "Publish raw image [0] in this topic if it's set to non-empty");
 
+DEFINE_string(
+    share_raw_image1_topic, "/raw_image1",
+    "Publish raw image [1] in this topic if it's set to non-empty");
+
 DEFINE_double(
     height_map_resolution, 0.01, "height_map_resolution");
 
@@ -313,6 +317,12 @@ DataPublisherFlow::~DataPublisherFlow() {
     pub_raw_image0_.reset();
     LOG(INFO) << "After destroying the publisher pub_raw_image0_";
   }
+  if (pub_raw_image1_) {
+    LOG(INFO) << "Before destroying the publisher pub_raw_image1_";
+    pub_raw_image1_.reset();
+    LOG(INFO) << "After destroying the publisher pub_raw_image1_";
+  }
+
   if (pub_local_heightmap_) {
     LOG(INFO) << "Before destroying the publisher pub_local_heightmap_";
     pub_local_heightmap_.reset();
@@ -356,9 +366,15 @@ void DataPublisherFlow::registerPublishers() {
       node_handle_.advertise<nav_msgs::Odometry>(kTopicOdomMsg, 1);
   pub_grasp_points_computed_from_tag_ = node_handle_.advertise<geometry_msgs::PoseArray>(
       "grasp_points", 1);
-  if (!FLAGS_share_raw_image0_topic.empty()) {
+
+  if (!FLAGS_share_raw_image0_topic.empty() || !FLAGS_share_raw_image1_topic.empty()) {
     it_.reset(new image_transport::ImageTransport(node_handle_));
+  }
+  if (!FLAGS_share_raw_image0_topic.empty()) {
     pub_raw_image0_.reset(new image_transport::Publisher(it_->advertise(FLAGS_share_raw_image0_topic, 1)));
+  }
+  if (!FLAGS_share_raw_image1_topic.empty()) {
+    pub_raw_image1_.reset(new image_transport::Publisher(it_->advertise(FLAGS_share_raw_image1_topic, 1)));
   }
   pub_local_heightmap_.reset(new image_transport::Publisher(it_->advertise("/local_height_map", 1)));
 }
@@ -403,26 +419,42 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         }
       });
 
+  auto image_to_rosmsg = [](const vio::ImageMeasurement::Ptr& image) {
+    cv_bridge::CvImage cv_img;
+    cv_img.header.frame_id = "";
+    cv_img.header.stamp = createRosTimestamp(image->timestamp);
+    cv_img.image = image->image;
+    if (image->image.channels() == 1) {
+      // mono8 or mono16
+      if (image->image.type() == CV_16UC1) {
+        cv_img.encoding = "mono16";  // "mono16"  "bgr8"  "rgb8"  "bgra8"  "rgba8"
+      } else {
+        ASSERT(image->image.type() == CV_16UC1);
+        cv_img.encoding = "mono8";  // "mono16"  "bgr8"  "rgb8"  "bgra8"  "rgba8"
+      }
+    } else {
+      cv_img.encoding = "rgb8";  // "mono16"  "bgr8"  "rgb8"  "bgra8"  "rgba8"
+    }
+    sensor_msgs::ImagePtr msg = cv_img.toImageMsg();
+    return msg;
+  };
+
   // Publish raw image.
   flow->registerSubscriber<message_flow_topics::IMAGE_MEASUREMENTS>(
       kSubscriberNodeName, message_flow::DeliveryOptions(),
-      [this](const vio::ImageMeasurement::Ptr& image) {
+      [this, image_to_rosmsg](const vio::ImageMeasurement::Ptr& image) {
         CHECK(image);
-        if (!FLAGS_share_raw_image0_topic.empty() &&
-            pub_raw_image0_->getNumSubscribers() > 0 &&
-            image->camera_index == 0) {
-
-          cv_bridge::CvImage cv_img;
-          cv_img.header.frame_id = "";
-          cv_img.header.stamp = createRosTimestamp(image->timestamp);
-          cv_img.image = image->image;
-          if (image->image.channels() == 1) {
-            cv_img.encoding = "mono8";  // "mono16"  "bgr8"  "rgb8"  "bgra8"  "rgba8"
-          } else {
-            cv_img.encoding = "rgb8";  // "mono16"  "bgr8"  "rgb8"  "bgra8"  "rgba8"
+        if (image->camera_index == 0) {
+          if (!FLAGS_share_raw_image0_topic.empty() &&
+              pub_raw_image0_->getNumSubscribers() > 0) {
+            pub_raw_image0_->publish(image_to_rosmsg(image));
           }
-          sensor_msgs::ImagePtr msg = cv_img.toImageMsg();
-          pub_raw_image0_->publish(msg);
+        } else if (image->camera_index == 1 ||
+                   image->camera_index == -1 /*depth*/) {
+          if (!FLAGS_share_raw_image1_topic.empty() &&
+              pub_raw_image1_->getNumSubscribers() > 0) {
+            pub_raw_image1_->publish(image_to_rosmsg(image));
+          }
         }
       });
 

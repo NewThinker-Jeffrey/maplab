@@ -74,6 +74,7 @@ class DataPublisherFlow {
   // Publish images from cam0
   std::unique_ptr<image_transport::ImageTransport> it_;
   std::unique_ptr<image_transport::Publisher> pub_raw_image0_;
+  std::unique_ptr<image_transport::Publisher> pub_raw_image1_;
   std::unique_ptr<image_transport::Publisher> pub_local_heightmap_;
 
 
