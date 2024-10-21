@@ -97,6 +97,7 @@ rgbd_mapping_max_voxels: 2000000
 rgbd_mapping_max_dispaly_voxels: 500000
 
 use_depth_masking: true
+skip_depth_masking_when_initializing: true
 depth_masking_min_depth: 0.8  # m
 
 use_semantic_masking: true
