@@ -890,15 +890,15 @@ std::vector<Eigen::Vector3d> Nav2dFlow::findToObjectTraj(
     std::unique_lock<std::mutex> lock(mutex_object_nav_);    
     if (object_observation_timestamp_ns_ < 0) {
       LOG(WARNING) << "Nav2dFlow: Can't find traj to the object since "
-                   << "the object has not been observed!!"; 
+                      "the object has not been observed!!"; 
       return std::vector<Eigen::Vector3d>();
     }
     local_object_pose = local_object_pose_;
     auto odom_pose = getOdomPoseAtTime(object_observation_timestamp_ns_);
     if (!odom_pose) {
       LOG(WARNING) << "Nav2dFlow: Can't find traj to the object since "
-                    << "the pose of the robot at the object observation time "
-                    << "is unknown!!"; 
+                      "the pose of the robot at the object observation time "
+                      "is unknown!!"; 
       return std::vector<Eigen::Vector3d>();
     }
 
@@ -914,6 +914,16 @@ std::vector<Eigen::Vector3d> Nav2dFlow::findToObjectTraj(
   double max_forward_distance = nav_params.max_forward_distance;
   int ref_traj_point_idx = waypoints_[nav_params.ref_waypoint_idx];
   Eigen::Vector3d ref_traj_point = traj_2d_[ref_traj_point_idx];
+
+  if (!T_G_O_) {
+    LOG(WARNING) << "Nav2dFlow: Can't find traj to the object since "
+                    "the object is aligned to a global waypoint but "
+                    "the global pose is invalid!"; 
+    return std::vector<Eigen::Vector3d>();
+  }
+  Eigen::Vector3d T_O_G_2d = transformPoseFrom3dTo2d(T_G_O_->inverse(), Eigen::Vector3d::UnitX());
+  ref_traj_point = composePose2d(T_O_G_2d, ref_traj_point);
+
   Eigen::Vector2d ref_xy = ref_traj_point.head<2>();
 
   Eigen::Vector3d target;
