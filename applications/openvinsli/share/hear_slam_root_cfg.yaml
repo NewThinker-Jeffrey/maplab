@@ -28,3 +28,18 @@ object_nav:
       max_forward_distance: 0.5
       ref_waypoint_name: "A"
 
+nav2d_path_tracking:
+  params:
+    rotate_only_thr_deg: 30.0
+    w_kp: 0.5
+    w_max: 0.5
+
+    vx_kp: 0.5
+    vx_max: 0.5
+
+    vy_kp: 0.5
+    vy_max: 0.5
+
+    wa_max: 0.5
+    ax_max: 0.5
+    ay_max: 0.5
