@@ -216,6 +216,9 @@ class Nav2dFlow {
   using PoseBuffer = hear_slam::PoseBuffer;
   PoseBuffer odom_pose_buffer_;
 
+  class PathTracking;
+  std::unique_ptr<PathTracking> path_tracking_;
+
 #ifdef EANBLE_ROS_NAV_INTERFACE
  private:
   // ros interface
@@ -223,6 +226,7 @@ class Nav2dFlow {
   ros::ServiceServer ros_nav_srv_;
   ros::Publisher ros_pub_nav_cmd_;
   ros::Publisher ros_pub_nav_cmd_viz_;
+  ros::Publisher ros_pub_locomotion_cmd_;
 
   ros::Subscriber sub_local_object_pose_;  // for grasping task (nav to object)
   StampedGlobalPose::Pose3d object_cam_extrinsics_;
@@ -232,10 +236,12 @@ class Nav2dFlow {
   std::mutex mutex_object_nav_;
 
   uint32_t ros_nav_cmd_seq_ = 0;
+  uint32_t ros_locomotion_cmd_seq_ = 0;
   void initRosInterface();
   bool dealWithRosRequest(RosNavRequest::Request &request, RosNavRequest::Response &response);
   void localObjectPoseCallback(const geometry_msgs::PoseStampedConstPtr& msg);
   void convertAndPublishNavCmd(const Nav2dCmd& cmd);
+  void publishLocomotionCmd(int64_t time_ns, const Eigen::Vector3d& speed_2d);
   void publishGlobalNavInfoViz();
 
   // only used to stamp the ros messages in publishGlobalNavInfoViz()

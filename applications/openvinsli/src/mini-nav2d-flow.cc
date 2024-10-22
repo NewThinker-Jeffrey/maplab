@@ -35,12 +35,15 @@
 
 #include "hear_slam/basic/string_helper.h"
 #include "hear_slam/basic/logging.h"
+#include "hear_slam/common/liegroups/SE2.h"
+
 
 // ros and rviz interface
 #ifdef EANBLE_ROS_NAV_INTERFACE
 #include <eigen_conversions/eigen_msg.h>
 #include <tf/transform_broadcaster.h>
 #include <geometry_msgs/PoseArray.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <visualization/common-rviz-visualization.h>
 #include <visualization/rviz-visualization-sink.h>
@@ -219,7 +222,111 @@ Nav2dCmd::Ptr transformNav2dCmd(const Nav2dCmd& nav_cmd, const StampedGlobalPose
   return ret_ptr;
 }
 
+double getRegularizedAngle(double angle) {
+  if (angle > M_PI) {
+    angle -= 2 * M_PI;
+  } else if (angle < -M_PI) {
+    angle += 2 * M_PI;
+  }
+  return angle;
+}
+
+
 }  // namespace
+
+
+
+class Nav2dFlow::PathTracking {
+ public:
+  PathTracking() : prev_speed_(0, 0, 0), prev_time_ns_(-1) {
+    loadParams(hear_slam::rootCfg().get("nav2d_path_tracking"));
+  }
+
+  void reset() {
+    prev_speed_ = Eigen::Vector3d(0, 0, 0);
+    prev_time_ns_ = -1;
+  }
+
+  Eigen::Vector3d run(const Nav2dCmd& nav_cmd) {
+    Eigen::Vector3d speed(0, 0, 0);
+
+    const Eigen::Vector3d& cur_pose2d = nav_cmd.cur_pose2d;
+    const Eigen::Vector3d& next = nav_cmd.next_pathpoints[0];
+    bool is_last = nav_cmd.is_last_pathpoint;
+    if (prev_time_ns_ < 0) {
+      prev_time_ns_ = nav_cmd.timestamp_ns;
+      prev_speed_ = speed;
+      return speed;
+    }
+
+    double dt = 0.0;
+    dt = (nav_cmd.timestamp_ns - prev_time_ns_) * 1e-9;
+    prev_time_ns_ = nav_cmd.timestamp_ns;
+
+    Eigen::Vector2d vec = next.head<2>() - cur_pose2d.head<2>();
+    double vec_orient = atan2(vec[1], vec[0]);
+    double cur_orient = getRegularizedAngle(cur_pose2d[2]);
+
+    double orient_diff = getRegularizedAngle(vec_orient - cur_orient);
+    if (orient_diff > params.rotate_only_thr_deg * M_PI / 180.0) {
+      speed[2] = std::min(params.w_max, params.w_kp * orient_diff);
+      LOGI("nav_path_tracking: rotate only: w = %f", speed[2]);
+      prev_speed_ = speed;
+      return speed;
+    }
+
+    using hear_slam::SE2d;
+    SE2d  cur_se2(getRotation2d(cur_pose2d[2]), cur_pose2d.head<2>());
+    SE2d next_se2(getRotation2d(next[2]), next.head<2>());
+    Eigen::Vector3d delta = SE2d::Log(cur_se2.inverse() * next_se2); // [theta, x, y]
+    double dtheta = delta[0];
+    double dx = delta[1];
+    double dy = delta[2];
+
+    double w = std::min(params.w_max, params.w_kp * dtheta);
+    double vx = std::min(params.vx_max, params.vx_kp * dx);
+    double vy = std::min(params.vy_max, params.vy_kp * dy);
+    speed << vx, vy, dtheta;
+    LOGI("nav_path_tracking: speed = %f %f %f, delta = %f %f %f", vx, vy, w, dx, dy, dtheta);;
+
+    prev_speed_ = speed;
+    return speed;
+  }
+
+ private:
+  Eigen::Vector3d prev_speed_;
+  int64_t prev_time_ns_;
+
+  struct {
+    double rotate_only_thr_deg = 30.0;
+    double w_kp = 0.5;
+    double w_max = 0.5;
+
+    double vx_kp = 0.5;
+    double vx_max = 0.5;
+
+    double vy_kp = 0.5;
+    double vy_max = 0.5;
+
+    double wa_max = 0.5;
+    double ax_max = 0.5;
+    double ay_max = 0.5;
+  } params;
+
+  void loadParams(const hear_slam::YamlConfig& cfg) {
+    CONFIG_UPDT_I(cfg, params.rotate_only_thr_deg);
+    CONFIG_UPDT_I(cfg, params.w_kp);
+    CONFIG_UPDT_I(cfg, params.w_max);
+    CONFIG_UPDT_I(cfg, params.vx_kp);
+    CONFIG_UPDT_I(cfg, params.vx_max);
+    CONFIG_UPDT_I(cfg, params.vy_kp);
+    CONFIG_UPDT_I(cfg, params.vy_max);
+
+    CONFIG_UPDT_I(cfg, params.wa_max);
+    CONFIG_UPDT_I(cfg, params.ax_max);
+    CONFIG_UPDT_I(cfg, params.ay_max);
+  }
+};
 
 
 Nav2dFlow::Nav2dFlow() : state_(NavState::IDLE), path_record_file_("nav.yaml") {
@@ -227,6 +334,8 @@ Nav2dFlow::Nav2dFlow() : state_(NavState::IDLE), path_record_file_("nav.yaml") {
 #ifdef EANBLE_ROS_NAV_INTERFACE
   initRosInterface();
 #endif
+
+  path_tracking_ = std::make_unique<PathTracking>();
 
   // get the object camera extrinsics (for grasping task)
   auto object_nav_config = hear_slam::rootCfg().get("object_nav");
@@ -357,6 +466,7 @@ bool Nav2dFlow::addWaypoint(const std::string& waypoint_name) {
 bool Nav2dFlow::navigateToWaypoint(size_t waypoint_idx) {
   std::unique_lock<std::mutex> lock(mutex_nav_);
   if (state_ == NavState::IDLE) {
+    path_tracking_->reset();
     state_ = NavState::PATH_PLANNING;
     current_nav_type_ = NavType::TO_WAYPOINT;
     current_waypoint_idx_ = waypoint_idx;
@@ -401,6 +511,7 @@ bool Nav2dFlow::navigateToObject(const std::string& object_name) {
 
   std::unique_lock<std::mutex> lock(mutex_nav_);
   if (state_ == NavState::IDLE) {
+    path_tracking_->reset();
     state_ = NavState::PATH_PLANNING;
     current_nav_type_ = NavType::TO_OBJECT;
     current_nav_to_object_params_ = std::move(nav_to_object_params);
@@ -423,6 +534,7 @@ bool Nav2dFlow::navigateToObject(const std::string& object_name) {
 bool Nav2dFlow::stopNav() {
   std::unique_lock<std::mutex> lock(mutex_nav_);
   if (state_ == NavState::NAVIGATING) {
+    path_tracking_->reset();
     LOG(INFO) << "Nav2dFlow: stopNav() OK!";
 
     {
@@ -564,8 +676,10 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
         Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd;
 #endif
 
+        Eigen::Vector3d speed_2d = path_tracking_->run(*nav_cmd_to_publish);
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
+        publishLocomotionCmd(nav_cmd->timestamp_ns, speed_2d);
         convertAndPublishNavCmd(*nav_cmd_to_publish);
 #endif
         publish_nav_(nav_cmd_to_publish);
@@ -593,12 +707,13 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
     tryAddingTrajPoint(current_global_pose_2d_);
   } else if (NavState::NAVIGATING == state_) {
     // For now we skip the following check since it will be done by the downstream controller.
-    // // Check whether the robot has reached the waypoint point.
-    // if (checkArrival()) {
-    //   LOG(WARNING) << "Nav2dFlow:  Finished navigation.";
-    //   state_ = NavState::IDLE;
-    //   return;
-    // }
+
+    // Check whether the robot has reached the waypoint point.
+    if (checkArrival()) {
+      LOG(WARNING) << "Nav2dFlow:  Finished navigation.";
+      state_ = NavState::IDLE;
+      return;
+    }
     
     if (current_nav_type_ == NavType::TO_WAYPOINT) {
       if (!cur_global_pose_valid) {
@@ -614,7 +729,10 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
       Nav2dCmd::Ptr nav_cmd_to_publish = nav_cmd;
 #endif
 
+      Eigen::Vector3d speed_2d = path_tracking_->run(*nav_cmd_to_publish);
+
 #ifdef EANBLE_ROS_NAV_INTERFACE
+      publishLocomotionCmd(nav_cmd->timestamp_ns, speed_2d);
       convertAndPublishNavCmd(*nav_cmd_to_publish);
 #endif
       publish_nav_(nav_cmd_to_publish);
@@ -1092,6 +1210,9 @@ void Nav2dFlow::initRosInterface() {
   ros_pub_nav_cmd_viz_ = node_handle_.advertise<geometry_msgs::PoseArray>(
       "nav2d_cmd_viz", 1);
 
+  ros_pub_locomotion_cmd_ = node_handle_.advertise<geometry_msgs::TwistStamped>(
+      "nav2d_locomotion_cmd", 1);
+
   // node_handle_.subscribe("nav2d_waypoint", &Nav2dFlow::nav2dTargetCallback, this);
   // boost::function<void(const sensor_msgs::ImuConstPtr&)> imu_callback =
   //     boost::bind(&DataSourceRostopic::imuMeasurementCallback, this, _1);
@@ -1143,6 +1264,24 @@ bool Nav2dFlow::dealWithRosRequest(RosNavRequest::Request &request, RosNavReques
     response.error_info = "Unknown cmd!";
   }
   return true;
+}
+
+void Nav2dFlow::publishLocomotionCmd(int64_t time_ns, const Eigen::Vector3d& speed_2d) {
+  if (ros_pub_locomotion_cmd_.getNumSubscribers() == 0) {
+    return;
+  }
+
+  geometry_msgs::TwistStamped loco_cmd;
+  loco_cmd.header.seq = ros_locomotion_cmd_seq_++;
+  loco_cmd.header.stamp = createRosTimestamp(time_ns);
+  loco_cmd.header.frame_id = "imu_with_gravity_aligned";
+  loco_cmd.twist.linear.x = speed_2d.x();
+  loco_cmd.twist.linear.y = speed_2d.y();
+  loco_cmd.twist.linear.z = 0;
+  loco_cmd.twist.angular.x = 0;
+  loco_cmd.twist.angular.y = 0;
+  loco_cmd.twist.angular.z = speed_2d.z();
+  ros_pub_locomotion_cmd_.publish(loco_cmd);
 }
 
 void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
