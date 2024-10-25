@@ -93,6 +93,13 @@ DEFINE_string(
     local_grasp_points_yaml, "",
     "Grasp points yaml file");
 
+DEFINE_bool(
+    publish_fake_map_frame, false,
+    "Whether to publish a fake map frame to TF. Only for test.");
+
+DEFINE_string(
+    tf_urdf_cam_frame, "head_rs_link",  // "realsense_link"
+    "realsense camera frame name in the robot model urdf");
 
 DECLARE_bool(openvinsli_run_map_builder);
 
@@ -714,7 +721,6 @@ void DataPublisherFlow::publishVinsState(
   }
 
   aslam::Transformation T_I_Curdf;
-  std::string tf_urdf_cam_frame = "realsense_link";
   {
     // - [1.0, 0.0, 0.0, -0.03022]
     // - [0.0, 1.0, 0.0,  0.0074 ]
@@ -731,9 +737,14 @@ void DataPublisherFlow::publishVinsState(
   visualization::publishTF(
       T_M_I, FLAGS_tf_mission_frame, FLAGS_tf_imu_frame, timestamp_ros);
   // visualization::publishTF(
-  //     T_M_I * T_I_Curdf, FLAGS_tf_mission_frame, tf_urdf_cam_frame, timestamp_ros);
+  //     T_M_I * T_I_Curdf, FLAGS_tf_mission_frame, FLAGS_tf_urdf_cam_frame, timestamp_ros);
   visualization::publishTF(
-      (T_M_I * T_I_Curdf).inverse(), tf_urdf_cam_frame, FLAGS_tf_mission_frame, timestamp_ros);
+      (T_M_I * T_I_Curdf).inverse(), FLAGS_tf_urdf_cam_frame, FLAGS_tf_mission_frame, timestamp_ros);
+
+  if (FLAGS_publish_fake_map_frame) {
+    visualization::publishTF(
+        (T_M_I * T_I_Curdf).inverse(), FLAGS_tf_urdf_cam_frame, FLAGS_tf_map_frame, timestamp_ros);
+  }
 
   // Publish pose in global frame.
   aslam::Transformation T_G_I = T_G_M * T_M_I;
