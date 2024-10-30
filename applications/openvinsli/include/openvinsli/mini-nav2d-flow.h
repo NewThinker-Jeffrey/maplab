@@ -227,6 +227,7 @@ class Nav2dFlow {
   ros::Publisher ros_pub_nav_cmd_;
   ros::Publisher ros_pub_nav_cmd_viz_;
   ros::Publisher ros_pub_locomotion_cmd_;
+  ros::Publisher ros_pub_nav_target_;
 
   ros::Subscriber sub_local_object_pose_;  // for grasping task (nav to object)
   StampedGlobalPose::Pose3d object_cam_extrinsics_;

@@ -52,6 +52,17 @@
 
 #define PUBLISH_NAV_CMD_IN_ODOM_FRAME  // otherwise publish that in global frame
 
+
+DEFINE_string(
+    nav_target_topic, "NAV_CUR_TARGET",
+    "The name of the ros topic for the nav target pose. "
+    "(NAV_CUR_TARGET)");
+
+DEFINE_bool(
+    nav_target_topic_use_odom_frame, false,
+    "If true, the nav target pose is published in the mission(odom) frame; "
+    "otherwise it is published in the map frame.");
+
 DEFINE_double(
     nav_record_path_point_dist, 0.5,
     "The average distance between two path points when recording path. (0.5)");
@@ -1223,6 +1234,9 @@ void Nav2dFlow::initRosInterface() {
   ros_pub_locomotion_cmd_ = node_handle_.advertise<geometry_msgs::TwistStamped>(
       "nav2d_locomotion_cmd", 1);
 
+  ros_pub_nav_target_ = node_handle_.advertise<geometry_msgs::PoseStamped>(
+      FLAGS_nav_target_topic, 1);
+
   // node_handle_.subscribe("nav2d_waypoint", &Nav2dFlow::nav2dTargetCallback, this);
   // boost::function<void(const sensor_msgs::ImuConstPtr&)> imu_callback =
   //     boost::bind(&DataSourceRostopic::imuMeasurementCallback, this, _1);
@@ -1344,6 +1358,48 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
   const aslam::Transformation waypoint_pose(waypoint_p, waypoint_q);
   visualization::publishTF(
       waypoint_pose, FLAGS_tf_mission_frame, "NAV_CUR_TARGET", timestamp_ros);
+
+  {
+    // also publish nav target topic
+    StampedGlobalPose::Pose3d pose_to_pub = waypoint_3d;
+    geometry_msgs::PoseStamped pose_msg;
+    std::string base_frame;
+    bool pose_msg_valid = true;
+
+    if (FLAGS_nav_target_topic_use_odom_frame) {
+      base_frame = FLAGS_tf_mission_frame;
+#ifndef PUBLISH_NAV_CMD_IN_ODOM_FRAME
+      if (!T_G_O_) {
+        pose_msg_valid = false;
+      } else {
+        // convert pose from odom frame to map frame
+        pose_to_pub = (*T_G_O_) * pose_to_pub;
+      }
+#endif
+    } else {
+      base_frame = FLAGS_tf_map_frame;
+#ifdef PUBLISH_NAV_CMD_IN_ODOM_FRAME
+      if (!T_G_O_) {
+        pose_msg_valid = false;
+      } else {
+        // convert pose from map frame to odom frame
+        pose_to_pub = T_G_O_->inverse() * pose_to_pub;
+      }
+#endif    
+    }
+    if (pose_msg_valid) {
+      Eigen::Quaterniond q_to_pub(pose_to_pub.linear().matrix());
+      Eigen::Vector3d p_to_pub(pose_to_pub.translation());
+      tf::pointEigenToMsg(p_to_pub, pose_msg.pose.position);
+      tf::quaternionEigenToMsg(q_to_pub, pose_msg.pose.orientation);
+      pose_msg.header.seq = ros_nav_cmd_seq_++;
+      pose_msg.header.stamp = timestamp_ros;
+      pose_msg.header.frame_id = base_frame;
+      ros_pub_nav_target_.publish(pose_msg);
+    } else {
+      LOG(WARNING) << "Nav2dFlow: T_G_O_ is not initialized, not publishing nav target!";
+    }
+  }
 
   // publish object pose to tf when we re navigating to an object
   std::unique_ptr<StampedGlobalPose::Pose3d> object_in_odom_frame;
