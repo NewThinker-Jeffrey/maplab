@@ -1372,8 +1372,8 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
       if (!T_G_O_) {
         pose_msg_valid = false;
       } else {
-        // convert pose from odom frame to map frame
-        pose_to_pub = (*T_G_O_) * pose_to_pub;
+        // convert pose from map frame to odom frame
+        pose_to_pub = T_G_O_->inverse() * pose_to_pub;
       }
 #endif
     } else {
@@ -1382,8 +1382,8 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
       if (!T_G_O_) {
         pose_msg_valid = false;
       } else {
-        // convert pose from map frame to odom frame
-        pose_to_pub = T_G_O_->inverse() * pose_to_pub;
+        // convert pose from odom frame to map frame
+        pose_to_pub = (*T_G_O_) * pose_to_pub;
       }
 #endif    
     }
