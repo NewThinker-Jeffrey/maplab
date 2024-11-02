@@ -27,7 +27,8 @@
 #ifdef EANBLE_ROS_NAV_INTERFACE
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
-#include "openvinsli/RosNavRequest.h"
+// #include "openvinsli/RosNavRequest.h"
+#include "xbot_common_interfaces/CommonOperation.h"
 #include "openvinsli/RosNav2dCmd.h"
 #endif
 
@@ -238,6 +239,7 @@ class Nav2dFlow {
 
   uint32_t ros_nav_cmd_seq_ = 0;
   uint32_t ros_locomotion_cmd_seq_ = 0;
+  using RosNavRequest = xbot_common_interfaces::CommonOperation;
   void initRosInterface();
   bool dealWithRosRequest(RosNavRequest::Request &request, RosNavRequest::Response &response);
   void localObjectPoseCallback(const geometry_msgs::PoseStampedConstPtr& msg);

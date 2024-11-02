@@ -44,4 +44,5 @@
   <depend>vio_common</depend>
   <depend>visualization</depend>
   <depend>apriltag</depend>
+  <depend>xbot_common_interfaces</depend>
 </package>
