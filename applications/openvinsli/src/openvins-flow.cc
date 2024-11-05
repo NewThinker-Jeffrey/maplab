@@ -171,8 +171,8 @@ OpenvinsFlow::OpenvinsFlow(
         for (const auto& item : tag_map_) {
           const auto& tag_id = item.first;
           const auto& tag_pose = item.second;
-          Eigen::Quaterniond q(tag_pose.R);
-          std::cout << "Loaded tag " << hear_slam::toStr(tag_id) << ": p = " << tag_pose.p.transpose() << ", q = " << q.coeffs().transpose() << std::endl;
+          Eigen::Quaterniond q(tag_pose.linear().matrix());
+          std::cout << "Loaded tag " << hear_slam::toStr(tag_id) << ": p = " << tag_pose.translation().transpose() << ", q = " << q.coeffs().transpose() << std::endl;
         }
       }
     }
@@ -456,7 +456,7 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
   Time end_time = Time::now();
   LOGI("Tag-detection took %.2f ms", (end_time - start_time).millis());
 
-  std::unique_ptr<hear_slam::Pose3dWithCov> cam_pose_and_cov;
+  std::unique_ptr<hear_slam::TagMapping::KeyframeState> cam_pose_and_cov;
   if (!tag_map_.empty() && !detections.empty()) {
     static const auto vtag_loc_cfg = hear_slam::rootCfg().get("vtag_localization");
     static double reproj_rmse_thr = 1.5;  // 0.5;
@@ -475,7 +475,7 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
     LOGI("Tag-loc took %.2f ms", (end_time - start_time).millis());
 
     if (cam_pose_and_cov) {
-      Eigen::Isometry3d T_I_Color;
+      hear_slam::GlobalPoseFusion::Pose3d T_I_Color;
       {
         // - [1.0, 0.0, 0.0, 0.02878]
         // - [0.0, 1.0, 0.0, 0.0074]
@@ -485,17 +485,14 @@ void OpenvinsFlow::processTag(ov_core::CameraData cam) {
                       0, 1, 0,
                       0, 0, 1;
         Eigen::Vector3d t_I_Color(0.02878, 0.0074, 0.01602);
-
-        T_I_Color = Eigen::Isometry3d(R_I_Color);
-        T_I_Color.translation() = t_I_Color;
+        T_I_Color = hear_slam::GlobalPoseFusion::Pose3d(R_I_Color, t_I_Color);
       }
 
-      hear_slam::Pose3dWithCov imu_pose_and_cov = (*cam_pose_and_cov) * (T_I_Color.inverse());
-      hear_slam::GlobalPoseFusion::Pose3d pose(imu_pose_and_cov.R, imu_pose_and_cov.p);
+      hear_slam::TagMapping::KeyframeState imu_pose_and_cov = (*cam_pose_and_cov) * (T_I_Color.inverse());
+      hear_slam::GlobalPoseFusion::Pose3d pose(imu_pose_and_cov.pose());
       if (compute_cov) {
-        Eigen::Matrix<double, 6, 6> cov;
-        cov << imu_pose_and_cov.cov.block<3, 3>(3, 3), imu_pose_and_cov.cov.block<3, 3>(3, 0),
-              imu_pose_and_cov.cov.block<3, 3>(0, 3), imu_pose_and_cov.cov.block<3, 3>(0, 0);
+        Eigen::Matrix<double, 6, 6> cov = imu_pose_and_cov.cov<
+            hear_slam::GlobalPoseFusion::Pose3d::RightPerturbation>();
         global_pose_fusion_->feedGlobalPose(cam.timestamp, pose, &cov);
       } else {
         global_pose_fusion_->feedGlobalPose(cam.timestamp, pose);
