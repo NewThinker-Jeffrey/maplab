@@ -719,12 +719,12 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
   } else if (NavState::NAVIGATING == state_) {
     // For now we skip the following check since it will be done by the downstream controller.
 
-    // Check whether the robot has reached the waypoint point.
-    if (checkArrival()) {
-      LOG(WARNING) << "Nav2dFlow:  Finished navigation.";
-      state_ = NavState::IDLE;
-      return;
-    }
+    // // Check whether the robot has reached the waypoint point.
+    // if (checkArrival()) {
+    //   LOG(WARNING) << "Nav2dFlow:  Finished navigation.";
+    //   state_ = NavState::IDLE;
+    //   return;
+    // }
     
     if (current_nav_type_ == NavType::TO_WAYPOINT) {
       if (!cur_global_pose_valid) {
@@ -753,6 +753,8 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
       // For object navigation, the output nav_cmd of runObjectNav() is already in
       // the odom frame.
       Nav2dCmd::Ptr nav_cmd = runObjectNav(vio_estimate->timestamp_ns);
+      LOG(WARNING) << "Nav2dFlow:  nav_cmd-TO_OBJECT = " <<
+                nav_cmd->waypoint.transpose();
 #ifdef EANBLE_ROS_NAV_INTERFACE
       convertAndPublishNavCmd(*nav_cmd);
 #endif
@@ -1309,9 +1311,9 @@ void Nav2dFlow::publishLocomotionCmd(int64_t time_ns, const Eigen::Vector3d& spe
 }
 
 void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
-  if (ros_pub_nav_cmd_.getNumSubscribers() == 0 && ros_pub_nav_cmd_viz_.getNumSubscribers() == 0) {
-    return;
-  }
+  // if (ros_pub_nav_cmd_.getNumSubscribers() == 0 && ros_pub_nav_cmd_viz_.getNumSubscribers() == 0) {
+  //   return;
+  // }
 
   RosNav2dCmd roscmd;
   ros::Time timestamp_ros = createRosTimestamp(cmd.timestamp_ns);

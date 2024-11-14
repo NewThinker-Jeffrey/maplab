@@ -26,7 +26,7 @@ object_nav:
   objects:
     boxOnTable:
       max_forward_distance: 0.5
-      ref_waypoint_name: "A"
+      ref_waypoint_name: "S"
 
 nav2d_path_tracking:
   params:
