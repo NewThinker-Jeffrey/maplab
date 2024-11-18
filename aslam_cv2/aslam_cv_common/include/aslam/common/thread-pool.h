@@ -46,7 +46,7 @@ class ThreadPool {
   /// \brief Create a thread pool.
   ///
   /// \param[in] numThreads The number of threads in the pool.
-  ThreadPool(const size_t numThreads, const std::string& thread_name="");
+  ThreadPool(const size_t numThreads, const std::string& thread_name="", bool realtime = false);
   ~ThreadPool();
 
   /// \brief Enqueue work for the thread pool
@@ -88,7 +88,7 @@ class ThreadPool {
   size_t numQueuedTasksImpl() const;
 
   /// \brief Run a single thread.
-  void run();
+  void run(bool realtime = false);
   /// Need to keep track of threads so we can join them.
   std::vector<std::thread> workers_;
 

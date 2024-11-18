@@ -18,6 +18,8 @@
 #include <vi-map/vi-map-serialization.h>
 
 #include "openvinsli/openvinsli-node.h"
+#include <pthread.h>  // thread priority
+#include <sched.h>  // thread priority
 
 DEFINE_string(
     vio_localization_map_folder, "",
@@ -66,6 +68,8 @@ int main(int argc, char** argv) {
   google::InstallFailureSignalHandler();
   FLAGS_alsologtostderr = true;
   FLAGS_colorlogtostderr = true;
+
+  const bool realtime_flow = true;
 
   ros::init(argc, argv, "openvinsli");
   ros::NodeHandle nh, nh_private("~");
@@ -157,7 +161,9 @@ int main(int argc, char** argv) {
   ros::AsyncSpinner ros_spinner(common::getNumHardwareThreads());
   std::unique_ptr<message_flow::MessageFlow> flow(
       message_flow::MessageFlow::create<message_flow::MessageDispatcherFifo>(
-          common::getNumHardwareThreads(), "maplab_msg_flow"));
+          1, // common::getNumHardwareThreads(),
+          "maplab_msg_flow",
+          realtime_flow));
 
   if (FLAGS_map_builder_save_image_as_resources &&
       FLAGS_save_map_folder.empty()) {

@@ -19,6 +19,10 @@
 #include "hear_slam/utils/yaml_helper.h"
 #include "hear_slam/basic/string_helper.h"
 #include "hear_slam/basic/logging.h"
+#include "hear_slam/basic/thread_pool.h"
+
+using hear_slam::ThreadPool;
+
 
 DEFINE_double(
     map_publish_interval_s, 2.0,
@@ -293,6 +297,16 @@ DataPublisherFlow::DataPublisherFlow()
   visualization::RVizVisualizationSink::init();
   plotter_.reset(new visualization::ViwlsGraphRvizPlotter);
   height_map_work_queue_.reset(new hear_slam::TaskQueue("height_map_q", 1, 1, true));
+
+  ThreadPool::createNamed("ros_pub_vmap");
+  ThreadPool::createNamed("ros_pub_sphere");
+  ThreadPool::createNamed("ros_pub_glbpose");
+  ThreadPool::createNamed("ros_pub_rawimg");
+  ThreadPool::createNamed("ros_pub_grasp");
+  ThreadPool::createNamed("ros_pub_vio");
+  ThreadPool::createNamed("maplab_csv_exp");
+  ThreadPool::createNamed("ros_pub_dmap");
+
   if (!FLAGS_local_grasp_points_yaml.empty()) {
     auto local_grasp_points_yamlptr = hear_slam::loadYaml(FLAGS_local_grasp_points_yaml);
     auto& local_grasp_points_yaml = *local_grasp_points_yamlptr;
@@ -395,11 +409,13 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
     flow->registerSubscriber<message_flow_topics::RAW_VIMAP>(
         kSubscriberNodeName, message_flow::DeliveryOptions(),
         [this](const VIMapWithMutex::ConstPtr& map_with_mutex) {
-          if (map_publisher_timeout_.reached()) {
-            std::lock_guard<std::mutex> lock(map_with_mutex->mutex);
-            visualizeMap(map_with_mutex->vi_map);
-            map_publisher_timeout_.reset();
-          }
+          ThreadPool::getNamed("ros_pub_vmap")->schedule([this, map_with_mutex](){
+            if (map_publisher_timeout_.reached()) {
+              std::lock_guard<std::mutex> lock(map_with_mutex->mutex);
+              visualizeMap(map_with_mutex->vi_map);
+              map_publisher_timeout_.reset();
+            }
+          });
         });
   }
 
@@ -408,7 +424,9 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
       kSubscriberNodeName, message_flow::DeliveryOptions(),
       [this](const vio::LocalizationResult::ConstPtr& localization) {
         CHECK(localization != nullptr);
-        localizationCallback(localization->T_G_B.getPosition());
+        ThreadPool::getNamed("ros_pub_sphere")->schedule([this, localization](){
+          localizationCallback(localization->T_G_B.getPosition());
+        });
       });
 
   // Publish global pose fusion.
@@ -416,14 +434,16 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
       kSubscriberNodeName, message_flow::DeliveryOptions(),
       [this](const StampedGlobalPose::ConstPtr& global_pose) {
         CHECK(global_pose != nullptr);
-        if (global_pose->global_pose_valid) {
-          // publish T_I_G to tf.
-          aslam::Transformation T_G_I(global_pose->global_pose.translation(), Eigen::Quaterniond(global_pose->global_pose.linear().matrix()));
-          ros::Time timestamp_ros = createRosTimestamp(global_pose->timestamp_ns);
-          LOG(INFO) << "publishing tf T_G_I at time " << timestamp_ros;
-          visualization::publishTF(
-              T_G_I.inverse(), FLAGS_tf_imu_frame, FLAGS_tf_map_frame, timestamp_ros);
-        }
+        ThreadPool::getNamed("ros_pub_glbpose")->schedule([this, global_pose](){
+          if (global_pose->global_pose_valid) {
+            // publish T_I_G to tf.
+            aslam::Transformation T_G_I(global_pose->global_pose.translation(), Eigen::Quaterniond(global_pose->global_pose.linear().matrix()));
+            ros::Time timestamp_ros = createRosTimestamp(global_pose->timestamp_ns);
+            LOG(INFO) << "publishing tf T_G_I at time " << timestamp_ros;
+            visualization::publishTF(
+                T_G_I.inverse(), FLAGS_tf_imu_frame, FLAGS_tf_map_frame, timestamp_ros);
+          }
+        });
       });
 
   auto image_to_rosmsg = [](const vio::ImageMeasurement::Ptr& image) {
@@ -451,65 +471,69 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
       kSubscriberNodeName, message_flow::DeliveryOptions(),
       [this, image_to_rosmsg](const vio::ImageMeasurement::Ptr& image) {
         CHECK(image);
-        if (image->camera_index == 0) {
-          if (!FLAGS_share_raw_image0_topic.empty() &&
-              pub_raw_image0_->getNumSubscribers() > 0) {
-            pub_raw_image0_->publish(image_to_rosmsg(image));
+        ThreadPool::getNamed("ros_pub_rawimg")->schedule([this, image, image_to_rosmsg](){
+          if (image->camera_index == 0) {
+            if (!FLAGS_share_raw_image0_topic.empty() &&
+                pub_raw_image0_->getNumSubscribers() > 0) {
+              pub_raw_image0_->publish(image_to_rosmsg(image));
+            }
+          } else if (image->camera_index == 1 ||
+                    image->camera_index == -1 /*depth*/) {
+            if (!FLAGS_share_raw_image1_topic.empty() &&
+                pub_raw_image1_->getNumSubscribers() > 0) {
+              pub_raw_image1_->publish(image_to_rosmsg(image));
+            }
           }
-        } else if (image->camera_index == 1 ||
-                   image->camera_index == -1 /*depth*/) {
-          if (!FLAGS_share_raw_image1_topic.empty() &&
-              pub_raw_image1_->getNumSubscribers() > 0) {
-            pub_raw_image1_->publish(image_to_rosmsg(image));
-          }
-        }
+        });
       });
 
   // publish grasp points (tag)
   flow->registerSubscriber<message_flow_topics::TAG_DETECTIONS>(
       kSubscriberNodeName, message_flow::DeliveryOptions(),
       [this](StampedTagDetections::ConstPtr stamped_detections) {
-        if (stamped_detections->cam_id == 0) {
-          using hear_slam::TagFamily;
-          using hear_slam::TagID;
-          const TagID target_tag_id(TagFamily::April_36h11, 1);
-          GraspObjectId obj_id = target_tag_id.id;
-          auto iter = local_grasp_points_map_.find(obj_id);
-          if (iter == local_grasp_points_map_.end()) {
-            return;            
-          }
-          const auto& local_grasp_points = iter->second;
+        ThreadPool::getNamed("ros_pub_grasp")->schedule([this, stamped_detections](){
+          if (stamped_detections->cam_id == 0) {
+            using hear_slam::TagFamily;
+            using hear_slam::TagID;
+            const TagID target_tag_id(TagFamily::April_36h11, 1);
+            GraspObjectId obj_id = target_tag_id.id;
+            auto iter = local_grasp_points_map_.find(obj_id);
+            if (iter == local_grasp_points_map_.end()) {
+              return;            
+            }
+            const auto& local_grasp_points = iter->second;
 
-          for (const auto& detection :
-               stamped_detections->detections) {
-            if (detection.tag_id == target_tag_id) {
-              const Eigen::Isometry3d& T_Cam_Tag = detection.T_Cam_Tag->toIsometry();
-              Eigen::Quaterniond tag_q(T_Cam_Tag.rotation());
-              Eigen::Vector3d tag_p(T_Cam_Tag.translation());
+            for (const auto& detection :
+                stamped_detections->detections) {
+              if (detection.tag_id == target_tag_id) {
+                const Eigen::Isometry3d& T_Cam_Tag = detection.T_Cam_Tag->toIsometry();
+                Eigen::Quaterniond tag_q(T_Cam_Tag.rotation());
+                Eigen::Vector3d tag_p(T_Cam_Tag.translation());
 
-              // Publish estimated grasp points.
-              geometry_msgs::PoseArray grasp_points_message;
-              // grasp_points_message.header.frame_id = "color_camera";
-              grasp_points_message.header.frame_id = FLAGS_tf_imu_frame;
-                    // TODO: change to camera frame (the camera frame is not
-                    // registered to tf for now, so we temporarily use the IMU
-                    // frame)
-              grasp_points_message.header.stamp = createRosTimestamp(stamped_detections->timestamp_ns);
+                // Publish estimated grasp points.
+                geometry_msgs::PoseArray grasp_points_message;
+                // grasp_points_message.header.frame_id = "color_camera";
+                grasp_points_message.header.frame_id = FLAGS_tf_imu_frame;
+                      // TODO: change to camera frame (the camera frame is not
+                      // registered to tf for now, so we temporarily use the IMU
+                      // frame)
+                grasp_points_message.header.stamp = createRosTimestamp(stamped_detections->timestamp_ns);
 
-              for (const auto& local_grasp_point : local_grasp_points) {
-                Eigen::Vector3d grasp_position = T_Cam_Tag * local_grasp_point;
-                Eigen::Quaterniond grasp_orientation = tag_q;
-                geometry_msgs::Pose grasp_point_message;
-                tf::pointEigenToMsg(grasp_position, grasp_point_message.position);
-                tf::quaternionEigenToMsg(grasp_orientation, grasp_point_message.orientation);
-                grasp_points_message.poses.emplace_back(grasp_point_message);
+                for (const auto& local_grasp_point : local_grasp_points) {
+                  Eigen::Vector3d grasp_position = T_Cam_Tag * local_grasp_point;
+                  Eigen::Quaterniond grasp_orientation = tag_q;
+                  geometry_msgs::Pose grasp_point_message;
+                  tf::pointEigenToMsg(grasp_position, grasp_point_message.position);
+                  tf::quaternionEigenToMsg(grasp_orientation, grasp_point_message.orientation);
+                  grasp_points_message.poses.emplace_back(grasp_point_message);
+                }
+
+                pub_grasp_points_computed_from_tag_.publish(grasp_points_message);
+                break;
               }
-
-              pub_grasp_points_computed_from_tag_.publish(grasp_points_message);
-              break;
             }
           }
-        }
+        });
       });
 
   if (FLAGS_publish_only_on_keyframes) {
@@ -517,14 +541,16 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         kSubscriberNodeName, message_flow::DeliveryOptions(),
         [this](const vio::MapUpdate::ConstPtr& vio_update) {
           CHECK(vio_update != nullptr);
-          bool has_T_G_M =
-              (vio_update->localization_state ==
-                   common::LocalizationState::kLocalized ||
-               vio_update->localization_state ==
-                   common::LocalizationState::kMapTracking);
-          publishVinsState(
-              vio_update->timestamp_ns, vio_update->vinode, has_T_G_M,
-              vio_update->T_G_M);
+          ThreadPool::getNamed("ros_pub_vio")->schedule([this, vio_update](){
+            bool has_T_G_M =
+                (vio_update->localization_state ==
+                    common::LocalizationState::kLocalized ||
+                vio_update->localization_state ==
+                    common::LocalizationState::kMapTracking);
+            publishVinsState(
+                vio_update->timestamp_ns, vio_update->vinode, has_T_G_M,
+                vio_update->T_G_M);
+          });
         });
   } else {
     flow->registerSubscriber<message_flow_topics::OPENVINS_ESTIMATES>(
@@ -532,21 +558,23 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         [this](const OpenvinsEstimate::ConstPtr& _state) {
           const OpenvinsEstimate::ConstPtr state = _state;
           CHECK(state != nullptr);
-          publishVinsState(
-              state->timestamp_ns, state->vinode, state->has_T_G_M,
-              state->T_G_M);
+          ThreadPool::getNamed("ros_pub_vio")->schedule([this, state](){
+            publishVinsState(
+                state->timestamp_ns, state->vinode, state->has_T_G_M,
+                state->T_G_M);
 
-          // Publish estimated camera-extrinsics.
-          geometry_msgs::PoseArray T_C_Bs_message;
-          T_C_Bs_message.header.frame_id = FLAGS_tf_imu_frame;
-          T_C_Bs_message.header.stamp = createRosTimestamp(state->timestamp_ns);
-          for (const auto& cam_idx_T_C_B :
-               state->maplab_camera_index_to_T_C_B) {
-            geometry_msgs::Pose T_C_B_message;
-            tf::poseKindrToMsg(cam_idx_T_C_B.second, &T_C_B_message);
-            T_C_Bs_message.poses.emplace_back(T_C_B_message);
-          }
-          pub_extrinsics_T_C_Bs_.publish(T_C_Bs_message);
+            // Publish estimated camera-extrinsics.
+            geometry_msgs::PoseArray T_C_Bs_message;
+            T_C_Bs_message.header.frame_id = FLAGS_tf_imu_frame;
+            T_C_Bs_message.header.stamp = createRosTimestamp(state->timestamp_ns);
+            for (const auto& cam_idx_T_C_B :
+                state->maplab_camera_index_to_T_C_B) {
+              geometry_msgs::Pose T_C_B_message;
+              tf::poseKindrToMsg(cam_idx_T_C_B.second, &T_C_B_message);
+              T_C_Bs_message.poses.emplace_back(T_C_B_message);
+            }
+            pub_extrinsics_T_C_Bs_.publish(T_C_Bs_message);
+          });
         });
   }
 
@@ -564,17 +592,19 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
     flow->registerSubscriber<message_flow_topics::OPENVINS_ESTIMATES>(
         kSubscriberNodeName, message_flow::DeliveryOptions(),
         [file_logger, kDelimiter, this](const OpenvinsEstimate::ConstPtr& state) {
-          CHECK(state != nullptr);
-          aslam::Transformation T_M_I = state->vinode.get_T_M_I();
+          ThreadPool::getNamed("maplab_csv_exp")->schedule([this, file_logger, kDelimiter, state](){
+            CHECK(state != nullptr);
+            aslam::Transformation T_M_I = state->vinode.get_T_M_I();
 
-          if (state->has_T_G_M) {
-            T_M_I = state->T_G_M * T_M_I;
-          }
+            if (state->has_T_G_M) {
+              T_M_I = state->T_G_M * T_M_I;
+            }
 
-          file_logger->writeDataWithDelimiterAndNewLine(
-              kDelimiter,
-              aslam::time::nanoSecondsToSeconds(state->timestamp_ns),
-              T_M_I.getPosition(), T_M_I.getEigenQuaternion());
+            file_logger->writeDataWithDelimiterAndNewLine(
+                kDelimiter,
+                aslam::time::nanoSecondsToSeconds(state->timestamp_ns),
+                T_M_I.getPosition(), T_M_I.getEigenQuaternion());
+          });
         });
   }
 
@@ -593,11 +623,13 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         }
 
         last_published_rgbd_map_timestamp_ns_ = map_wrapper->timestamp_ns;
-        sensor_msgs::PointCloud2 point_cloud;
-        rgbdLocalMapToPointCloud(map_wrapper->map_data, &point_cloud);
-        point_cloud.header.frame_id = FLAGS_tf_mission_frame;
-        point_cloud.header.stamp = createRosTimestamp(map_wrapper->timestamp_ns);
-        visualization::RVizVisualizationSink::publish<sensor_msgs::PointCloud2>("/rgbd_local_map", point_cloud);
+        ThreadPool::getNamed("ros_pub_dmap")->schedule([this, map_wrapper](){
+          sensor_msgs::PointCloud2 point_cloud;
+          rgbdLocalMapToPointCloud(map_wrapper->map_data, &point_cloud);
+          point_cloud.header.frame_id = FLAGS_tf_mission_frame;
+          point_cloud.header.stamp = createRosTimestamp(map_wrapper->timestamp_ns);
+          visualization::RVizVisualizationSink::publish<sensor_msgs::PointCloud2>("/rgbd_local_map", point_cloud);
+        });
       });
 }
 

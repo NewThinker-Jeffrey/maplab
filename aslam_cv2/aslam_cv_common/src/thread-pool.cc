@@ -1,16 +1,60 @@
 #include <algorithm>
 
 #include <aslam/common/thread-pool.h>
+#include <pthread.h>  // thread priority
+#include <sched.h>  // thread priority
+#include <iostream>
+
+namespace {
+void printThreadPriority(const std::string& thread_name_for_print) {
+  int policy;
+  struct sched_param param;
+  int result = pthread_getschedparam(pthread_self(), &policy, &param);
+  if (result != 0) {
+    std::cerr << "Error getting sched param: " << strerror(result) << std::endl;
+    return;
+  }
+  std::cout << "ThreadPriority: get priority for " << thread_name_for_print
+            << " = " << param.sched_priority << " (policy = " << policy
+            << ", min = " << sched_get_priority_min(policy)
+            << ", max = " << sched_get_priority_max(policy)
+            << "), thread_id = " << pthread_self() << std::endl;
+}
+
+void setCurrentThreadRealtime(
+    const std::string& thread_name_for_print, int sched_priority = 1,
+    int policy = SCHED_RR) {
+  printThreadPriority(thread_name_for_print + " (before set priority)");
+  struct sched_param param;
+  param.sched_priority = sched_priority;
+  int result = pthread_setschedparam(pthread_self(), policy, &param);
+  if (result != 0) {
+    std::cerr << "ThreadPriority: Fail to set priority for "
+              << thread_name_for_print << " = " << param.sched_priority
+              << " (min = " << sched_get_priority_min(policy)
+              << ", max = " << sched_get_priority_max(policy)
+              << "), thread_id = " << pthread_self()
+              << ", error info: " << strerror(result) << std::endl;
+    return;
+  }
+  std::cout << "ThreadPriority: set priority for " << thread_name_for_print
+            << " = " << param.sched_priority
+            << " (min = " << sched_get_priority_min(policy)
+            << ", max = " << sched_get_priority_max(policy)
+            << "), thread_id = " << pthread_self() << std::endl;
+  printThreadPriority(thread_name_for_print + " (after set priority)");
+}
+}  // namespace
 
 namespace aslam {
 
 // The constructor just launches some amount of workers.
-ThreadPool::ThreadPool(const size_t threads, const std::string& thread_name)
+ThreadPool::ThreadPool(const size_t threads, const std::string& thread_name, bool realtime)
     : active_threads_(0),
       thread_name_(thread_name),
       stop_(false) {
   for (size_t i = 0; i < threads; ++i)
-    workers_.emplace_back(std::bind(&ThreadPool::run, this));
+    workers_.emplace_back(std::bind(&ThreadPool::run, this, realtime));
 }
 
 // The destructor joins all threads.
@@ -25,9 +69,13 @@ ThreadPool::~ThreadPool() {
   }
 }
 
-void ThreadPool::run() {
+void ThreadPool::run(bool realtime) {
   if (!thread_name_.empty()) {
     pthread_setname_np(pthread_self(), thread_name_.substr(0, 15).c_str());
+  }
+
+  if (realtime) {
+    setCurrentThreadRealtime(thread_name_);
   }
 
   while (true) {

@@ -245,7 +245,7 @@ class Nav2dFlow {
   void localObjectPoseCallback(const geometry_msgs::PoseStampedConstPtr& msg);
   void convertAndPublishNavCmd(const Nav2dCmd& cmd);
   void publishLocomotionCmd(int64_t time_ns, const Eigen::Vector3d& speed_2d);
-  void publishGlobalNavInfoViz();
+  void publishGlobalNavInfoViz(int64_t last_vio_estimate_timestamp_ns, StampedGlobalPose::Pose3d T_G_O);
 
   // only used to stamp the ros messages in publishGlobalNavInfoViz()
   int64_t last_vio_estimate_timestamp_ns_ = -1;

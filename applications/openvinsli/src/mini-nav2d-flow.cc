@@ -35,8 +35,10 @@
 
 #include "hear_slam/basic/string_helper.h"
 #include "hear_slam/basic/logging.h"
+#include "hear_slam/basic/thread_pool.h"
 #include "hear_slam/common/liegroups/SE2.h"
 
+using hear_slam::ThreadPool;
 
 // ros and rviz interface
 #ifdef EANBLE_ROS_NAV_INTERFACE
@@ -361,6 +363,7 @@ Nav2dFlow::Nav2dFlow() : state_(NavState::IDLE), path_record_file_("nav.yaml") {
   object_cam_extrinsics_.translation() = object_cam_extrinsics.block<3, 1>(0, 3);
 
   stop_request_ = false;
+  ThreadPool::createNamed("ros_pub_nav2d");
   nav_thread_ = std::make_shared<std::thread>(std::bind(&Nav2dFlow::nav_worker, this));
 }
 
@@ -664,8 +667,13 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
     }
     // *T_G_O_ = vio_estimate->odom_pose.inverse() * vio_estimate->global_pose;
     *T_G_O_ = vio_estimate->global_pose * vio_estimate->odom_pose.inverse();
+    int64_t last_vio_estimate_timestamp_ns = last_vio_estimate_timestamp_ns_;
+    StampedGlobalPose::Pose3d T_G_O = *T_G_O_;
+
 #ifdef EANBLE_ROS_NAV_INTERFACE
-    publishGlobalNavInfoViz();
+    ThreadPool::getNamed("ros_pub_nav2d")->schedule([this, last_vio_estimate_timestamp_ns, T_G_O](){
+      publishGlobalNavInfoViz(last_vio_estimate_timestamp_ns, T_G_O);
+    });
 #endif
   }
 
@@ -690,8 +698,10 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
         Eigen::Vector3d speed_2d = path_tracking_->run(*nav_cmd_to_publish);
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
-        publishLocomotionCmd(nav_cmd->timestamp_ns, speed_2d);
-        convertAndPublishNavCmd(*nav_cmd_to_publish);
+        ThreadPool::getNamed("ros_pub_nav2d")->schedule([this, nav_cmd_to_publish, speed_2d](){
+          publishLocomotionCmd(nav_cmd_to_publish->timestamp_ns, speed_2d);
+          convertAndPublishNavCmd(*nav_cmd_to_publish);
+        });
 #endif
         publish_nav_(nav_cmd_to_publish);
         nav_cmd_play_idx_ ++;
@@ -743,8 +753,10 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
       Eigen::Vector3d speed_2d = path_tracking_->run(*nav_cmd_to_publish);
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
-      publishLocomotionCmd(nav_cmd->timestamp_ns, speed_2d);
-      convertAndPublishNavCmd(*nav_cmd_to_publish);
+      ThreadPool::getNamed("ros_pub_nav2d")->schedule([this, nav_cmd_to_publish, speed_2d](){
+        publishLocomotionCmd(nav_cmd_to_publish->timestamp_ns, speed_2d);
+        convertAndPublishNavCmd(*nav_cmd_to_publish);
+      });
 #endif
       publish_nav_(nav_cmd_to_publish);
       saveNavCmd(*nav_cmd);  // Save the nav_cmd for offline playback.
@@ -756,7 +768,9 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
       LOG(WARNING) << "Nav2dFlow:  nav_cmd-TO_OBJECT = " <<
                 nav_cmd->waypoint.transpose();
 #ifdef EANBLE_ROS_NAV_INTERFACE
-      convertAndPublishNavCmd(*nav_cmd);
+      ThreadPool::getNamed("ros_pub_nav2d")->schedule([this, nav_cmd](){
+        convertAndPublishNavCmd(*nav_cmd);
+      });
 #endif
       publish_nav_(nav_cmd);
 
@@ -1425,14 +1439,14 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
   }
 }
 
-void Nav2dFlow::publishGlobalNavInfoViz() {
+void Nav2dFlow::publishGlobalNavInfoViz(int64_t last_vio_estimate_timestamp_ns, StampedGlobalPose::Pose3d T_G_O) {
   // publish pose of nav-waypoint points to tf
 
-  if (last_vio_estimate_timestamp_ns_ > 0) {
-    ros::Time timestamp_ros = createRosTimestamp(last_vio_estimate_timestamp_ns_);
+  if (last_vio_estimate_timestamp_ns > 0) {
+    ros::Time timestamp_ros = createRosTimestamp(last_vio_estimate_timestamp_ns);
 #ifdef PUBLISH_NAV_CMD_IN_ODOM_FRAME
     std::string parent_frame = FLAGS_tf_mission_frame;
-    Eigen::Vector3d T_O_G_2d = transformPoseFrom3dTo2d(T_G_O_->inverse(), Eigen::Vector3d::UnitX());
+    Eigen::Vector3d T_O_G_2d = transformPoseFrom3dTo2d(T_G_O.inverse(), Eigen::Vector3d::UnitX());
 #else
     std::string parent_frame = FLAGS_tf_map_frame;
 #endif

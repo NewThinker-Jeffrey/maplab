@@ -15,9 +15,9 @@ class MessageFlow {
  public:
   // Caller takes ownership.
   template <typename MessageDispatcherType>
-  static MessageFlow* create(size_t num_threads, const std::string& thread_name="maplab_msg_flow") {
+  static MessageFlow* create(size_t num_threads, const std::string& thread_name="maplab_msg_flow", bool realtime = false) {
     return new MessageFlow(
-        std::make_shared<MessageDispatcherType>(num_threads, thread_name));
+        std::make_shared<MessageDispatcherType>(num_threads, thread_name, realtime));
   }
   ~MessageFlow();
 
