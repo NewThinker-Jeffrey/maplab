@@ -69,7 +69,8 @@ int main(int argc, char** argv) {
   FLAGS_alsologtostderr = true;
   FLAGS_colorlogtostderr = true;
 
-  const bool realtime_flow = true;
+  // const bool realtime_flow = true;
+  const bool realtime_flow = false;
 
   ros::init(argc, argv, "openvinsli");
   ros::NodeHandle nh, nh_private("~");
