@@ -1,5 +1,0 @@
-string cmd
-string arg
----
-bool ack
-string error_info

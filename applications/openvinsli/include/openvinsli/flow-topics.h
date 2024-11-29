@@ -5,12 +5,12 @@
 #include <vio-common/map-update.h>
 #include <vio-common/vio-types.h>
 
-#include "openvinsli/mini-nav2d-msg.h"
 #include "openvinsli/openvins-estimate.h"
 #include "openvinsli/vi-map-with-mutex.h"
 #include "core/SimpleDenseMapping.h"
 #include "hear_slam/slam/vtag/vtag.h"
-#include "hear_slam/unstable/global_pose_fusion/global_pose_fusion.h"
+
+#include "mininav2d/flow-topics.h"
 
 // TODO(schneith): All message should be ConstPtr.
 
@@ -40,19 +40,7 @@ struct StampedTagDetections {
   using Ptr = std::shared_ptr<const StampedTagDetections>;
 };
 
-struct StampedGlobalPose {
-  using Pose3d = hear_slam::GlobalPoseFusion::Pose3d;
-  int64_t timestamp_ns;
-  Pose3d odom_pose;
-  Pose3d global_pose;
-  bool global_pose_valid;
-  using ConstPtr = std::shared_ptr<const StampedGlobalPose>;
-};
-
 }  // namespace openvinsli
-
-MESSAGE_FLOW_TOPIC(
-    GLOBAL_POSE_FUSION, openvinsli::StampedGlobalPose::ConstPtr);
 
 MESSAGE_FLOW_TOPIC(
     RGBD_LOCAL_MAP, openvinsli::DenseMapWrapper::ConstPtr);
@@ -68,9 +56,6 @@ MESSAGE_FLOW_TOPIC(MAP_UPDATES, vio::MapUpdate::ConstPtr);
 
 // Raw estimate output of OPENVINS.
 MESSAGE_FLOW_TOPIC(OPENVINS_ESTIMATES, openvinsli::OpenvinsEstimate::ConstPtr);
-
-// Nav2d output
-MESSAGE_FLOW_TOPIC(NAV2D_CMD, openvinsli::Nav2dCmd::ConstPtr);
 
 // Resulting map.
 MESSAGE_FLOW_TOPIC(RAW_VIMAP, openvinsli::VIMapWithMutex::ConstPtr);

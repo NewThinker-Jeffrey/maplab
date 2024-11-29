@@ -1,37 +1,19 @@
-#include "openvinsli/mini-nav2d-flow.h"
+#include "mininav2d/mininav2d-flow.h"
+#include "mininav2d/flow-topics.h"
 
 #include <memory>
 #include <random>
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <fstream>
 
 #include <Eigen/Core>
-#include <aslam/cameras/ncamera.h>
 #include <aslam/common/pose-types.h>
 #include <aslam/common/time.h>
 #include <aslam/common/unique-id.h>
 #include <gflags/gflags.h>
-#include <maplab-common/fixed-size-queue.h>
-#include <maplab-common/geometry.h>
-#include <maplab-common/string-tools.h>
 #include <message-flow/message-flow.h>
-#include <vio-common/pose-lookup-buffer.h>
-#include <vio-common/vio-types.h>
-
-#include "openvinsli/flow-topics.h"
-#include "openvinsli/openvins-factory.h"
-#include "openvinsli/openvins-health-monitor.h"
-#include "openvinsli/openvins-localization-handler.h"
-#include "openvinsli/openvins-maplab-timetranslation.h"
-
-#include "core/VioManager.h"         // ov_msckf
-#include "core/VioManagerOptions.h"  // ov_msckf
-#include "state/Propagator.h"        // ov_msckf
-#include "state/State.h"             // ov_msckf
-#include "state/StateHelper.h"       // ov_msckf
-#include "utils/print.h"             // ov_core
-#include "utils/sensor_data.h"       // ov_core
 
 #include "hear_slam/basic/string_helper.h"
 #include "hear_slam/basic/logging.h"
@@ -47,13 +29,15 @@ using hear_slam::ThreadPool;
 #include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/TransformStamped.h>
-#include <visualization/common-rviz-visualization.h>
-#include <visualization/rviz-visualization-sink.h>
 #endif
 
 
 #define PUBLISH_NAV_CMD_IN_ODOM_FRAME  // otherwise publish that in global frame
 
+DECLARE_string(tf_mission_frame);
+DECLARE_string(tf_map_frame);
+DECLARE_string(tf_imu_frame);
+DECLARE_string(tf_urdf_cam_frame);
 
 DEFINE_string(
     nav_target_topic, "NAV_CUR_TARGET",
@@ -87,7 +71,6 @@ DEFINE_double(
     nav_fastforward_dist_thr, 0.75,
     "");
 
-
 DEFINE_double(
     nav_arrival_dist_thr, 0.15,  // metre
     "");
@@ -96,8 +79,7 @@ DEFINE_double(
     nav_arrival_angle_thr, 0.05,  // rad
     "");
 
-
-namespace openvinsli {
+namespace mininav2d {
 
 namespace {
 
@@ -244,6 +226,62 @@ double getRegularizedAngle(double angle) {
   return angle;
 }
 
+#ifdef EANBLE_ROS_NAV_INTERFACE
+
+inline ros::Time createRosTimestamp(int64_t timestamp_nanoseconds) {
+  static constexpr uint32_t kNanosecondsPerSecond = 1e9;
+  const uint64_t timestamp_u64 = static_cast<uint64_t>(timestamp_nanoseconds);
+  const uint32_t ros_timestamp_sec = timestamp_u64 / kNanosecondsPerSecond;
+  const uint32_t ros_timestamp_nsec =
+      timestamp_u64 - (ros_timestamp_sec * kNanosecondsPerSecond);
+  return ros::Time(ros_timestamp_sec, ros_timestamp_nsec);
+}
+
+void publishTF(
+    const StampedGlobalPose::Pose3d& T, const std::string& frame_id,
+    const std::string& child_frame_id, const ros::Time& ros_time) {
+  CHECK(!frame_id.empty());
+  CHECK(!child_frame_id.empty());
+  const Eigen::Vector3d& p = T.translation();
+
+  tf::Transform tf_transform;
+  tf_transform.setOrigin(tf::Vector3(p(0), p(1), p(2)));
+
+  // tf::Quaternion tf_quaternion(
+  //     T.getRotation().x(), T.getRotation().y(), T.getRotation().z(),
+  //     T.getRotation().w());
+  Eigen::Quaterniond q(T.linear().matrix());
+  tf::Quaternion tf_quaternion(q.x(), q.y(), q.z(), q.w());
+  tf_transform.setRotation(tf_quaternion);
+
+  static tf::TransformBroadcaster tf_br;
+  tf_br.sendTransform(
+      tf::StampedTransform(tf_transform, ros_time, frame_id, child_frame_id));
+}
+
+void publishTF(
+    const StampedGlobalPose::Pose3d& T, const std::string& frame_id,
+    const std::string& child_frame_id, int64_t timestamp_ns) {
+  publishTF(T, frame_id, child_frame_id, createRosTimestamp(timestamp_ns));
+}
+
+void publishBodyLink(int64_t timestamp_ns) {
+  StampedGlobalPose::Pose3d T_I_Curdf;
+  {
+    // - [1.0, 0.0, 0.0, -0.03022]
+    // - [0.0, 1.0, 0.0,  0.0074 ]
+    // - [0.0, 0.0, 1.0,  0.01602]
+    Eigen::Matrix3d R_I_Curdf;
+    R_I_Curdf << 1, 0, 0,
+                  0, 1, 0,
+                  0, 0, 1;
+    Eigen::Vector3d t_I_Curdf(-0.03022, 0.0074, 0.01602);
+    T_I_Curdf = StampedGlobalPose::Pose3d(R_I_Curdf, t_I_Curdf);
+  }
+  publishTF(
+      T_I_Curdf.inverse(), FLAGS_tf_urdf_cam_frame, FLAGS_tf_imu_frame, timestamp_ns);
+}
+#endif  // EANBLE_ROS_NAV_INTERFACE
 
 }  // namespace
 
@@ -385,17 +423,6 @@ void Nav2dFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
 
   publish_nav_ =
       flow->registerPublisher<message_flow_topics::NAV2D_CMD>();
-
-  // //// subscribe odometry
-  // flow->registerSubscriber<message_flow_topics::OPENVINS_ESTIMATES>(
-  //     kSubscriberNodeName, message_flow::DeliveryOptions(),
-  //     [this](const OpenvinsEstimate::ConstPtr& estimate) {
-  //       CHECK(estimate);
-  //       // process the estimate in a special thread?
-  //       std::unique_lock<std::mutex> lock(mutex_queue_);
-  //       vio_estimates_.push_back(estimate);
-  //       cond_queue_.notify_one();
-  //     });
 
   // subscribe global pose fusion.
   flow->registerSubscriber<message_flow_topics::GLOBAL_POSE_FUSION>(
@@ -659,6 +686,14 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
   last_vio_estimate_timestamp_ns_ = vio_estimate->timestamp_ns;
+  int64_t last_vio_estimate_timestamp_ns = last_vio_estimate_timestamp_ns_;
+  auto odom_pose_inv = vio_estimate->odom_pose.inverse();
+  ThreadPool::getNamed("ros_pub_nav2d")->schedule([this, last_vio_estimate_timestamp_ns, odom_pose_inv](){
+    publishBodyLink(last_vio_estimate_timestamp_ns);
+    publishTF(
+        odom_pose_inv, FLAGS_tf_imu_frame,
+        FLAGS_tf_mission_frame, last_vio_estimate_timestamp_ns);
+  });
 #endif
 
   if (cur_global_pose_valid) {
@@ -667,11 +702,13 @@ void Nav2dFlow::processInput(const StampedGlobalPose::ConstPtr& vio_estimate) {
     }
     // *T_G_O_ = vio_estimate->odom_pose.inverse() * vio_estimate->global_pose;
     *T_G_O_ = vio_estimate->global_pose * vio_estimate->odom_pose.inverse();
-    int64_t last_vio_estimate_timestamp_ns = last_vio_estimate_timestamp_ns_;
     StampedGlobalPose::Pose3d T_G_O = *T_G_O_;
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
     ThreadPool::getNamed("ros_pub_nav2d")->schedule([this, last_vio_estimate_timestamp_ns, T_G_O](){
+      publishTF(
+          T_G_O.inverse(), FLAGS_tf_mission_frame,
+          FLAGS_tf_map_frame, last_vio_estimate_timestamp_ns);
       publishGlobalNavInfoViz(last_vio_estimate_timestamp_ns, T_G_O);
     });
 #endif
@@ -1222,18 +1259,6 @@ void Nav2dFlow::saveNavCmd(const Nav2dCmd& cmd) {
 
 #ifdef EANBLE_ROS_NAV_INTERFACE
 
-namespace {
-inline ros::Time createRosTimestamp(int64_t timestamp_nanoseconds) {
-  static constexpr uint32_t kNanosecondsPerSecond = 1e9;
-  const uint64_t timestamp_u64 = static_cast<uint64_t>(timestamp_nanoseconds);
-  const uint32_t ros_timestamp_sec = timestamp_u64 / kNanosecondsPerSecond;
-  const uint32_t ros_timestamp_nsec =
-      timestamp_u64 - (ros_timestamp_sec * kNanosecondsPerSecond);
-  return ros::Time(ros_timestamp_sec, ros_timestamp_nsec);
-}
-}
-
-
 void Nav2dFlow::initRosInterface() {
   // std::function<bool(RosNavRequest::Request&, RosNavRequest::Response&)>
   //     srv_callback =
@@ -1369,11 +1394,10 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
 
   // publish current waypoint point to tf
   const auto& waypoint_3d = transformPoseFrom2dTo3d_FrontX(cmd.waypoint);
-  Eigen::Quaterniond waypoint_q(waypoint_3d.linear().matrix());
-  Eigen::Vector3d waypoint_p(waypoint_3d.translation());
-  const aslam::Transformation waypoint_pose(waypoint_p, waypoint_q);
-  visualization::publishTF(
-      waypoint_pose, FLAGS_tf_mission_frame, "NAV_CUR_TARGET", timestamp_ros);
+  // Eigen::Quaterniond waypoint_q(waypoint_3d.linear().matrix());
+  // Eigen::Vector3d waypoint_p(waypoint_3d.translation());
+  // const aslam::Transformation waypoint_pose(waypoint_p, waypoint_q);
+  publishTF(waypoint_3d, FLAGS_tf_mission_frame, "NAV_CUR_TARGET", timestamp_ros);
 
   {
     // also publish nav target topic
@@ -1429,11 +1453,11 @@ void Nav2dFlow::convertAndPublishNavCmd(const Nav2dCmd& cmd) {
     }
   }
   if (object_in_odom_frame) {
-    Eigen::Quaterniond object_q(object_in_odom_frame->linear().matrix());
-    Eigen::Vector3d object_p(object_in_odom_frame->translation());
-    const aslam::Transformation object_pose(object_p, object_q);
-    visualization::publishTF(
-        object_pose, FLAGS_tf_mission_frame, "NAV_OBJECT",
+    // Eigen::Quaterniond object_q(object_in_odom_frame->linear().matrix());
+    // Eigen::Vector3d object_p(object_in_odom_frame->translation());
+    // const aslam::Transformation object_pose(object_p, object_q);
+    publishTF(
+        *object_in_odom_frame, FLAGS_tf_mission_frame, "NAV_OBJECT",
         timestamp_ros //object_observation_time_ros
         );
   }
@@ -1457,11 +1481,11 @@ void Nav2dFlow::publishGlobalNavInfoViz(int64_t last_vio_estimate_timestamp_ns, 
       waypoint_2d = composePose2d(T_O_G_2d, waypoint_2d);
 #endif
       const auto& waypoint_3d = transformPoseFrom2dTo3d_FrontX(waypoint_2d);
-      Eigen::Quaterniond waypoint_q(waypoint_3d.linear().matrix());
-      Eigen::Vector3d waypoint_p(waypoint_3d.translation());
-      const aslam::Transformation waypoint_pose(waypoint_p, waypoint_q);
-      visualization::publishTF(
-          waypoint_pose, parent_frame, "NAV_" + waypoint_names_[i], timestamp_ros);
+      // Eigen::Quaterniond waypoint_q(waypoint_3d.linear().matrix());
+      // Eigen::Vector3d waypoint_p(waypoint_3d.translation());
+      // const aslam::Transformation waypoint_pose(waypoint_p, waypoint_q);
+      publishTF(
+          waypoint_3d, parent_frame, "NAV_" + waypoint_names_[i], timestamp_ros);
     }
   }
 }
@@ -1469,4 +1493,4 @@ void Nav2dFlow::publishGlobalNavInfoViz(int64_t last_vio_estimate_timestamp_ns, 
 #endif
 
 
-}  // namespace openvinsli
+}  // namespace mininav2d

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# WAYPOINT="A3"
+WAYPOINT=$1
+rosservice call NavRequest addWaypoint "$WAYPOINT"

@@ -16,8 +16,10 @@
 #include "openvinsli/localizer-flow.h"
 #include "openvinsli/map-builder-flow.h"
 #include "openvinsli/openvins-flow.h"
-#include "openvinsli/mini-nav2d-flow.h"
 #include "openvinsli/viewer.h"       
+
+
+#include "mininav2d/mininav2d-flow.h"
 
 namespace openvinsli {
 class OpenvinsliNode final {
@@ -47,7 +49,7 @@ class OpenvinsliNode final {
   std::unique_ptr<ImuCameraSynchronizerFlow> synchronizer_flow_;
   std::unique_ptr<FeatureTrackingFlow> tracker_flow_;
   std::unique_ptr<MapBuilderFlow> map_builder_flow_;
-  std::unique_ptr<Nav2dFlow> nav2d_flow_;
+  std::unique_ptr<mininav2d::Nav2dFlow> nav2d_flow_;
   std::unique_ptr<DataPublisherFlow> data_publisher_flow_;
 
   // gl visualization

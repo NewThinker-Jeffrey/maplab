@@ -25,7 +25,7 @@
 #include "core/VioManager.h"
 #include <mutex>
 
-#include "openvinsli/mini-nav2d-flow.h"
+#include "mininav2d/mininav2d-flow.h"
 
 
 #if ENABLE_PANGOLIN
@@ -42,12 +42,12 @@ public:
   void init();
   void show(std::shared_ptr<ov_msckf::VioManager::Output> task);
 
-  void setNav(Nav2dFlow* nav) {
+  void setNav(mininav2d::Nav2dFlow* nav) {
     std::unique_lock<std::mutex> lock(mutex_);
     nav_ = nav;
   }
 
-  void setNavCmd(const openvinsli::Nav2dCmd::ConstPtr& nav_cmd) {
+  void setNavCmd(const mininav2d::Nav2dCmd::ConstPtr& nav_cmd) {
     std::unique_lock<std::mutex> lock(mutex_);
     cur_nav_cmd_ = nav_cmd;
   }
@@ -62,7 +62,7 @@ private:
 
   void drawRobotAndMap(std::shared_ptr<ov_msckf::VioManager::Output> task,
                        bool draw_rgbd=false,
-                       std::shared_ptr<Nav2dFlow::NavInfoForDisplay> nav_info=nullptr);
+                       std::shared_ptr<mininav2d::Nav2dFlow::NavInfoForDisplay> nav_info=nullptr);
 
   /// Core application of the filter system
   ov_msckf::VioManager* _interal_app;
@@ -74,8 +74,8 @@ private:
   Eigen::Isometry3f _imu_pose, _predicted_imu_pose;
 
   std::mutex mutex_;
-  Nav2dFlow* nav_;
-  Nav2dCmd::ConstPtr cur_nav_cmd_;
+  mininav2d::Nav2dFlow* nav_;
+  mininav2d::Nav2dCmd::ConstPtr cur_nav_cmd_;
 
   hear_slam::ViPlayer* vi_player_;
 
@@ -102,8 +102,8 @@ public:
   }
   void init() {}
   void show(std::shared_ptr<ov_msckf::VioManager::Output> task) {}
-  void setNav(Nav2dFlow* nav) {}
-  void setNavCmd(const openvinsli::Nav2dCmd::ConstPtr& nav_cmd) {}
+  void setNav(mininav2d::Nav2dFlow* nav) {}
+  void setNavCmd(const mininav2d::Nav2dCmd::ConstPtr& nav_cmd) {}
   void setViPlayer(hear_slam::ViPlayer* vi_player) {}
 };
 

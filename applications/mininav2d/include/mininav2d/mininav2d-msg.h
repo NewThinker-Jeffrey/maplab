@@ -1,15 +1,13 @@
-#ifndef OPENVINSLI_MINI_NAV2D_MSG_H_
-#define OPENVINSLI_MINI_NAV2D_MSG_H_
+#ifndef MININAV2D_MINI_NAV2D_MSG_H_
+#define MININAV2D_MINI_NAV2D_MSG_H_
 
 #include <Eigen/Core>
-#include <aslam/common/memory.h>
-#include <aslam/common/pose-types.h>
-#include <maplab-common/macros.h>
-#include <vio-common/vio-types.h>
 
-namespace openvinsli {
+namespace mininav2d {
 struct Nav2dCmd {
-  MAPLAB_POINTER_TYPEDEFS(Nav2dCmd);
+  // MAPLAB_POINTER_TYPEDEFS(Nav2dCmd);
+  using ConstPtr = std::shared_ptr<const Nav2dCmd>;
+  using Ptr = std::shared_ptr<Nav2dCmd>;
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   int64_t timestamp_ns;
@@ -50,5 +48,5 @@ struct Nav2dCmd {
     return oss.str();
   }
 };
-}  // namespace openvinsli
-#endif  // OPENVINSLI_MINI_NAV2D_MSG_H_
+}  // namespace mininav2d
+#endif  // MININAV2D_MINI_NAV2D_MSG_H_

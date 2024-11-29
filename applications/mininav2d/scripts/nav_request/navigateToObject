@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# OBJECT="boxOnTable"
+OBJECT=$1
+rosservice call NavRequest navigateToObject "$OBJECT"

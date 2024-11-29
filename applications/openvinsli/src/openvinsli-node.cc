@@ -14,8 +14,9 @@
 #include "openvinsli/imu-camera-synchronizer-flow.h"
 #include "openvinsli/localizer-flow.h"
 #include "openvinsli/openvins-flow.h"
-#include "openvinsli/mini-nav2d-flow.h"
 #include "openvinsli/datasource-hearslam.h"
+
+#include "mininav2d/mininav2d-flow.h"
 
 DEFINE_bool(
     openvinsli_run_map_builder, true,
@@ -149,7 +150,7 @@ OpenvinsliNode::OpenvinsliNode(
 
 
   if (FLAGS_openvinsli_run_nav) {
-    nav2d_flow_.reset(new Nav2dFlow());
+    nav2d_flow_.reset(new mininav2d::Nav2dFlow());
     nav2d_flow_->setPathRecordFile(FLAGS_nav_savefile);
     if (!FLAGS_nav_cmd_to_play.empty()) {
       LOG(WARNING) << "nav2d_flow_: We're running in offline play mode!";
@@ -175,7 +176,7 @@ OpenvinsliNode::OpenvinsliNode(
         kExclusivityGroupIdOpenvinsSensorSubscribers;
     flow->registerSubscriber<message_flow_topics::NAV2D_CMD>(
         "Nav2dVisualization", subscriber_options,
-        [this](const openvinsli::Nav2dCmd::ConstPtr& nav_cmd) {
+        [this](const mininav2d::Nav2dCmd::ConstPtr& nav_cmd) {
           if (gl_viewer_) {
             gl_viewer_->setNavCmd(nav_cmd);
           }

@@ -1,23 +1,14 @@
-#ifndef OPENVINSLI_MINI_NAV2D_FLOW_H_
-#define OPENVINSLI_MINI_NAV2D_FLOW_H_
+#ifndef MININAV2D_MINI_NAV2D_FLOW_H_
+#define MININAV2D_MINI_NAV2D_FLOW_H_
 
 #include <functional>
 #include <memory>
 #include <vector>
 
-#include <maplab-common/bidirectional-map.h>
 #include <message-flow/message-flow.h>
-#include <sensors/imu.h>
-#include <vio-common/vio-types.h>
 
-#include "openvinsli/openvins-estimate.h"
-#include "openvinsli/openvins-factory.h"
-#include "openvinsli/openvins-health-monitor.h"
-#include "openvinsli/openvins-maplab-timetranslation.h"
-#include "openvinsli/feature-tracking.h"
-
-#include "openvinsli/mini-nav2d-msg.h"
-#include "openvinsli/flow-topics.h"
+#include "mininav2d/mininav2d-msg.h"
+#include "mininav2d/flow-topics.h"
 
 #include "hear_slam/utils/yaml_helper.h"
 #include "hear_slam/unstable/global_pose_fusion/pose_buffer.h"
@@ -27,12 +18,12 @@
 #ifdef EANBLE_ROS_NAV_INTERFACE
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
-// #include "openvinsli/RosNavRequest.h"
+// #include "mininav2d/RosNavRequest.h"
 #include "xbot_common_interfaces/CommonOperation.h"
-#include "openvinsli/RosNav2dCmd.h"
+#include "mininav2d/RosNav2dCmd.h"
 #endif
 
-namespace openvinsli {
+namespace mininav2d {
 
 
 class Nav2dFlow {
@@ -251,5 +242,5 @@ class Nav2dFlow {
   int64_t last_vio_estimate_timestamp_ns_ = -1;
 #endif
 };
-}  // namespace openvinsli
-#endif  // OPENVINSLI_MINI_NAV2D_FLOW_H_
+}  // namespace mininav2d
+#endif  // MININAV2D_MINI_NAV2D_FLOW_H_

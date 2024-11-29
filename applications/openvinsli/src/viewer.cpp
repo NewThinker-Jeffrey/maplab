@@ -267,7 +267,7 @@ void OpenvinsliViewer::show(std::shared_ptr<VioManager::Output> output) {
   Eigen::Vector3f t_MinG = fT_MtoG.block<3,1>(0,3);
   Eigen::Vector3f transformed_new_pos = R_MtoG * new_pos + t_MinG;
 
-  std::shared_ptr<Nav2dFlow::NavInfoForDisplay> nav_info(nullptr);
+  std::shared_ptr<mininav2d::Nav2dFlow::NavInfoForDisplay> nav_info(nullptr);
   if (*show_nav_var_ && nav_) {
     nav_info = nav_->getCurNavInfoForDisplay();
   }
@@ -425,7 +425,7 @@ void OpenvinsliViewer::classifyPoints(std::shared_ptr<VioManager::Output> output
 
 void OpenvinsliViewer::drawRobotAndMap(std::shared_ptr<VioManager::Output> output,
                                        bool draw_rgbd,
-                                       std::shared_ptr<Nav2dFlow::NavInfoForDisplay> nav_info) {
+                                       std::shared_ptr<mininav2d::Nav2dFlow::NavInfoForDisplay> nav_info) {
   using namespace slam_viz::pangolin_helper;
   bool need_draw_rgbd = draw_rgbd && output->visualization.rgbd_dense_map_builder;
 

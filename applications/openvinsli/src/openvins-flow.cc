@@ -25,7 +25,7 @@
 #include "openvinsli/openvins-localization-handler.h"
 #include "openvinsli/openvins-maplab-timetranslation.h"
 
-#include "openvinsli/mini-nav2d-flow.h"
+#include "mininav2d/mininav2d-flow.h"
 
 
 #include "core/SimpleDenseMapping.h"      // ov_msckf
@@ -153,7 +153,7 @@ OpenvinsFlow::OpenvinsFlow(
         }
 
         // publish pose
-        auto fusion_res = std::make_shared<StampedGlobalPose>();
+        auto fusion_res = std::make_shared<mininav2d::StampedGlobalPose>();
         fusion_res->timestamp_ns = time_translation_.convertOpenvinsToMaplabTimestamp(fusion_result.time);
         fusion_res->odom_pose = fusion_result.odom_pose;
         fusion_res->global_pose = fusion_result.global_pose;

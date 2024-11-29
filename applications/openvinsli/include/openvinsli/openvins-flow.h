@@ -78,7 +78,7 @@ class OpenvinsFlow {
 
   std::function<void(const StampedTagDetections::ConstPtr&)> publish_tag_detections_;
 
-  std::function<void(const StampedGlobalPose::ConstPtr&)> publish_global_pose_fusion_;
+  std::function<void(const mininav2d::StampedGlobalPose::ConstPtr&)> publish_global_pose_fusion_;
 };
 }  // namespace openvinsli
 #endif  // OPENVINSLI_OPENVINS_FLOW_H_

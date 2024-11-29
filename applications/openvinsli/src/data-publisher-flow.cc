@@ -429,22 +429,22 @@ void DataPublisherFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {
         });
       });
 
-  // Publish global pose fusion.
-  flow->registerSubscriber<message_flow_topics::GLOBAL_POSE_FUSION>(
-      kSubscriberNodeName, message_flow::DeliveryOptions(),
-      [this](const StampedGlobalPose::ConstPtr& global_pose) {
-        CHECK(global_pose != nullptr);
-        ThreadPool::getNamed("ros_pub_glbpose")->schedule([this, global_pose](){
-          if (global_pose->global_pose_valid) {
-            // publish T_I_G to tf.
-            aslam::Transformation T_G_I(global_pose->global_pose.translation(), Eigen::Quaterniond(global_pose->global_pose.linear().matrix()));
-            ros::Time timestamp_ros = createRosTimestamp(global_pose->timestamp_ns);
-            LOG(INFO) << "publishing tf T_G_I at time " << timestamp_ros;
-            visualization::publishTF(
-                T_G_I.inverse(), FLAGS_tf_imu_frame, FLAGS_tf_map_frame, timestamp_ros);
-          }
-        });
-      });
+  // // Publish global pose fusion.  (Nav2dFlow will do this)
+  // flow->registerSubscriber<message_flow_topics::GLOBAL_POSE_FUSION>(
+  //     kSubscriberNodeName, message_flow::DeliveryOptions(),
+  //     [this](const mininav2d::StampedGlobalPose::ConstPtr& global_pose) {
+  //       CHECK(global_pose != nullptr);
+  //       ThreadPool::getNamed("ros_pub_glbpose")->schedule([this, global_pose](){
+  //         if (global_pose->global_pose_valid) {
+  //           // publish T_I_G to tf.
+  //           aslam::Transformation T_G_I(global_pose->global_pose.translation(), Eigen::Quaterniond(global_pose->global_pose.linear().matrix()));
+  //           ros::Time timestamp_ros = createRosTimestamp(global_pose->timestamp_ns);
+  //           LOG(INFO) << "publishing tf T_G_I at time " << timestamp_ros;
+  //           visualization::publishTF(
+  //               T_G_I.inverse(), FLAGS_tf_imu_frame, FLAGS_tf_map_frame, timestamp_ros);
+  //         }
+  //       });
+  //     });
 
   auto image_to_rosmsg = [](const vio::ImageMeasurement::Ptr& image) {
     cv_bridge::CvImage cv_img;
@@ -752,31 +752,32 @@ void DataPublisherFlow::publishVinsState(
         vinode.getPoseCovariance(), odom_T_M_I.pose.covariance.data());
   }
 
-  aslam::Transformation T_I_Curdf;
-  {
-    // - [1.0, 0.0, 0.0, -0.03022]
-    // - [0.0, 1.0, 0.0,  0.0074 ]
-    // - [0.0, 0.0, 1.0,  0.01602]
-    Eigen::Matrix3d R_I_Curdf;
-    R_I_Curdf << 1, 0, 0,
-                  0, 1, 0,
-                  0, 0, 1;
-    Eigen::Vector3d t_I_Curdf(-0.03022, 0.0074, 0.01602);
+  // aslam::Transformation T_I_Curdf;
+  // {
+  //   // - [1.0, 0.0, 0.0, -0.03022]
+  //   // - [0.0, 1.0, 0.0,  0.0074 ]
+  //   // - [0.0, 0.0, 1.0,  0.01602]
+  //   Eigen::Matrix3d R_I_Curdf;
+  //   R_I_Curdf << 1, 0, 0,
+  //                 0, 1, 0,
+  //                 0, 0, 1;
+  //   Eigen::Vector3d t_I_Curdf(-0.03022, 0.0074, 0.01602);
 
-    T_I_Curdf = aslam::Transformation(t_I_Curdf, Eigen::Quaterniond(R_I_Curdf));
-  }
-
-  visualization::publishTF(
-      T_M_I, FLAGS_tf_mission_frame, FLAGS_tf_imu_frame, timestamp_ros);
+  //   T_I_Curdf = aslam::Transformation(t_I_Curdf, Eigen::Quaterniond(R_I_Curdf));
+  // }
+  // visualization::publishTF(  // Nav2dFlow will do this
+  //     T_I_Curdf.inverse(), FLAGS_tf_urdf_cam_frame, FLAGS_tf_imu_frame, timestamp_ros);
+  // visualization::publishTF(  // Nav2dFlow will do this
+  //     T_M_I, FLAGS_tf_mission_frame, FLAGS_tf_imu_frame, timestamp_ros);
   // visualization::publishTF(
   //     T_M_I * T_I_Curdf, FLAGS_tf_mission_frame, FLAGS_tf_urdf_cam_frame, timestamp_ros);
-  visualization::publishTF(
-      (T_M_I * T_I_Curdf).inverse(), FLAGS_tf_urdf_cam_frame, FLAGS_tf_mission_frame, timestamp_ros);
+  // visualization::publishTF(
+  //     (T_M_I * T_I_Curdf).inverse(), FLAGS_tf_urdf_cam_frame, FLAGS_tf_mission_frame, timestamp_ros);
 
-  if (FLAGS_publish_fake_map_frame) {
-    visualization::publishTF(
-        (T_M_I * T_I_Curdf).inverse(), FLAGS_tf_urdf_cam_frame, FLAGS_tf_map_frame, timestamp_ros);
-  }
+  // if (FLAGS_publish_fake_map_frame) {
+  //   visualization::publishTF(
+  //       (T_M_I * T_I_Curdf).inverse(), FLAGS_tf_urdf_cam_frame, FLAGS_tf_map_frame, timestamp_ros);
+  // }
 
   // Publish pose in global frame.
   aslam::Transformation T_G_I = T_G_M * T_M_I;
