@@ -148,5 +148,15 @@ int main(int argc, char** argv) {
 
   ros::spin();
 
+  std::cout << "[APP STATUS] Going to shutdown message flow ..." << std::endl;
+
+  flow->shutdown();
+
+  std::cout << "[APP STATUS] Waiting message flow idle ..." << std::endl;
+
+  flow->waitUntilIdle();
+
+  std::cout << "[APP STATUS] All done." << std::endl;
+
   return 0;
 }
