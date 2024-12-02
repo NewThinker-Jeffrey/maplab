@@ -27,16 +27,6 @@ DEFINE_bool(
     openvinsli_run_nav, true,
     "Run nav");
 
-DEFINE_string(
-    nav_savefile, "nav.yaml",
-    "Path to save the recorded traj and target points. (nav.yaml)");
-
-DEFINE_string(nav_config, "", "nav_config: traj and target points for navigation");
-
-DEFINE_string(nav_cmd_to_play, "", "the file storing the nav cmds to play (for offline play mode)");
-
-DEFINE_string(nav_cmd_savefile, "", "the file to store the online nav cmds");
-
 DEFINE_double(openvinsli_gl_viz_rate, 40.0, "gl visualization rate");
 
 DECLARE_double(vio_max_localization_frequency_hz);
@@ -151,24 +141,8 @@ OpenvinsliNode::OpenvinsliNode(
 
   if (FLAGS_openvinsli_run_nav) {
     nav2d_flow_.reset(new mininav2d::Nav2dFlow());
-    nav2d_flow_->setPathRecordFile(FLAGS_nav_savefile);
-    if (!FLAGS_nav_cmd_to_play.empty()) {
-      LOG(WARNING) << "nav2d_flow_: We're running in offline play mode!";
-      nav2d_flow_->beginPlayNavCmds(FLAGS_nav_cmd_to_play);
-    } else if (!FLAGS_nav_cmd_savefile.empty()) {
-      nav2d_flow_->beginSaveNavCmds(FLAGS_nav_cmd_savefile);
-    }
-
+    nav2d_flow_->configFromGflags();
     nav2d_flow_->attachToMessageFlow(flow);
-
-    if (!FLAGS_nav_config.empty()) {
-      if (common::fileExists(FLAGS_nav_config)) {
-        nav2d_flow_->deserialize(FLAGS_nav_config);
-      } else {
-        LOG(WARNING) << "BadNavConfig: the nav config file specified by --nav_config ("
-                     << FLAGS_nav_config << ") doesn't exist!";
-      }
-    }
 
     gl_viewer_->setNav(nav2d_flow_.get());
     message_flow::DeliveryOptions subscriber_options;

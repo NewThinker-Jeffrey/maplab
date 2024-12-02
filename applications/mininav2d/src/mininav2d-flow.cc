@@ -7,6 +7,7 @@
 #include <vector>
 #include <algorithm>
 #include <fstream>
+#include <filesystem>
 
 #include <Eigen/Core>
 #include <aslam/common/pose-types.h>
@@ -38,6 +39,13 @@ DECLARE_string(tf_mission_frame);
 DECLARE_string(tf_map_frame);
 DECLARE_string(tf_imu_frame);
 DECLARE_string(tf_urdf_cam_frame);
+
+DEFINE_string(
+    nav_savefile, "nav.yaml",
+    "Path to save the recorded traj and target points. (nav.yaml)");
+DEFINE_string(nav_config, "", "nav_config: traj and target points for navigation");
+DEFINE_string(nav_cmd_to_play, "", "the file storing the nav cmds to play (for offline play mode)");
+DEFINE_string(nav_cmd_savefile, "", "the file to store the online nav cmds");
 
 DEFINE_string(
     nav_target_topic, "NAV_CUR_TARGET",
@@ -415,6 +423,29 @@ Nav2dFlow::~Nav2dFlow() {
     nav_thread_->join();
   }
   nav_thread_.reset();
+}
+
+void Nav2dFlow::configFromGflags() {
+  setPathRecordFile(FLAGS_nav_savefile);
+  if (!FLAGS_nav_cmd_to_play.empty()) {
+    LOG(WARNING) << "Nav2dFlow: We're running in offline play mode!";
+    beginPlayNavCmds(FLAGS_nav_cmd_to_play);
+  } else if (!FLAGS_nav_cmd_savefile.empty()) {
+    LOG(INFO) << "Nav2dFlow: We'll save nav_cmds to " << FLAGS_nav_cmd_savefile;
+    beginSaveNavCmds(FLAGS_nav_cmd_savefile);
+  }
+
+  if (!FLAGS_nav_config.empty()) {
+    if (std::filesystem::exists(FLAGS_nav_config)) {
+      deserialize(FLAGS_nav_config);
+      LOG(INFO) << "Nav2dFlow: Loaded nav config from " << FLAGS_nav_config;
+    } else {
+      LOG(WARNING) << "Nav2dFlow: BadNavConfig! the nav config file specified by --nav_config ("
+                    << FLAGS_nav_config << ") doesn't exist!";
+    }
+  } else {
+    LOG(WARNING) << "Nav2dFlow: No NavConfig!";
+  }
 }
 
 void Nav2dFlow::attachToMessageFlow(message_flow::MessageFlow* flow) {

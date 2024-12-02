@@ -49,6 +49,8 @@ class Nav2dFlow {
   explicit Nav2dFlow();
   ~Nav2dFlow();
 
+  void configFromGflags();
+
   void attachToMessageFlow(message_flow::MessageFlow* flow);
 
   // Save the nav_cmds to a file
