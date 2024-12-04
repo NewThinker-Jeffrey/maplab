@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Script to run MININAV2D from a Euroc rosbag data source.
+# Usage: tutorial_euroc <output save folder> <rosbag path> [<additional mininav2d flags>]
+
+REST=$@
+
+export HEAR_SLAM_ROOT_CFG="$MININAV2D_CONFIG_DIR/hear_slam_root_cfg_fastlio_loc.yaml"
+
+rosrun mininav2d mininav2d_fastlio_loc \
+    --alsologtostderr=1 \
+    --v=2 \
+    --fastlio_odom_topic="/Odometry" \
+    --fastlio_reloc_topic="/map_to_odom" \
+    --tf_mission_frame="odom" \
+    --tf_map_frame="map" \
+    --tf_imu_frame="imu" \
+    --tf_urdf_cam_frame="head_rs_link" \
+    $REST
