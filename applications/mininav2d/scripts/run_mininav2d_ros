@@ -4,7 +4,7 @@
 
 REST=$@
 
-export HEAR_SLAM_ROOT_CFG="$OPENVINS_CONFIG_DIR/hear_slam_root_cfg.yaml"
+export HEAR_SLAM_ROOT_CFG="$MININAV2D_CONFIG_DIR/hear_slam_root_cfg.yaml"
 
 rosrun mininav2d mininav2d \
   --alsologtostderr=1 \

@@ -59,6 +59,14 @@ cs_add_executable(mininav2d
 )
 target_link_libraries(mininav2d ${PROJECT_NAME}_lib ${mininav2d_dep_libs})
 
+#########
+# SHARE #
+#########
+catkin_add_env_hooks(12.mininav2d-config-template
+  SHELLS sh
+  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/env-hooks
+)
+
 ############
 ## EXPORT ##
 ############
