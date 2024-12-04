@@ -234,6 +234,23 @@ double getRegularizedAngle(double angle) {
   return angle;
 }
 
+StampedGlobalPose::Pose3d readT_I_Curdf_FromConfig() {
+  StampedGlobalPose::Pose3d T_I_Curdf;
+
+  // get the urdf camera extrinsics
+  auto config = hear_slam::rootCfg().get("robot_localization");
+  Eigen::Matrix4d urdf_cam_extrinsics = Eigen::Matrix4d::Identity();
+
+  // CONFIG_UPDT_I(config, urdf_cam_extrinsics);
+  urdf_cam_extrinsics = hear_slam::yamlToMatrix(config.mutableYaml()["urdf_cam_extrinsics"]);
+      // This is a workround since maplab and hear_slam has different implementations for the conversion from yaml to Eigen matrix.
+  std::cout << "urdf_cam_extrinsics: " << std::endl << urdf_cam_extrinsics << std::endl;
+
+  T_I_Curdf.linear() = urdf_cam_extrinsics.block<3, 3>(0, 0);
+  T_I_Curdf.translation() = urdf_cam_extrinsics.block<3, 1>(0, 3);
+  return T_I_Curdf;
+}
+
 #ifdef EANBLE_ROS_NAV_INTERFACE
 
 inline ros::Time createRosTimestamp(int64_t timestamp_nanoseconds) {
@@ -274,18 +291,7 @@ void publishTF(
 }
 
 void publishBodyLink(int64_t timestamp_ns) {
-  StampedGlobalPose::Pose3d T_I_Curdf;
-  {
-    // - [1.0, 0.0, 0.0, -0.03022]
-    // - [0.0, 1.0, 0.0,  0.0074 ]
-    // - [0.0, 0.0, 1.0,  0.01602]
-    Eigen::Matrix3d R_I_Curdf;
-    R_I_Curdf << 1, 0, 0,
-                  0, 1, 0,
-                  0, 0, 1;
-    Eigen::Vector3d t_I_Curdf(-0.03022, 0.0074, 0.01602);
-    T_I_Curdf = StampedGlobalPose::Pose3d(R_I_Curdf, t_I_Curdf);
-  }
+  static const StampedGlobalPose::Pose3d T_I_Curdf = readT_I_Curdf_FromConfig();
   publishTF(
       T_I_Curdf.inverse(), FLAGS_tf_urdf_cam_frame, FLAGS_tf_imu_frame, timestamp_ns);
 }

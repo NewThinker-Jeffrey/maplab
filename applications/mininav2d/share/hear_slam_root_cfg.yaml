@@ -1,22 +1,5 @@
 sub_configs: {}
 
-vtag_localization:
-  min_tags_to_loc:  2  #  1
-  reproj_maxerr_thr:  5.0  #  2.0,  -1.0
-  reproj_rmse_thr:  3.0  # 0.5,  -1.0
-
-global_pose_fusion:
-  smoother_lag:  30.0   # in seconds
-  odom_r_sigma:  0.005  # in [rad / sqrt(s)]
-  odom_t_sigma:   0.01  # in [m / sqrt(s)]
-  global_r_sigma: 0.02  # in [rad]
-  global_t_sigma: 0.1   # in [m]
-  global_inlier_check:
-    r_sigma: 0.1
-    t_sigma: 0.02
-    ransac_inliers_thr: 3
-    ransac_max_samples: 5
-
 robot_localization:
   urdf_cam_extrinsics:  # relative to the frame used for global localization
       - [1.0, 0.0, 0.0, -0.03022]
