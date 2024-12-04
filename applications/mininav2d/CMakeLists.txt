@@ -59,6 +59,11 @@ cs_add_executable(mininav2d
 )
 target_link_libraries(mininav2d ${PROJECT_NAME}_lib ${mininav2d_dep_libs})
 
+cs_add_executable(mininav2d_fastlio_loc
+  app/mininav2d-fastlio-loc-ros.cc
+)
+target_link_libraries(mininav2d_fastlio_loc ${PROJECT_NAME}_lib ${mininav2d_dep_libs})
+
 #########
 # SHARE #
 #########
