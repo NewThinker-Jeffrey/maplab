@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
   FLAGS_alsologtostderr = true;
   FLAGS_colorlogtostderr = true;
 
-  ros::init(argc, argv, "mininav2d-ros");
+  ros::init(argc, argv, "mininav2d_fastlio_loc_ros");
   nh.reset(new ros::NodeHandle);
 
 
